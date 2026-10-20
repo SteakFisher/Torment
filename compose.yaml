@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: torment
+      POSTGRES_PASSWORD: torment
+      POSTGRES_DB: torment
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "torment"]
+      interval: 2s
+      retries: 15
+
+  tigerbeetle:
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.17.9
+    # Formats the data file on first start, then runs a single-replica development cluster.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        [ -f /data/0_0.tigerbeetle ] || ./tigerbeetle format --cluster=0 --replica=0 --replica-count=1 --development /data/0_0.tigerbeetle
+        exec ./tigerbeetle start --addresses=0.0.0.0:3000 --development /data/0_0.tigerbeetle
+    ports:
+      - "3000:3000"
+    volumes:
+      - tbdata:/data
+    security_opt:
+      - seccomp=unconfined
+    cap_add:
+      - IPC_LOCK
+
+volumes:
+  pgdata:
+  tbdata:
