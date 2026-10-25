@@ -9,7 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"torment/internal/db"
+	"torment/internal/db/sqlc"
 )
 
 // Currency maps a currency name to its Precision, the number of decimal places in one minor unit,
@@ -52,7 +52,7 @@ func (s *Service) RegisterCurrency(ctx context.Context, code string, ledger int3
 	if ledger <= 0 {
 		return Currency{}, fmt.Errorf("%w: ledger must be positive", ErrInvalid)
 	}
-	row, err := s.q.InsertCurrency(ctx, db.InsertCurrencyParams{Name: name, Precision: precision, Ledger: ledger})
+	row, err := s.q.InsertCurrency(ctx, sqlc.InsertCurrencyParams{Name: name, Precision: precision, Ledger: ledger})
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation

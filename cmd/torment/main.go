@@ -13,6 +13,7 @@ import (
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 
 	"torment/internal/db"
+	"torment/internal/db/sqlc"
 	"torment/internal/httpapi"
 	"torment/internal/ledger"
 )
@@ -64,7 +65,7 @@ func run() error {
 	}
 
 	slog.Info("listening", "addr", addr)
-	svc := ledger.New(db.New(pool))
+	svc := ledger.New(sqlc.New(pool))
 	return http.ListenAndServe(addr, httpapi.New(svc))
 }
 

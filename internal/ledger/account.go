@@ -9,7 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"torment/internal/db"
+	"torment/internal/db/sqlc"
 )
 
 // Account is a registered account, identified by its address. It holds no balances itself; those live
@@ -53,9 +53,9 @@ func (s *Service) RegisterAccount(ctx context.Context, p RegisterAccountParams) 
 		return Account{}, false, err
 	}
 
-	row, err := s.q.InsertAccount(ctx, db.InsertAccountParams{
+	row, err := s.q.InsertAccount(ctx, sqlc.InsertAccountParams{
 		Address:       p.Address,
-		Type:          db.AccountType(typ),
+		Type:          sqlc.AccountType(typ),
 		AllowNegative: p.AllowNegative,
 	})
 	switch {
@@ -78,7 +78,7 @@ func (s *Service) RegisterAccount(ctx context.Context, p RegisterAccountParams) 
 	return existing, false, nil
 }
 
-func toAccount(row db.Account) Account {
+func toAccount(row sqlc.Account) Account {
 	return Account{
 		Address:       row.Address,
 		Type:          AccountType(row.Type),

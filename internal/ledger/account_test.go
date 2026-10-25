@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"torment/internal/db"
+	"torment/internal/db/sqlc"
 )
 
 func TestValidateAddress(t *testing.T) {
@@ -53,7 +53,7 @@ func TestParseAccountType(t *testing.T) {
 }
 
 func TestRegisterAccount(t *testing.T) {
-	stored := db.Account{Address: "rider:1:wallet", Type: db.AccountTypeLiability}
+	stored := sqlc.Account{Address: "rider:1:wallet", Type: sqlc.AccountTypeLiability}
 	valid := RegisterAccountParams{Address: "rider:1:wallet", Type: "liability"}
 	with := func(f func(*RegisterAccountParams)) RegisterAccountParams {
 		p := valid
@@ -82,14 +82,14 @@ func TestRegisterAccount(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			inserted, got := false, false
 			q := &fakeQuerier{
-				insertAccount: func(_ context.Context, arg db.InsertAccountParams) (db.Account, error) {
+				insertAccount: func(_ context.Context, arg sqlc.InsertAccountParams) (sqlc.Account, error) {
 					inserted = true
 					if tt.insertErr != nil {
-						return db.Account{}, tt.insertErr
+						return sqlc.Account{}, tt.insertErr
 					}
-					return db.Account{Address: arg.Address, Type: arg.Type, AllowNegative: arg.AllowNegative}, nil
+					return sqlc.Account{Address: arg.Address, Type: arg.Type, AllowNegative: arg.AllowNegative}, nil
 				},
-				getAccount: func(context.Context, string) (db.Account, error) {
+				getAccount: func(context.Context, string) (sqlc.Account, error) {
 					got = true
 					return stored, nil
 				},

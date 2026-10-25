@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"torment/internal/db"
+	"torment/internal/db/sqlc"
 )
 
 func TestParseCurrencyCode(t *testing.T) {
@@ -52,25 +52,25 @@ func TestParseCurrencyCode(t *testing.T) {
 	}
 }
 
-// fakeQuerier implements db.Querier with per-test funcs; calling a method whose func is nil panics.
+// fakeQuerier implements sqlc.Querier with per-test funcs; calling a method whose func is nil panics.
 type fakeQuerier struct {
-	db.Querier
-	insertCurrency func(ctx context.Context, arg db.InsertCurrencyParams) (db.Currency, error)
-	insertAccount  func(ctx context.Context, arg db.InsertAccountParams) (db.Account, error)
-	getAccount     func(ctx context.Context, address string) (db.Account, error)
+	sqlc.Querier
+	insertCurrency func(ctx context.Context, arg sqlc.InsertCurrencyParams) (sqlc.Currency, error)
+	insertAccount  func(ctx context.Context, arg sqlc.InsertAccountParams) (sqlc.Account, error)
+	getAccount     func(ctx context.Context, address string) (sqlc.Account, error)
 }
 
-var _ db.Querier = (*fakeQuerier)(nil)
+var _ sqlc.Querier = (*fakeQuerier)(nil)
 
-func (f *fakeQuerier) InsertCurrency(ctx context.Context, arg db.InsertCurrencyParams) (db.Currency, error) {
+func (f *fakeQuerier) InsertCurrency(ctx context.Context, arg sqlc.InsertCurrencyParams) (sqlc.Currency, error) {
 	return f.insertCurrency(ctx, arg)
 }
 
-func (f *fakeQuerier) InsertAccount(ctx context.Context, arg db.InsertAccountParams) (db.Account, error) {
+func (f *fakeQuerier) InsertAccount(ctx context.Context, arg sqlc.InsertAccountParams) (sqlc.Account, error) {
 	return f.insertAccount(ctx, arg)
 }
 
-func (f *fakeQuerier) GetAccount(ctx context.Context, address string) (db.Account, error) {
+func (f *fakeQuerier) GetAccount(ctx context.Context, address string) (sqlc.Account, error) {
 	return f.getAccount(ctx, address)
 }
 
@@ -92,9 +92,9 @@ func TestRegisterCurrency(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			called := false
-			q := &fakeQuerier{insertCurrency: func(_ context.Context, arg db.InsertCurrencyParams) (db.Currency, error) {
+			q := &fakeQuerier{insertCurrency: func(_ context.Context, arg sqlc.InsertCurrencyParams) (sqlc.Currency, error) {
 				called = true
-				return db.Currency(arg), tt.insertErr
+				return sqlc.Currency(arg), tt.insertErr
 			}}
 			got, err := New(q).RegisterCurrency(context.Background(), tt.code, tt.ledger)
 			if called != tt.wantCall {

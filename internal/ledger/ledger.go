@@ -1,12 +1,12 @@
 package ledger
 
-import "torment/internal/db"
+import "torment/internal/db/sqlc"
 
 // Service runs ledger operations against Postgres.
 type Service struct {
-	q db.Querier
+	q sqlc.Querier
 }
 
-func New(q db.Querier) *Service {
+func New(q sqlc.Querier) *Service {
 	return &Service{q: q}
 }

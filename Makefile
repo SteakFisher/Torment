@@ -10,10 +10,10 @@ up:
 down:
 	docker compose down
 
-run:
+run: generate
 	go run ./cmd/torment
 
-test:
+test: generate
 	go test ./...
 
 generate:

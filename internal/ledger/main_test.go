@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"torment/internal/db"
+	"torment/internal/db/sqlc"
 )
 
 // testPool is the migrated test database; nil when TEST_DATABASE_URL is unset.
@@ -48,5 +49,5 @@ func newIntegrationService(t *testing.T) *Service {
 	if _, err := testPool.Exec(context.Background(), "truncate currencies, accounts"); err != nil {
 		t.Fatalf("error truncating tables: %v", err)
 	}
-	return New(db.New(testPool))
+	return New(sqlc.New(testPool))
 }

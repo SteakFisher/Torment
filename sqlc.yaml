@@ -5,7 +5,7 @@ sql:
     queries: internal/db/queries
     gen:
       go:
-        package: db
-        out: internal/db
+        package: sqlc
+        out: internal/db/sqlc
         sql_package: pgx/v5
         emit_interface: true
