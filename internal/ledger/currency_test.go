@@ -10,7 +10,7 @@ import (
 	"torment/internal/db"
 )
 
-func TestParseAssetCode(t *testing.T) {
+func TestParseCurrencyCode(t *testing.T) {
 	tests := []struct {
 		code      string
 		name      string
@@ -35,7 +35,7 @@ func TestParseAssetCode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.code, func(t *testing.T) {
-			name, precision, err := ParseAssetCode(tt.code)
+			name, precision, err := ParseCurrencyCode(tt.code)
 			if tt.wantErr {
 				if !errors.Is(err, ErrInvalid) {
 					t.Fatalf("err = %v, want ErrInvalid", err)
@@ -55,26 +55,26 @@ func TestParseAssetCode(t *testing.T) {
 // fakeQuerier implements db.Querier with per-test funcs; calling a method whose func is nil panics.
 type fakeQuerier struct {
 	db.Querier
-	insertAsset   func(ctx context.Context, arg db.InsertAssetParams) (db.Asset, error)
-	insertAddress func(ctx context.Context, arg db.InsertAddressParams) (db.Address, error)
-	getAddress    func(ctx context.Context, address string) (db.Address, error)
+	insertCurrency func(ctx context.Context, arg db.InsertCurrencyParams) (db.Currency, error)
+	insertAccount  func(ctx context.Context, arg db.InsertAccountParams) (db.Account, error)
+	getAccount     func(ctx context.Context, address string) (db.Account, error)
 }
 
 var _ db.Querier = (*fakeQuerier)(nil)
 
-func (f *fakeQuerier) InsertAsset(ctx context.Context, arg db.InsertAssetParams) (db.Asset, error) {
-	return f.insertAsset(ctx, arg)
+func (f *fakeQuerier) InsertCurrency(ctx context.Context, arg db.InsertCurrencyParams) (db.Currency, error) {
+	return f.insertCurrency(ctx, arg)
 }
 
-func (f *fakeQuerier) InsertAddress(ctx context.Context, arg db.InsertAddressParams) (db.Address, error) {
-	return f.insertAddress(ctx, arg)
+func (f *fakeQuerier) InsertAccount(ctx context.Context, arg db.InsertAccountParams) (db.Account, error) {
+	return f.insertAccount(ctx, arg)
 }
 
-func (f *fakeQuerier) GetAddress(ctx context.Context, address string) (db.Address, error) {
-	return f.getAddress(ctx, address)
+func (f *fakeQuerier) GetAccount(ctx context.Context, address string) (db.Account, error) {
+	return f.getAccount(ctx, address)
 }
 
-func TestRegisterAsset(t *testing.T) {
+func TestRegisterCurrency(t *testing.T) {
 	tests := []struct {
 		name      string
 		code      string
@@ -92,13 +92,13 @@ func TestRegisterAsset(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			called := false
-			q := &fakeQuerier{insertAsset: func(_ context.Context, arg db.InsertAssetParams) (db.Asset, error) {
+			q := &fakeQuerier{insertCurrency: func(_ context.Context, arg db.InsertCurrencyParams) (db.Currency, error) {
 				called = true
-				return db.Asset(arg), tt.insertErr
+				return db.Currency(arg), tt.insertErr
 			}}
-			got, err := New(q).RegisterAsset(context.Background(), tt.code, tt.ledger)
+			got, err := New(q).RegisterCurrency(context.Background(), tt.code, tt.ledger)
 			if called != tt.wantCall {
-				t.Fatalf("InsertAsset called = %v, want %v", called, tt.wantCall)
+				t.Fatalf("InsertCurrency called = %v, want %v", called, tt.wantCall)
 			}
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
@@ -109,8 +109,8 @@ func TestRegisterAsset(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected err: %v", err)
 			}
-			name, precision, _ := ParseAssetCode(tt.code)
-			if want := (Asset{Name: name, Precision: precision, Ledger: tt.ledger}); got != want {
+			name, precision, _ := ParseCurrencyCode(tt.code)
+			if want := (Currency{Name: name, Precision: precision, Ledger: tt.ledger}); got != want {
 				t.Fatalf("got %+v, want %+v", got, want)
 			}
 		})

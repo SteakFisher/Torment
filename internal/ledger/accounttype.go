@@ -2,7 +2,7 @@ package ledger
 
 import "fmt"
 
-// AccountType is the accounting class of an address.
+// AccountType is the accounting class of an account.
 type AccountType string
 
 const (

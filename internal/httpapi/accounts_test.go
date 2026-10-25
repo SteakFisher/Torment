@@ -38,11 +38,11 @@ func TestPostAccount(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := fakeLedger{registerAddress: func(_ context.Context, p ledger.RegisterAddressParams) (ledger.Address, bool, error) {
+			l := fakeLedger{registerAccount: func(_ context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error) {
 				if tt.err != nil {
-					return ledger.Address{}, false, fmt.Errorf("wrapped: %w", tt.err)
+					return ledger.Account{}, false, fmt.Errorf("wrapped: %w", tt.err)
 				}
-				return ledger.Address{
+				return ledger.Account{
 					Address:       p.Address,
 					Type:          ledger.AccountType(p.Type),
 					AllowNegative: p.AllowNegative,

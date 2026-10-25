@@ -56,7 +56,7 @@ func (ns NullAccountType) Value() (driver.Value, error) {
 	return string(ns.AccountType), nil
 }
 
-type Address struct {
+type Account struct {
 	ID            int64
 	Address       string
 	Type          AccountType
@@ -64,7 +64,7 @@ type Address struct {
 	CreatedAt     pgtype.Timestamptz
 }
 
-type Asset struct {
+type Currency struct {
 	Name      string
 	Precision int16
 	Ledger    int32

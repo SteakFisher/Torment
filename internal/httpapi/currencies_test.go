@@ -12,7 +12,7 @@ import (
 	"torment/internal/ledger"
 )
 
-func TestPostAsset(t *testing.T) {
+func TestPostCurrency(t *testing.T) {
 	tests := []struct {
 		name       string
 		body       string
@@ -29,14 +29,14 @@ func TestPostAsset(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := fakeLedger{registerAsset: func(_ context.Context, code string, n int32) (ledger.Asset, error) {
+			l := fakeLedger{registerCurrency: func(_ context.Context, code string, n int32) (ledger.Currency, error) {
 				if tt.err != nil {
-					return ledger.Asset{}, fmt.Errorf("wrapped: %w", tt.err)
+					return ledger.Currency{}, fmt.Errorf("wrapped: %w", tt.err)
 				}
-				return ledger.Asset{Name: "USD", Precision: 2, Ledger: n}, nil
+				return ledger.Currency{Name: "USD", Precision: 2, Ledger: n}, nil
 			}}
 			rec := httptest.NewRecorder()
-			New(l).ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/assets", strings.NewReader(tt.body)))
+			New(l).ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/currencies", strings.NewReader(tt.body)))
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d (body %s)", rec.Code, tt.wantStatus, rec.Body)
 			}

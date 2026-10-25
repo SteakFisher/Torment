@@ -11,8 +11,8 @@ import (
 
 // Ledger is the set of ledger operations the HTTP handlers call.
 type Ledger interface {
-	RegisterAsset(ctx context.Context, code string, ledger int32) (ledger.Asset, error)
-	RegisterAddress(ctx context.Context, p ledger.RegisterAddressParams) (ledger.Address, bool, error)
+	RegisterCurrency(ctx context.Context, code string, ledger int32) (ledger.Currency, error)
+	RegisterAccount(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error)
 }
 
 // Fails to compile when *ledger.Service no longer satisfies Ledger.
@@ -24,7 +24,7 @@ func New(l Ledger) http.Handler {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok\n"))
 	})
-	mux.HandleFunc("POST /assets", postAsset(l))
+	mux.HandleFunc("POST /currencies", postCurrency(l))
 	mux.HandleFunc("POST /accounts", postAccount(l))
 	return mux
 }

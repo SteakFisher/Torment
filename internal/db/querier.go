@@ -9,10 +9,10 @@ import (
 )
 
 type Querier interface {
-	GetAddress(ctx context.Context, address string) (Address, error)
-	// Returns no rows when the address already exists.
-	InsertAddress(ctx context.Context, arg InsertAddressParams) (Address, error)
-	InsertAsset(ctx context.Context, arg InsertAssetParams) (Asset, error)
+	GetAccount(ctx context.Context, address string) (Account, error)
+	// Returns no rows when the account already exists.
+	InsertAccount(ctx context.Context, arg InsertAccountParams) (Account, error)
+	InsertCurrency(ctx context.Context, arg InsertCurrencyParams) (Currency, error)
 }
 
 var _ Querier = (*Queries)(nil)

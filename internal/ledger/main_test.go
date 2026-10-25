@@ -45,7 +45,7 @@ func newIntegrationService(t *testing.T) *Service {
 	if testPool == nil {
 		t.Skip("TEST_DATABASE_URL is not set")
 	}
-	if _, err := testPool.Exec(context.Background(), "truncate assets, addresses"); err != nil {
+	if _, err := testPool.Exec(context.Background(), "truncate currencies, accounts"); err != nil {
 		t.Fatalf("error truncating tables: %v", err)
 	}
 	return New(db.New(testPool))

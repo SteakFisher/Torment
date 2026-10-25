@@ -1,7 +1,7 @@
 -- +goose Up
 create type account_type as enum ('asset', 'expense', 'liability', 'equity', 'revenue');
 
-create table addresses (
+create table accounts (
   id             bigint generated always as identity primary key,
   address        text not null unique,
   type           account_type not null,
@@ -10,8 +10,8 @@ create table addresses (
 );
 
 -- serves prefix lookups (address like 'rider:%')
-create index addresses_address_prefix_idx on addresses (address text_pattern_ops);
+create index accounts_address_prefix_idx on accounts (address text_pattern_ops);
 
 -- +goose Down
-drop table addresses;
+drop table accounts;
 drop type account_type;

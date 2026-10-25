@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-func TestIntegrationRegisterAsset(t *testing.T) {
+func TestIntegrationRegisterCurrency(t *testing.T) {
 	s := newIntegrationService(t)
 	ctx := context.Background()
-	if _, err := s.RegisterAsset(ctx, "USD/2", 1); err != nil {
+	if _, err := s.RegisterCurrency(ctx, "USD/2", 1); err != nil {
 		t.Fatalf("first register: %v", err)
 	}
 
@@ -24,7 +24,7 @@ func TestIntegrationRegisterAsset(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := s.RegisterAsset(ctx, tt.code, tt.ledger); !errors.Is(err, ErrConflict) {
+			if _, err := s.RegisterCurrency(ctx, tt.code, tt.ledger); !errors.Is(err, ErrConflict) {
 				t.Fatalf("err = %v, want ErrConflict", err)
 			}
 		})

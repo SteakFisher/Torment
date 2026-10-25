@@ -12,16 +12,17 @@ import (
 	"torment/internal/db"
 )
 
-// Address is a registered address. It holds no balances itself; those live in its per-asset accounts.
-type Address struct {
+// Account is a registered account, identified by its address. It holds no balances itself; those live
+// in its per-currency wallets.
+type Account struct {
 	Address       string
 	Type          AccountType
 	AllowNegative bool
 	CreatedAt     time.Time
 }
 
-// RegisterAddressParams is the input to RegisterAddress. Type is parsed with ParseAccountType.
-type RegisterAddressParams struct {
+// RegisterAccountParams is the input to RegisterAccount. Type is parsed with ParseAccountType.
+type RegisterAccountParams struct {
 	Address       string
 	Type          string
 	AllowNegative bool
@@ -40,45 +41,45 @@ func validateAddress(address string) error {
 	return nil
 }
 
-// RegisterAddress stores a new address. It is idempotent: an identical re-registration returns
-// the stored address with created false. It returns ErrInvalid for a malformed address or type, and ErrConflict when the address exists
+// RegisterAccount stores a new account. It is idempotent: an identical re-registration returns
+// the stored account with created false. It returns ErrInvalid for a malformed address or type, and ErrConflict when the account exists
 // with different fields.
-func (s *Service) RegisterAddress(ctx context.Context, p RegisterAddressParams) (addr Address, created bool, err error) {
+func (s *Service) RegisterAccount(ctx context.Context, p RegisterAccountParams) (acct Account, created bool, err error) {
 	if err := validateAddress(p.Address); err != nil {
-		return Address{}, false, err
+		return Account{}, false, err
 	}
 	typ, err := ParseAccountType(p.Type)
 	if err != nil {
-		return Address{}, false, err
+		return Account{}, false, err
 	}
 
-	row, err := s.q.InsertAddress(ctx, db.InsertAddressParams{
+	row, err := s.q.InsertAccount(ctx, db.InsertAccountParams{
 		Address:       p.Address,
 		Type:          db.AccountType(typ),
 		AllowNegative: p.AllowNegative,
 	})
 	switch {
 	case err == nil:
-		return toAddress(row), true, nil
+		return toAccount(row), true, nil
 	case errors.Is(err, pgx.ErrNoRows):
-		// the address already exists; compare it below
+		// the account already exists; compare it below
 	default:
-		return Address{}, false, fmt.Errorf("error inserting address: %w", err)
+		return Account{}, false, fmt.Errorf("error inserting account: %w", err)
 	}
 
-	row, err = s.q.GetAddress(ctx, p.Address)
+	row, err = s.q.GetAccount(ctx, p.Address)
 	if err != nil {
-		return Address{}, false, fmt.Errorf("error getting address: %w", err)
+		return Account{}, false, fmt.Errorf("error getting account: %w", err)
 	}
-	existing := toAddress(row)
+	existing := toAccount(row)
 	if existing.Type != typ || existing.AllowNegative != p.AllowNegative {
-		return Address{}, false, fmt.Errorf("%w: address %q already exists with different fields", ErrConflict, p.Address)
+		return Account{}, false, fmt.Errorf("%w: account %q already exists with different fields", ErrConflict, p.Address)
 	}
 	return existing, false, nil
 }
 
-func toAddress(row db.Address) Address {
-	return Address{
+func toAccount(row db.Account) Account {
+	return Account{
 		Address:       row.Address,
 		Type:          AccountType(row.Type),
 		AllowNegative: row.AllowNegative,

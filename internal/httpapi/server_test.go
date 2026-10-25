@@ -11,18 +11,18 @@ import (
 
 // fakeLedger implements Ledger with per-test funcs; calling a method whose func is nil panics.
 type fakeLedger struct {
-	registerAsset   func(ctx context.Context, code string, l int32) (ledger.Asset, error)
-	registerAddress func(ctx context.Context, p ledger.RegisterAddressParams) (ledger.Address, bool, error)
+	registerCurrency func(ctx context.Context, code string, l int32) (ledger.Currency, error)
+	registerAccount  func(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error)
 }
 
 var _ Ledger = fakeLedger{}
 
-func (f fakeLedger) RegisterAsset(ctx context.Context, code string, l int32) (ledger.Asset, error) {
-	return f.registerAsset(ctx, code, l)
+func (f fakeLedger) RegisterCurrency(ctx context.Context, code string, l int32) (ledger.Currency, error) {
+	return f.registerCurrency(ctx, code, l)
 }
 
-func (f fakeLedger) RegisterAddress(ctx context.Context, p ledger.RegisterAddressParams) (ledger.Address, bool, error) {
-	return f.registerAddress(ctx, p)
+func (f fakeLedger) RegisterAccount(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error) {
+	return f.registerAccount(ctx, p)
 }
 
 func TestHealthz(t *testing.T) {
