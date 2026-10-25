@@ -9,8 +9,7 @@ type assetJSON struct {
 	Ledger    int32  `json:"ledger"`
 }
 
-// postAsset handles POST /assets with body {"code": "USD/2", "ledger": 1} and responds 201 with the
-// stored asset.
+// postAsset handles POST /assets and responds 201 with the stored asset.
 func postAsset(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {

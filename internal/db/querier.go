@@ -9,6 +9,9 @@ import (
 )
 
 type Querier interface {
+	GetAddress(ctx context.Context, address string) (Address, error)
+	// Returns no rows when the address already exists.
+	InsertAddress(ctx context.Context, arg InsertAddressParams) (Address, error)
 	InsertAsset(ctx context.Context, arg InsertAssetParams) (Asset, error)
 }
 

@@ -12,16 +12,6 @@ import (
 	"torment/internal/ledger"
 )
 
-type fakeLedger struct {
-	registerAsset func(ctx context.Context, code string, l int32) (ledger.Asset, error)
-}
-
-var _ Ledger = fakeLedger{}
-
-func (f fakeLedger) RegisterAsset(ctx context.Context, code string, l int32) (ledger.Asset, error) {
-	return f.registerAsset(ctx, code, l)
-}
-
 func TestPostAsset(t *testing.T) {
 	tests := []struct {
 		name       string

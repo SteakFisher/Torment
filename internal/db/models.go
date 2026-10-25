@@ -4,6 +4,66 @@
 
 package db
 
+import (
+	"database/sql/driver"
+	"fmt"
+
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+type AccountType string
+
+const (
+	AccountTypeAsset     AccountType = "asset"
+	AccountTypeExpense   AccountType = "expense"
+	AccountTypeLiability AccountType = "liability"
+	AccountTypeEquity    AccountType = "equity"
+	AccountTypeRevenue   AccountType = "revenue"
+)
+
+func (e *AccountType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AccountType(s)
+	case string:
+		*e = AccountType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AccountType: %T", src)
+	}
+	return nil
+}
+
+type NullAccountType struct {
+	AccountType AccountType
+	Valid       bool // Valid is true if AccountType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAccountType) Scan(value interface{}) error {
+	if value == nil {
+		ns.AccountType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AccountType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAccountType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AccountType), nil
+}
+
+type Address struct {
+	ID            int64
+	Address       string
+	Type          AccountType
+	AllowNegative bool
+	CreatedAt     pgtype.Timestamptz
+}
+
 type Asset struct {
 	Name      string
 	Precision int16

@@ -52,15 +52,26 @@ func TestParseAssetCode(t *testing.T) {
 	}
 }
 
+// fakeQuerier implements db.Querier with per-test funcs; calling a method whose func is nil panics.
 type fakeQuerier struct {
 	db.Querier
-	insertAsset func(ctx context.Context, arg db.InsertAssetParams) (db.Asset, error)
+	insertAsset   func(ctx context.Context, arg db.InsertAssetParams) (db.Asset, error)
+	insertAddress func(ctx context.Context, arg db.InsertAddressParams) (db.Address, error)
+	getAddress    func(ctx context.Context, address string) (db.Address, error)
 }
 
 var _ db.Querier = (*fakeQuerier)(nil)
 
 func (f *fakeQuerier) InsertAsset(ctx context.Context, arg db.InsertAssetParams) (db.Asset, error) {
 	return f.insertAsset(ctx, arg)
+}
+
+func (f *fakeQuerier) InsertAddress(ctx context.Context, arg db.InsertAddressParams) (db.Address, error) {
+	return f.insertAddress(ctx, arg)
+}
+
+func (f *fakeQuerier) GetAddress(ctx context.Context, address string) (db.Address, error) {
+	return f.getAddress(ctx, address)
 }
 
 func TestRegisterAsset(t *testing.T) {
