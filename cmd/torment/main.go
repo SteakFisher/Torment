@@ -12,7 +12,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 
+	"torment/internal/db"
 	"torment/internal/httpapi"
+	"torment/internal/ledger"
 )
 
 func main() {
@@ -22,6 +24,8 @@ func main() {
 	}
 }
 
+// run connects to Postgres and TigerBeetle, applies migrations and serves HTTP until the server fails.
+// It reads DATABASE_URL and TB_ADDRESS (required) and ADDR (default ":8080") from the environment.
 func run() error {
 	ctx := context.Background()
 
@@ -46,6 +50,9 @@ func run() error {
 	if err := pool.Ping(ctx); err != nil {
 		return fmt.Errorf("error pinging postgres: %w", err)
 	}
+	if err := db.Migrate(ctx, pool); err != nil {
+		return err
+	}
 
 	tbClient, err := tb.NewClient(tb.ToUint128(0), []string{tbAddress})
 	if err != nil {
@@ -57,9 +64,11 @@ func run() error {
 	}
 
 	slog.Info("listening", "addr", addr)
-	return http.ListenAndServe(addr, httpapi.New())
+	svc := ledger.New(db.New(pool))
+	return http.ListenAndServe(addr, httpapi.New(svc))
 }
 
+// requireEnv returns the value of the environment variable key, or an error when it is unset or empty.
 func requireEnv(key string) (string, error) {
 	v := os.Getenv(key)
 	if v == "" {
