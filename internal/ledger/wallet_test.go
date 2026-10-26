@@ -12,17 +12,6 @@ import (
 	"torment/internal/db/sqlc"
 )
 
-// fakeTB implements tbClient with a per-test func; calling CreateAccounts when it is nil panics.
-type fakeTB struct {
-	createAccounts func(accounts []tb.Account) ([]tb.CreateAccountResult, error)
-}
-
-var _ tbClient = (*fakeTB)(nil)
-
-func (f *fakeTB) CreateAccounts(accounts []tb.Account) ([]tb.CreateAccountResult, error) {
-	return f.createAccounts(accounts)
-}
-
 // statuses returns a CreateAccounts func that answers with the given statuses.
 func statuses(ss ...tb.CreateAccountStatus) func([]tb.Account) ([]tb.CreateAccountResult, error) {
 	return func([]tb.Account) ([]tb.CreateAccountResult, error) {

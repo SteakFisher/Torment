@@ -101,28 +101,6 @@ func (s *Service) RegisterAccount(ctx context.Context, p RegisterAccountParams) 
 	return acct, created, nil
 }
 
-// lookupCurrencies returns each named currency, keyed by name. It returns
-// ErrInvalid naming the first currency that is not registered.
-func (s *Service) lookupCurrencies(ctx context.Context, names []string) (map[string]Currency, error) {
-	if len(names) == 0 {
-		return nil, nil
-	}
-	rows, err := s.q.GetCurrencies(ctx, names)
-	if err != nil {
-		return nil, fmt.Errorf("error getting currencies: %w", err)
-	}
-	currencies := make(map[string]Currency, len(rows))
-	for _, r := range rows {
-		currencies[r.Name] = Currency{Name: r.Name, Precision: r.Precision, Ledger: r.Ledger}
-	}
-	for _, name := range names {
-		if _, ok := currencies[name]; !ok {
-			return nil, fmt.Errorf("%w: currency %q is not registered", ErrInvalid, name)
-		}
-	}
-	return currencies, nil
-}
-
 // dedupe returns ss without repeated values, keeping the first occurrence of each.
 func dedupe(ss []string) []string {
 	seen := make(map[string]bool, len(ss))
