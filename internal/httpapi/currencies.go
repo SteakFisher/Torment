@@ -13,14 +13,13 @@ type currencyJSON struct {
 func postCurrency(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			Code   string `json:"code"`
-			Ledger int32  `json:"ledger"`
+			Code string `json:"code"`
 		}
 		if err := decodeJSON(w, r, &req); err != nil {
 			writeError(w, err)
 			return
 		}
-		currency, err := l.RegisterCurrency(r.Context(), req.Code, req.Ledger)
+		currency, err := l.RegisterCurrency(r.Context(), req.Code)
 		if err != nil {
 			writeError(w, err)
 			return

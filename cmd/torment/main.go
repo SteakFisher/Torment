@@ -65,7 +65,7 @@ func run() error {
 	}
 
 	slog.Info("listening", "addr", addr)
-	svc := ledger.New(sqlc.New(pool))
+	svc := ledger.New(sqlc.New(pool), tbClient)
 	return http.ListenAndServe(addr, httpapi.New(svc))
 }
 

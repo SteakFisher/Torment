@@ -41,22 +41,19 @@ func ParseCurrencyCode(code string) (name string, precision int16, err error) {
 	return m[1], precision, nil
 }
 
-// RegisterCurrency parses code with ParseCurrencyCode and stores it as a new currency on the given
-// TigerBeetle ledger. It returns ErrInvalid for a malformed code or a non-positive ledger, and
-// ErrConflict when the name or the ledger number is already registered.
-func (s *Service) RegisterCurrency(ctx context.Context, code string, ledger int32) (Currency, error) {
+// RegisterCurrency parses code with ParseCurrencyCode and stores it as a new currency on a newly
+// assigned TigerBeetle ledger. It returns ErrInvalid for a malformed code and ErrConflict when the
+// name is already registered.
+func (s *Service) RegisterCurrency(ctx context.Context, code string) (Currency, error) {
 	name, precision, err := ParseCurrencyCode(code)
 	if err != nil {
 		return Currency{}, err
 	}
-	if ledger <= 0 {
-		return Currency{}, fmt.Errorf("%w: ledger must be positive", ErrInvalid)
-	}
-	row, err := s.q.InsertCurrency(ctx, sqlc.InsertCurrencyParams{Name: name, Precision: precision, Ledger: ledger})
+	row, err := s.q.InsertCurrency(ctx, sqlc.InsertCurrencyParams{Name: name, Precision: precision})
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
-			return Currency{}, fmt.Errorf("%w: currency %q or ledger %d already exists", ErrConflict, name, ledger)
+			return Currency{}, fmt.Errorf("%w: currency %q already exists", ErrConflict, name)
 		}
 		return Currency{}, fmt.Errorf("error inserting currency: %w", err)
 	}

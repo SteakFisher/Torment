@@ -27,7 +27,14 @@ func TestPostAccount(t *testing.T) {
 			body:       `{"address":"rider:1:wallet","type":"liability"}`,
 			created:    true,
 			wantStatus: http.StatusCreated,
-			wantBody:   `{"address":"rider:1:wallet","type":"liability","allow_negative":false,"created_at":"2026-01-02T03:04:05Z"}`,
+			wantBody:   `{"address":"rider:1:wallet","type":"liability","allow_negative":false,"created_at":"2026-01-02T03:04:05Z","wallets":[]}`,
+		},
+		{
+			name:       "with wallets",
+			body:       `{"address":"rider:1:wallet","type":"liability","currencies":["USD","AED"]}`,
+			created:    true,
+			wantStatus: http.StatusCreated,
+			wantBody:   `{"address":"rider:1:wallet","type":"liability","allow_negative":false,"created_at":"2026-01-02T03:04:05Z","wallets":[{"currency":"USD","precision":2},{"currency":"AED","precision":2}]}`,
 		},
 		{name: "replay", body: `{"address":"rider:1:wallet","type":"liability"}`, wantStatus: http.StatusOK},
 		{name: "malformed json", body: `{"address":`, wantStatus: http.StatusBadRequest},
@@ -42,11 +49,16 @@ func TestPostAccount(t *testing.T) {
 				if tt.err != nil {
 					return ledger.Account{}, false, fmt.Errorf("wrapped: %w", tt.err)
 				}
+				var wallets []ledger.Wallet
+				for _, c := range p.Currencies {
+					wallets = append(wallets, ledger.Wallet{Currency: c, Precision: 2})
+				}
 				return ledger.Account{
 					Address:       p.Address,
 					Type:          ledger.AccountType(p.Type),
 					AllowNegative: p.AllowNegative,
 					CreatedAt:     time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC),
+					Wallets:       wallets,
 				}, tt.created, nil
 			}}
 			rec := httptest.NewRecorder()

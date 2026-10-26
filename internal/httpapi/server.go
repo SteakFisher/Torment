@@ -11,7 +11,7 @@ import (
 
 // Ledger is the set of ledger operations the HTTP handlers call.
 type Ledger interface {
-	RegisterCurrency(ctx context.Context, code string, ledger int32) (ledger.Currency, error)
+	RegisterCurrency(ctx context.Context, code string) (ledger.Currency, error)
 	RegisterAccount(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error)
 }
 

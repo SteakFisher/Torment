@@ -3,6 +3,7 @@ package ledger
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -94,7 +95,7 @@ func TestRegisterAccount(t *testing.T) {
 					return stored, nil
 				},
 			}
-			acct, created, err := New(q).RegisterAccount(context.Background(), tt.params)
+			acct, created, err := New(q, nil).RegisterAccount(context.Background(), tt.params)
 			if inserted != tt.wantInsert || got != tt.wantGet {
 				t.Fatalf("insert called = %v, get called = %v; want %v, %v", inserted, got, tt.wantInsert, tt.wantGet)
 			}
@@ -115,6 +116,40 @@ func TestRegisterAccount(t *testing.T) {
 			}
 			if created != tt.wantCreated || acct.Address != valid.Address || acct.Type != TypeLiability {
 				t.Fatalf("got %+v, created %v", acct, created)
+			}
+		})
+	}
+}
+
+func TestTBCodeAndFlags(t *testing.T) {
+	const (
+		debitsLimited  = 1 << 1 // debits_must_not_exceed_credits
+		creditsLimited = 1 << 2 // credits_must_not_exceed_debits
+	)
+	tests := []struct {
+		typ           AccountType
+		allowNegative bool
+		code          uint16
+		flags         uint16
+	}{
+		{typ: TypeAsset, code: 1, flags: creditsLimited},
+		{typ: TypeAsset, allowNegative: true, code: 1},
+		{typ: TypeExpense, code: 2, flags: creditsLimited},
+		{typ: TypeExpense, allowNegative: true, code: 2},
+		{typ: TypeLiability, code: 3, flags: debitsLimited},
+		{typ: TypeLiability, allowNegative: true, code: 3},
+		{typ: TypeEquity, code: 4, flags: debitsLimited},
+		{typ: TypeEquity, allowNegative: true, code: 4},
+		{typ: TypeRevenue, code: 5, flags: debitsLimited},
+		{typ: TypeRevenue, allowNegative: true, code: 5},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%s/allowNegative=%v", tt.typ, tt.allowNegative), func(t *testing.T) {
+			if got := tbCode(tt.typ); got != tt.code {
+				t.Errorf("tbCode = %d, want %d", got, tt.code)
+			}
+			if got := tbFlags(tt.typ, tt.allowNegative); got != tt.flags {
+				t.Errorf("tbFlags = %b, want %b", got, tt.flags)
 			}
 		})
 	}

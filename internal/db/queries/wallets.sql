@@ -1,0 +1,9 @@
+-- name: InsertWallet :one
+-- Returns no rows when the account already has a wallet in the currency.
+insert into wallets (tb_id, account_id, currency)
+values ($1, $2, $3)
+on conflict (account_id, currency) do nothing
+returning *;
+
+-- name: GetWallet :one
+select * from wallets where account_id = $1 and currency = $2;
