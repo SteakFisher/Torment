@@ -13,6 +13,7 @@ import (
 type fakeLedger struct {
 	registerCurrency func(ctx context.Context, code string) (ledger.Currency, error)
 	registerAccount  func(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error)
+	balances         func(ctx context.Context, address string) ([]ledger.Balance, error)
 }
 
 var _ Ledger = fakeLedger{}
@@ -23,6 +24,10 @@ func (f fakeLedger) RegisterCurrency(ctx context.Context, code string) (ledger.C
 
 func (f fakeLedger) RegisterAccount(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error) {
 	return f.registerAccount(ctx, p)
+}
+
+func (f fakeLedger) Balances(ctx context.Context, address string) ([]ledger.Balance, error) {
+	return f.balances(ctx, address)
 }
 
 func TestHealthz(t *testing.T) {

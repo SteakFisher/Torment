@@ -6,6 +6,8 @@ import "errors"
 var (
 	// ErrInvalid means the input failed validation.
 	ErrInvalid = errors.New("invalid")
+	// ErrNotFound means the requested data does not exist.
+	ErrNotFound = errors.New("not found")
 	// ErrConflict means the input clashes with data that already exists.
 	ErrConflict = errors.New("conflict")
 )

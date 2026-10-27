@@ -13,6 +13,7 @@ import (
 type Ledger interface {
 	RegisterCurrency(ctx context.Context, code string) (ledger.Currency, error)
 	RegisterAccount(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error)
+	Balances(ctx context.Context, address string) ([]ledger.Balance, error)
 }
 
 // Fails to compile when *ledger.Service no longer satisfies Ledger.
@@ -26,6 +27,7 @@ func New(l Ledger) http.Handler {
 	})
 	mux.HandleFunc("POST /currencies", postCurrency(l))
 	mux.HandleFunc("POST /accounts", postAccount(l))
+	mux.HandleFunc("GET /accounts/{address}/balances", getBalances(l))
 	return mux
 }
 

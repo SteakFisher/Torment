@@ -19,6 +19,7 @@ func New(q sqlc.Querier, tb tbClient) *Service {
 // tbClient is the subset of the TigerBeetle client the Service calls.
 type tbClient interface {
 	CreateAccounts(accounts []tb.Account) ([]tb.CreateAccountResult, error)
+	LookupAccounts(ids []tb.Uint128) ([]tb.Account, error)
 }
 
 // Fails to compile when tb.Client no longer satisfies tbClient.
