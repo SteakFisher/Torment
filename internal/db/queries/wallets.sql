@@ -15,3 +15,10 @@ from wallets w
 join currencies c on c.name = w.currency
 where w.account_id = $1
 order by w.currency;
+
+-- name: GetWalletByAddress :one
+select w.tb_id, c.ledger
+from wallets w
+join accounts a on a.id = w.account_id
+join currencies c on c.name = w.currency
+where a.address = $1 and w.currency = $2;

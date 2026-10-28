@@ -10,4 +10,7 @@ var (
 	ErrNotFound = errors.New("not found")
 	// ErrConflict means the input clashes with data that already exists.
 	ErrConflict = errors.New("conflict")
+	// ErrInsufficientFunds means a posting would take an account below zero when the account does not
+	// allow it.
+	ErrInsufficientFunds = errors.New("insufficient funds")
 )

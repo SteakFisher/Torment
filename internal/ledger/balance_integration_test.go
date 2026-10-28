@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-
-	tb "github.com/tigerbeetle/tigerbeetle-go"
 )
 
 func TestIntegrationBalances(t *testing.T) {
@@ -16,26 +14,15 @@ func TestIntegrationBalances(t *testing.T) {
 			t.Fatalf("error registering currency %s: %v", code, err)
 		}
 	}
-	world, _, err := s.RegisterAccount(ctx, RegisterAccountParams{Address: "world", Type: "equity", AllowNegative: true, Currencies: []string{"USD"}})
-	if err != nil {
+	if _, _, err := s.RegisterAccount(ctx, RegisterAccountParams{Address: "world", Type: "equity", AllowNegative: true, Currencies: []string{"USD"}}); err != nil {
 		t.Fatalf("world: %v", err)
 	}
-	rider, _, err := s.RegisterAccount(ctx, RegisterAccountParams{Address: "rider:1:wallet", Type: "liability", Currencies: []string{"USD", "AED"}})
-	if err != nil {
+	if _, _, err := s.RegisterAccount(ctx, RegisterAccountParams{Address: "rider:1:wallet", Type: "liability", Currencies: []string{"USD", "AED"}}); err != nil {
 		t.Fatalf("rider: %v", err)
 	}
 
-	// no transfer API yet, so move 100 from world to the rider directly
-	results, err := testTB.CreateTransfers([]tb.Transfer{{
-		ID:              tb.ID(),
-		DebitAccountID:  world.Wallets[0].ID,
-		CreditAccountID: rider.Wallets[0].ID,
-		Amount:          tb.ToUint128(100),
-		Ledger:          lookupTBAccount(t, world.Wallets[0].ID).Ledger,
-		Code:            1,
-	}})
-	if err != nil || len(results) != 1 || results[0].Status != tb.TransferCreated {
-		t.Fatalf("error creating transfer: %v %+v", err, results)
+	if _, err := s.Transfer(ctx, []Posting{{Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: "100"}}); err != nil {
+		t.Fatalf("error transferring: %v", err)
 	}
 
 	want := map[string]map[string]int64{
