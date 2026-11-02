@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
@@ -79,4 +80,87 @@ func TestIntegrationRegisterAccountWallets(t *testing.T) {
 	if a := lookupTBAccount(t, orphan); a.Ledger != ledgers["AED"] {
 		t.Fatalf("repaired tigerbeetle account ledger = %d, want %d", a.Ledger, ledgers["AED"])
 	}
+	if !tbCreated(t, "world", "AED") {
+		t.Fatal("repaired wallet tb_created = false, want true")
+	}
+}
+
+// tbCreated returns tb_created of the wallet in currency of the account at address.
+func tbCreated(t *testing.T, address, currency string) bool {
+	t.Helper()
+	var created bool
+	err := testPool.QueryRow(context.Background(),
+		"select w.tb_created from wallets w join accounts a on a.id = w.account_id where a.address = $1 and w.currency = $2",
+		address, currency).Scan(&created)
+	if err != nil {
+		t.Fatalf("error reading tb_created of %s %s: %v", address, currency, err)
+	}
+	return created
+}
+
+func TestIntegrationTransferCreatesWallets(t *testing.T) {
+	s := newIntegrationService(t)
+	ctx := context.Background()
+	if _, err := s.RegisterCurrency(ctx, "USD/2"); err != nil {
+		t.Fatalf("error registering currency: %v", err)
+	}
+	if _, _, err := s.RegisterAccount(ctx, RegisterAccountParams{Address: "world", Type: "equity", AllowNegative: true, Currencies: []string{"USD"}}); err != nil {
+		t.Fatalf("world: %v", err)
+	}
+	for _, address := range []string{"rider:1:wallet", "rider:2:wallet", "rider:3:wallet"} {
+		if _, _, err := s.RegisterAccount(ctx, RegisterAccountParams{Address: address, Type: "liability"}); err != nil {
+			t.Fatalf("%s: %v", address, err)
+		}
+	}
+	// transfer posts amount USD from world to address with a new id and fails the test unless it is created
+	transfer := func(address, amount string) {
+		t.Helper()
+		got, err := s.Transfer(ctx, [][]Posting{{{ID: tb.ID().BigInt().String(), Source: "world", Destination: address, Currency: "USD", Amount: amount}}})
+		if err != nil || got[0][0].Err != nil || !got[0][0].Created {
+			t.Errorf("transfer to %s = %+v, err %v; want created", address, got, err)
+		}
+	}
+	checkUSD := func(address string, amount int64) {
+		t.Helper()
+		got, err := s.Balances(ctx, address)
+		if err != nil || len(got) != 1 || got[0].Currency != "USD" || got[0].Amount.Int64() != amount {
+			t.Fatalf("%s balances = %+v, err %v; want USD %d", address, got, err, amount)
+		}
+		if !tbCreated(t, address, "USD") {
+			t.Fatalf("%s USD wallet tb_created = false, want true", address)
+		}
+	}
+
+	transfer("rider:1:wallet", "100")
+	checkUSD("rider:1:wallet", 100)
+
+	// a wallet row whose TigerBeetle account was never created
+	orphan := tb.ID()
+	if _, err := testPool.Exec(ctx, "insert into wallets (tb_id, account_id, currency) select $1, id, 'USD' from accounts where address = 'rider:2:wallet'", idToBytes(orphan)); err != nil {
+		t.Fatalf("error inserting orphan wallet: %v", err)
+	}
+	transfer("rider:2:wallet", "50")
+	checkUSD("rider:2:wallet", 50)
+	if a := lookupTBAccount(t, orphan); a.CreditsPosted != tb.ToUint128(50) {
+		t.Fatalf("orphan tigerbeetle account credits = %s, want 50", a.CreditsPosted.BigInt())
+	}
+
+	const n = 20
+	var wg sync.WaitGroup
+	for range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			transfer("rider:3:wallet", "10")
+		}()
+	}
+	wg.Wait()
+	if t.Failed() {
+		t.FailNow()
+	}
+	var rows int
+	if err := testPool.QueryRow(ctx, "select count(*) from wallets w join accounts a on a.id = w.account_id where a.address = 'rider:3:wallet'").Scan(&rows); err != nil || rows != 1 {
+		t.Fatalf("rider:3:wallet wallet rows = %d, err %v; want 1", rows, err)
+	}
+	checkUSD("rider:3:wallet", 10*n)
 }

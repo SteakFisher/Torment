@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	tb "github.com/tigerbeetle/tigerbeetle-go"
 
 	"torment/internal/db/sqlc"
 )
@@ -59,8 +58,7 @@ func (s *Service) RegisterAccount(ctx context.Context, p RegisterAccountParams) 
 		return Account{}, false, err
 	}
 	names := dedupe(p.Currencies)
-	currencies, err := s.lookupCurrencies(ctx, names)
-	if err != nil {
+	if _, err := s.lookupCurrencies(ctx, names); err != nil {
 		return Account{}, false, err
 	}
 
@@ -84,19 +82,18 @@ func (s *Service) RegisterAccount(ctx context.Context, p RegisterAccountParams) 
 		return Account{}, false, fmt.Errorf("error inserting account: %w", err)
 	}
 
-	acct = toAccount(row)
-	tbAccounts := make([]tb.Account, 0, len(names))
-	for _, name := range names {
-		id, err := s.walletID(ctx, row.ID, name)
-		if err != nil {
-			return Account{}, false, err
-		}
-		c := currencies[name]
-		acct.Wallets = append(acct.Wallets, Wallet{Currency: name, Precision: c.Precision, ID: id})
-		tbAccounts = append(tbAccounts, newTBAccount(id, c.Ledger, typ, p.AllowNegative))
+	keys := make([]walletKey, len(names))
+	for i, name := range names {
+		keys[i] = walletKey{p.Address, name}
 	}
-	if err := s.ensureTBAccounts(tbAccounts); err != nil {
+	wallets, err := s.ensureWallets(ctx, keys)
+	if err != nil {
 		return Account{}, false, err
+	}
+	acct = toAccount(row)
+	for _, k := range keys {
+		w := wallets[k]
+		acct.Wallets = append(acct.Wallets, Wallet{Currency: k.currency, Precision: w.precision, ID: w.id})
 	}
 	return acct, created, nil
 }

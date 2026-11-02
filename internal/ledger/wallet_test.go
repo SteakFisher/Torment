@@ -6,7 +6,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 
 	"torment/internal/db/sqlc"
@@ -50,47 +49,45 @@ func TestRegisterAccountWallets(t *testing.T) {
 	storedID := tb.ID()
 	ledgers := map[string]int32{"USD": 1, "AED": 2}
 	tests := []struct {
-		name          string
-		currencies    []string
-		existing      map[string]tb.Uint128 // wallets already stored, by currency
-		wantErr       error
-		wantCurrency  []string
-		wantTBCall    bool
-		wantStoredFor string // currency whose wallet must keep storedID
+		name         string
+		currencies   []string
+		existing     *fakeWallet // stored USD wallet with storedID; nil for none
+		wantErr      error
+		wantCurrency []string
+		wantSent     []string // currencies sent to CreateAccounts
 	}{
 		{name: "no currencies"},
 		{name: "unknown currency", currencies: []string{"USD", "EUR"}, wantErr: ErrInvalid},
-		{name: "new wallets", currencies: []string{"AED", "USD"}, wantCurrency: []string{"AED", "USD"}, wantTBCall: true},
-		{name: "duplicates", currencies: []string{"USD", "AED", "USD"}, wantCurrency: []string{"USD", "AED"}, wantTBCall: true},
-		{name: "existing wallet", currencies: []string{"USD", "AED"}, existing: map[string]tb.Uint128{"USD": storedID}, wantCurrency: []string{"USD", "AED"}, wantTBCall: true, wantStoredFor: "USD"},
+		{name: "new wallets", currencies: []string{"AED", "USD"}, wantCurrency: []string{"AED", "USD"}, wantSent: []string{"AED", "USD"}},
+		{name: "duplicates", currencies: []string{"USD", "AED", "USD"}, wantCurrency: []string{"USD", "AED"}, wantSent: []string{"USD", "AED"}},
+		{name: "existing wallet", currencies: []string{"USD", "AED"}, existing: &fakeWallet{created: true}, wantCurrency: []string{"USD", "AED"}, wantSent: []string{"AED"}},
+		{name: "existing wallet not created", currencies: []string{"USD", "AED"}, existing: &fakeWallet{}, wantCurrency: []string{"USD", "AED"}, wantSent: []string{"USD", "AED"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var inserted []string
-			q := &fakeQuerier{
-				getCurrencies: func(_ context.Context, names []string) ([]sqlc.Currency, error) {
-					var rows []sqlc.Currency
-					for _, n := range names {
-						if l, ok := ledgers[n]; ok {
-							rows = append(rows, sqlc.Currency{Name: n, Precision: 2, Ledger: l})
-						}
+			store := newWalletStore()
+			store.ledgers = ledgers
+			if tt.existing != nil {
+				store.accounts["rider:1:wallet"] = sqlc.Account{ID: 7, Address: "rider:1:wallet", Type: sqlc.AccountTypeLiability}
+				tt.existing.tbID = idToBytes(storedID)
+				store.wallets[walletKey{"rider:1:wallet", "USD"}] = tt.existing
+			}
+			insertedAccount := false
+			q := store.querier()
+			q.getCurrencies = func(_ context.Context, names []string) ([]sqlc.Currency, error) {
+				var rows []sqlc.Currency
+				for _, n := range names {
+					if l, ok := ledgers[n]; ok {
+						rows = append(rows, sqlc.Currency{Name: n, Precision: 2, Ledger: l})
 					}
-					return rows, nil
-				},
-				insertAccount: func(_ context.Context, arg sqlc.InsertAccountParams) (sqlc.Account, error) {
-					inserted = append(inserted, "account")
-					return sqlc.Account{ID: 7, Address: arg.Address, Type: arg.Type}, nil
-				},
-				insertWallet: func(_ context.Context, arg sqlc.InsertWalletParams) (sqlc.Wallet, error) {
-					inserted = append(inserted, arg.Currency)
-					if _, ok := tt.existing[arg.Currency]; ok {
-						return sqlc.Wallet{}, pgx.ErrNoRows
-					}
-					return sqlc.Wallet{TbID: arg.TbID, AccountID: arg.AccountID, Currency: arg.Currency}, nil
-				},
-				getWallet: func(_ context.Context, arg sqlc.GetWalletParams) (sqlc.Wallet, error) {
-					return sqlc.Wallet{TbID: idToBytes(tt.existing[arg.Currency]), AccountID: arg.AccountID, Currency: arg.Currency}, nil
-				},
+				}
+				return rows, nil
+			}
+			q.insertAccount = func(_ context.Context, arg sqlc.InsertAccountParams) (sqlc.Account, error) {
+				insertedAccount = true
+				a := sqlc.Account{ID: 7, Address: arg.Address, Type: arg.Type}
+				store.accounts[arg.Address] = a
+				return a, nil
 			}
 			var sent []tb.Account
 			tbc := &fakeTB{createAccounts: func(accounts []tb.Account) ([]tb.CreateAccountResult, error) {
@@ -104,30 +101,37 @@ func TestRegisterAccountWallets(t *testing.T) {
 
 			acct, _, err := New(q, tbc).RegisterAccount(context.Background(), RegisterAccountParams{Address: "rider:1:wallet", Type: "liability", Currencies: tt.currencies})
 			if tt.wantErr != nil {
-				if !errors.Is(err, tt.wantErr) || len(inserted) != 0 || sent != nil {
-					t.Fatalf("err = %v, inserts %v, sent %v; want %v and no writes", err, inserted, sent, tt.wantErr)
+				if !errors.Is(err, tt.wantErr) || insertedAccount || store.inserted != nil || sent != nil {
+					t.Fatalf("err = %v, account inserted %v, wallets inserted %v, sent %v; want %v and no writes", err, insertedAccount, store.inserted, sent, tt.wantErr)
 				}
 				return
 			}
 			if err != nil {
 				t.Fatalf("unexpected err: %v", err)
 			}
-			if (sent != nil) != tt.wantTBCall {
-				t.Fatalf("CreateAccounts called = %v, want %v", sent != nil, tt.wantTBCall)
-			}
 			var gotCurrency []string
-			for i, w := range acct.Wallets {
+			ids := map[string]tb.Uint128{}
+			for _, w := range acct.Wallets {
 				gotCurrency = append(gotCurrency, w.Currency)
-				a := sent[i]
-				if a.ID != w.ID || w.Precision != 2 || a.Ledger != uint32(ledgers[w.Currency]) || a.Code != tbCode(TypeLiability) || a.Flags != tbFlags(TypeLiability, false) {
-					t.Fatalf("sent %+v for wallet %+v", a, w)
-				}
-				if w.Currency == tt.wantStoredFor && w.ID != storedID {
-					t.Fatalf("wallet %s id = %v, want stored id %v", w.Currency, w.ID, storedID)
+				ids[w.Currency] = w.ID
+				if w.Precision != 2 {
+					t.Fatalf("wallet %+v, want precision 2", w)
 				}
 			}
-			if !slices.Equal(gotCurrency, tt.wantCurrency) || len(sent) != len(tt.wantCurrency) {
-				t.Fatalf("wallets %v, sent %d accounts; want %v", gotCurrency, len(sent), tt.wantCurrency)
+			if !slices.Equal(gotCurrency, tt.wantCurrency) {
+				t.Fatalf("wallets %v, want %v", gotCurrency, tt.wantCurrency)
+			}
+			if tt.existing != nil && ids["USD"] != storedID {
+				t.Fatalf("USD wallet id = %v, want stored id %v", ids["USD"], storedID)
+			}
+			if len(sent) != len(tt.wantSent) || len(store.marked) != len(tt.wantSent) {
+				t.Fatalf("sent %d accounts, marked %d; want %v", len(sent), len(store.marked), tt.wantSent)
+			}
+			for i, c := range tt.wantSent {
+				a := sent[i]
+				if a.ID != ids[c] || a.Ledger != uint32(ledgers[c]) || a.Code != tbCode(TypeLiability) || a.Flags != tbFlags(TypeLiability, false) || !slices.Equal(store.marked[i], idToBytes(ids[c])) {
+					t.Fatalf("sent %+v, marked %v for %s wallet %v", a, store.marked[i], c, ids[c])
+				}
 			}
 		})
 	}

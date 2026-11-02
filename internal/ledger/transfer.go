@@ -6,8 +6,6 @@ import (
 	"slices"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
-
-	"torment/internal/db/sqlc"
 )
 
 // maxPostings is the most transfers TigerBeetle accepts in one request.
@@ -37,9 +35,9 @@ type Transfer struct {
 // Transfer posts each posting as a TigerBeetle transfer that debits the source wallet and credits the
 // destination wallet, and returns an outcome for each posting in the shape of chains. Each chain is
 // applied atomically and chains independently. It is idempotent per posting id. The returned error
-// covers only failures before anything is written: ErrInvalid for malformed input, ErrNotFound when a
-// wallet does not exist, or another error. Each outcome's Err is ErrInsufficientFunds, ErrConflict,
-// ErrIDAlreadyFailed, ErrChainFailed or another error.
+// covers only failures before anything is written: ErrInvalid for malformed input, ErrNotFound when an
+// account or currency is not registered, or another error. Each outcome's Err is ErrInsufficientFunds,
+// ErrConflict, ErrIDAlreadyFailed, ErrChainFailed or another error.
 func (s *Service) Transfer(ctx context.Context, chains [][]Posting) ([][]Transfer, error) {
 	batch, err := validateChains(chains)
 	if err != nil {
@@ -125,52 +123,33 @@ func parsePosting(p Posting) (tb.Transfer, error) {
 	return tb.Transfer{ID: id, Amount: amount, UserData128: group, Code: 1}, nil
 }
 
-// walletKey identifies the wallet in currency of the account at address.
-type walletKey struct{ address, currency string }
-
 // resolveWallets sets the accounts and ledger of each transfer in batch from the wallets of the posting
-// at the same position in chains, reading every wallet in one query. It returns ErrNotFound naming the
-// first posting whose wallet does not exist.
+// at the same position in chains, creating any wallet that does not exist. It returns ErrNotFound when an
+// account or currency is not registered.
 func (s *Service) resolveWallets(ctx context.Context, chains [][]Posting, batch []tb.Transfer) error {
-	var params sqlc.GetWalletsByAddressParams
+	var keys []walletKey
 	seen := make(map[walletKey]bool)
 	for _, chain := range chains {
 		for _, p := range chain {
 			for _, k := range []walletKey{{p.Source, p.Currency}, {p.Destination, p.Currency}} {
 				if !seen[k] {
 					seen[k] = true
-					params.Addresses = append(params.Addresses, k.address)
-					params.Currencies = append(params.Currencies, k.currency)
+					keys = append(keys, k)
 				}
 			}
 		}
 	}
-	rows, err := s.q.GetWalletsByAddress(ctx, params)
+	wallets, err := s.ensureWallets(ctx, keys)
 	if err != nil {
-		return fmt.Errorf("error getting wallets: %w", err)
-	}
-	wallets := make(map[walletKey]sqlc.GetWalletsByAddressRow, len(rows))
-	for _, r := range rows {
-		wallets[walletKey{r.Address, r.Currency}] = r
+		return err
 	}
 	k := 0
-	for i, chain := range chains {
-		for j, p := range chain {
-			debit, ok := wallets[walletKey{p.Source, p.Currency}]
-			if !ok {
-				return fmt.Errorf("%w: chain %d posting %d: no %q wallet for account %q", ErrNotFound, i, j, p.Currency, p.Source)
-			}
-			credit, ok := wallets[walletKey{p.Destination, p.Currency}]
-			if !ok {
-				return fmt.Errorf("%w: chain %d posting %d: no %q wallet for account %q", ErrNotFound, i, j, p.Currency, p.Destination)
-			}
-			if batch[k].DebitAccountID, err = idFromBytes(debit.TbID); err != nil {
-				return err
-			}
-			if batch[k].CreditAccountID, err = idFromBytes(credit.TbID); err != nil {
-				return err
-			}
-			batch[k].Ledger = uint32(debit.Ledger)
+	for _, chain := range chains {
+		for _, p := range chain {
+			debit := wallets[walletKey{p.Source, p.Currency}]
+			batch[k].DebitAccountID = debit.id
+			batch[k].CreditAccountID = wallets[walletKey{p.Destination, p.Currency}].id
+			batch[k].Ledger = uint32(debit.ledger)
 			k++
 		}
 	}

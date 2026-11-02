@@ -2,11 +2,9 @@ package ledger
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
-	"github.com/jackc/pgx/v5"
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 
 	"torment/internal/db/sqlc"
@@ -20,21 +18,91 @@ type Wallet struct {
 	ID        tb.Uint128
 }
 
-// walletID returns the TigerBeetle id stored for the wallet of accountID in currency, first inserting
-// the wallet with a new id when it does not exist.
-func (s *Service) walletID(ctx context.Context, accountID int64, currency string) (tb.Uint128, error) {
-	row, err := s.q.InsertWallet(ctx, sqlc.InsertWalletParams{TbID: idToBytes(tb.ID()), AccountID: accountID, Currency: currency})
-	switch {
-	case err == nil:
-	case errors.Is(err, pgx.ErrNoRows):
-		row, err = s.q.GetWallet(ctx, sqlc.GetWalletParams{AccountID: accountID, Currency: currency})
-		if err != nil {
-			return tb.Uint128{}, fmt.Errorf("error getting wallet: %w", err)
-		}
-	default:
-		return tb.Uint128{}, fmt.Errorf("error inserting wallet: %w", err)
+// walletKey identifies the wallet in currency of the account at address.
+type walletKey struct{ address, currency string }
+
+// storedWallet is a wallet's TigerBeetle account id and the ledger and precision of its currency.
+type storedWallet struct {
+	id        tb.Uint128
+	ledger    int32
+	precision int16
+}
+
+// ensureWallets returns the wallet for each of keys, which must be distinct. It inserts the wallets that
+// do not exist with new ids, then creates and marks as created every TigerBeetle account not yet marked.
+// It returns ErrNotFound naming the first key whose account or currency is not registered.
+func (s *Service) ensureWallets(ctx context.Context, keys []walletKey) (map[walletKey]storedWallet, error) {
+	if len(keys) == 0 {
+		return nil, nil
 	}
-	return idFromBytes(row.TbID)
+	rows, err := s.getWallets(ctx, keys)
+	if err != nil {
+		return nil, err
+	}
+	var missing sqlc.InsertWalletsParams
+	for _, k := range keys {
+		r, ok := rows[k]
+		if !ok {
+			return nil, fmt.Errorf("%w: account %q or currency %q is not registered", ErrNotFound, k.address, k.currency)
+		}
+		if r.TbID == nil {
+			missing.TbIds = append(missing.TbIds, idToBytes(tb.ID()))
+			missing.AccountIds = append(missing.AccountIds, r.AccountID)
+			missing.Currencies = append(missing.Currencies, k.currency)
+		}
+	}
+	if len(missing.TbIds) > 0 {
+		if err := s.q.InsertWallets(ctx, missing); err != nil {
+			return nil, fmt.Errorf("error inserting wallets: %w", err)
+		}
+		// reads the stored ids, which differ from the new ones where another request inserted the wallet first
+		if rows, err = s.getWallets(ctx, keys); err != nil {
+			return nil, err
+		}
+	}
+
+	wallets := make(map[walletKey]storedWallet, len(keys))
+	var tbAccounts []tb.Account
+	var uncreated [][]byte
+	for _, k := range keys {
+		r := rows[k]
+		id, err := idFromBytes(r.TbID)
+		if err != nil {
+			return nil, err
+		}
+		wallets[k] = storedWallet{id: id, ledger: r.Ledger, precision: r.Precision}
+		if !r.TbCreated.Bool {
+			tbAccounts = append(tbAccounts, newTBAccount(id, r.Ledger, AccountType(r.Type), r.AllowNegative))
+			uncreated = append(uncreated, r.TbID)
+		}
+	}
+	if len(uncreated) > 0 {
+		if err := s.ensureTBAccounts(tbAccounts); err != nil {
+			return nil, err
+		}
+		if err := s.q.MarkWalletsTBCreated(ctx, uncreated); err != nil {
+			return nil, fmt.Errorf("error marking wallets created: %w", err)
+		}
+	}
+	return wallets, nil
+}
+
+// getWallets runs GetWallets for keys and returns the rows by key.
+func (s *Service) getWallets(ctx context.Context, keys []walletKey) (map[walletKey]sqlc.GetWalletsRow, error) {
+	var params sqlc.GetWalletsParams
+	for _, k := range keys {
+		params.Addresses = append(params.Addresses, k.address)
+		params.Currencies = append(params.Currencies, k.currency)
+	}
+	rows, err := s.q.GetWallets(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("error getting wallets: %w", err)
+	}
+	byKey := make(map[walletKey]sqlc.GetWalletsRow, len(rows))
+	for _, r := range rows {
+		byKey[walletKey{r.Address, r.Currency}] = r
+	}
+	return byKey, nil
 }
 
 // newTBAccount returns the TigerBeetle account for a wallet with the given id on ledger, owned by an

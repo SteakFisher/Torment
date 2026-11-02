@@ -16,20 +16,20 @@ import (
 
 var testWalletIDs = map[string]tb.Uint128{"world": tb.ID(), "rider:1:wallet": tb.ID(), "rider:2:wallet": tb.ID()}
 
-// walletQuerier returns a fakeQuerier whose wallet query returns a ledger 7 USD wallet for every
-// address in testWalletIDs except missing, and counts its calls in calls.
-func walletQuerier(missing string, calls *int) *fakeQuerier {
-	return &fakeQuerier{getWalletsByAddress: func(_ context.Context, arg sqlc.GetWalletsByAddressParams) ([]sqlc.GetWalletsByAddressRow, error) {
-		*calls++
-		var rows []sqlc.GetWalletsByAddressRow
-		for i, address := range arg.Addresses {
-			id, ok := testWalletIDs[address]
-			if ok && address != missing && arg.Currencies[i] == "USD" {
-				rows = append(rows, sqlc.GetWalletsByAddressRow{Address: address, Currency: "USD", TbID: idToBytes(id), Ledger: 7})
-			}
+// testStore returns a walletStore with an account for each address in testWalletIDs and a created ledger 7
+// USD wallet with that id for each, except no account at missing.
+func testStore(missing string) *walletStore {
+	w := newWalletStore()
+	w.ledgers["USD"] = 7
+	i := int64(1)
+	for address, id := range testWalletIDs {
+		if address != missing {
+			w.accounts[address] = sqlc.Account{ID: i, Address: address, Type: sqlc.AccountTypeLiability}
+			w.wallets[walletKey{address, "USD"}] = &fakeWallet{tbID: idToBytes(id), created: true}
+			i++
 		}
-		return rows, nil
-	}}
+	}
+	return w
 }
 
 // testPosting returns a world → rider:1:wallet posting of 100 USD with the given id.
@@ -83,18 +83,17 @@ func TestTransferRejects(t *testing.T) {
 		{name: "non-numeric amount", chains: edited(func(p *Posting) { p.Amount = "ten" }), wantErr: ErrInvalid},
 		{name: "amount over 128 bits", chains: edited(func(p *Posting) { p.Amount = "340282366920938463463374607431768211456" }), wantErr: ErrInvalid},
 		{name: "bad group id", chains: edited(func(p *Posting) { p.GroupID = "0" }), wantErr: ErrInvalid},
-		{name: "missing source wallet", chains: testChains(2, 1), missing: "world", wantErr: ErrNotFound},
-		{name: "missing destination wallet", chains: testChains(2, 1), missing: "rider:1:wallet", wantErr: ErrNotFound},
+		{name: "unknown source account", chains: testChains(2, 1), missing: "world", wantErr: ErrNotFound},
+		{name: "unknown destination account", chains: testChains(2, 1), missing: "rider:1:wallet", wantErr: ErrNotFound},
 		{name: "unknown currency", chains: edited(func(p *Posting) { p.Currency = "AED" }), wantErr: ErrNotFound},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var calls int
 			tbc := &fakeTB{createTransfers: func([]tb.Transfer) ([]tb.CreateTransferResult, error) {
 				t.Fatal("CreateTransfers called")
 				return nil, nil
 			}}
-			got, err := New(walletQuerier(tt.missing, &calls), tbc).Transfer(context.Background(), tt.chains)
+			got, err := New(testStore(tt.missing).querier(), tbc).Transfer(context.Background(), tt.chains)
 			if !errors.Is(err, tt.wantErr) || got != nil {
 				t.Fatalf("got %+v, err %v; want %v", got, err, tt.wantErr)
 			}
@@ -108,17 +107,18 @@ func TestTransferBatch(t *testing.T) {
 		{testPosting(4)},
 		{testPosting(5), testPosting(6)},
 	}
-	var calls int
 	var sent []tb.Transfer
+	// createAccounts is nil, so a CreateAccounts call panics
 	tbc := &fakeTB{createTransfers: func(transfers []tb.Transfer) ([]tb.CreateTransferResult, error) {
 		sent = transfers
 		return make([]tb.CreateTransferResult, len(transfers)), nil
 	}}
-	if _, err := New(walletQuerier("", &calls), tbc).Transfer(context.Background(), chains); err != nil {
+	store := testStore("")
+	if _, err := New(store.querier(), tbc).Transfer(context.Background(), chains); err != nil {
 		t.Fatalf("error transferring: %v", err)
 	}
-	if calls != 1 {
-		t.Fatalf("wallet query called %d times, want 1", calls)
+	if store.gets != 1 || store.inserted != nil || store.marked != nil {
+		t.Fatalf("wallet lookups %d, inserted %v, marked %d; want 1 lookup and no writes", store.gets, store.inserted, len(store.marked))
 	}
 
 	linked := tb.TransferFlags{Linked: true}.ToUint16()
@@ -228,7 +228,6 @@ func TestTransferResults(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var calls int
 			var sent []tb.Transfer
 			var lookups int
 			tbc := &fakeTB{
@@ -258,7 +257,7 @@ func TestTransferResults(t *testing.T) {
 					return found, nil
 				},
 			}
-			got, err := New(walletQuerier("", &calls), tbc).Transfer(context.Background(), testChains(tt.lengths...))
+			got, err := New(testStore("").querier(), tbc).Transfer(context.Background(), testChains(tt.lengths...))
 			if err != nil {
 				t.Fatalf("error transferring: %v", err)
 			}
@@ -305,7 +304,6 @@ func TestTransferResults(t *testing.T) {
 }
 
 func TestTransferLookupError(t *testing.T) {
-	var calls int
 	boom := errors.New("boom")
 	tbc := &fakeTB{
 		createTransfers: func([]tb.Transfer) ([]tb.CreateTransferResult, error) {
@@ -313,11 +311,79 @@ func TestTransferLookupError(t *testing.T) {
 		},
 		lookupTransfers: func([]tb.Uint128) ([]tb.Transfer, error) { return nil, boom },
 	}
-	got, err := New(walletQuerier("", &calls), tbc).Transfer(context.Background(), testChains(2, 1))
+	got, err := New(testStore("").querier(), tbc).Transfer(context.Background(), testChains(2, 1))
 	if err != nil {
 		t.Fatalf("error transferring: %v", err)
 	}
 	if !errors.Is(got[0][0].Err, boom) || !errors.Is(got[0][1].Err, boom) || got[1][0].Err != nil || !got[1][0].Created {
 		t.Fatalf("got %+v; want lookup error on chain 0 and chain 1 created", got)
+	}
+}
+
+func TestTransferEnsuresWallets(t *testing.T) {
+	rider := walletKey{"rider:1:wallet", "USD"}
+	stored := tb.ID()
+	boom := errors.New("boom")
+	tests := []struct {
+		name         string
+		wallet       *fakeWallet // rider's USD wallet; nil for none
+		create       func([]tb.Account) ([]tb.CreateAccountResult, error)
+		wantErr      bool
+		wantInserted bool
+	}{
+		{name: "no wallet", create: statuses(tb.AccountCreated), wantInserted: true},
+		{name: "wallet not created", wallet: &fakeWallet{tbID: idToBytes(stored)}, create: statuses(tb.AccountExists)},
+		{name: "account rejected", create: statuses(tb.AccountLedgerMustNotBeZero), wantErr: true, wantInserted: true},
+		{name: "client error", wallet: &fakeWallet{tbID: idToBytes(stored)}, create: func([]tb.Account) ([]tb.CreateAccountResult, error) { return nil, boom }, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := testStore("")
+			delete(store.wallets, rider)
+			if tt.wallet != nil {
+				store.wallets[rider] = tt.wallet
+			}
+			var accounts []tb.Account
+			var transfers []tb.Transfer
+			tbc := &fakeTB{
+				createAccounts: func(a []tb.Account) ([]tb.CreateAccountResult, error) {
+					accounts = a
+					return tt.create(a)
+				},
+				createTransfers: func(tr []tb.Transfer) ([]tb.CreateTransferResult, error) {
+					transfers = tr
+					return make([]tb.CreateTransferResult, len(tr)), nil
+				},
+			}
+			_, err := New(store.querier(), tbc).Transfer(context.Background(), testChains(1))
+
+			wantInserted, wantGets := []walletKey(nil), 1
+			if tt.wantInserted {
+				wantInserted, wantGets = []walletKey{rider}, 2
+			}
+			if !slices.Equal(store.inserted, wantInserted) || store.gets != wantGets {
+				t.Fatalf("inserted %v, lookups %d; want %v, %d", store.inserted, store.gets, wantInserted, wantGets)
+			}
+			id, _ := idFromBytes(store.wallets[rider].tbID)
+			want := tb.Account{ID: id, Ledger: 7, Code: tbCode(TypeLiability), Flags: tbFlags(TypeLiability, false)}
+			if len(accounts) != 1 || accounts[0] != want {
+				t.Fatalf("CreateAccounts sent %+v, want [%+v]", accounts, want)
+			}
+			if tt.wantErr {
+				if err == nil || store.marked != nil || transfers != nil {
+					t.Fatalf("err %v, marked %d, transfers %+v; want an error, no mark and no transfers", err, len(store.marked), transfers)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("error transferring: %v", err)
+			}
+			if len(store.marked) != 1 || !slices.Equal(store.marked[0], idToBytes(id)) || !store.wallets[rider].created {
+				t.Fatalf("marked %v, want [%v]", store.marked, idToBytes(id))
+			}
+			if len(transfers) != 1 || transfers[0].CreditAccountID != id || transfers[0].DebitAccountID != testWalletIDs["world"] {
+				t.Fatalf("transfers %+v; want world to wallet %s", transfers, id.BigInt())
+			}
+		})
 	}
 }
