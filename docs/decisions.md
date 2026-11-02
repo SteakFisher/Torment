@@ -66,3 +66,6 @@ When TigerBeetle rejects postings, the result is reported for each one:
 - **An unknown group returns 200 with an empty list.** TigerBeetle keeps no list of groups, so an unused id and an empty group look the same.
 - **At most 8189 transfers**, the most one TigerBeetle query returns.
 - **A TigerBeetle account with no wallet row returns 500.** Every TigerBeetle account is created from a Postgres row first, so this means the data is broken.
+
+## Shutdown
+SIGINT or SIGTERM stops new connections and waits up to 10 seconds for requests in flight. A request cut off after that is the crash row under Transfers: retry with the same ids.

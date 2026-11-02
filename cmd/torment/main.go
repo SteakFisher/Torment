@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -25,10 +27,12 @@ func main() {
 	}
 }
 
-// run connects to Postgres and TigerBeetle, applies migrations and serves HTTP until the server fails.
+// run connects to Postgres and TigerBeetle, applies migrations and serves HTTP until the server fails or
+// the process gets SIGINT or SIGTERM, then waits up to 10 seconds for requests in flight to finish.
 // It reads DATABASE_URL and TB_ADDRESS (required) and ADDR (default ":8080") from the environment.
 func run() error {
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	databaseURL, err := requireEnv("DATABASE_URL")
 	if err != nil {
@@ -64,9 +68,23 @@ func run() error {
 		return fmt.Errorf("error pinging tigerbeetle: %w", err)
 	}
 
+	srv := &http.Server{Addr: addr, Handler: httpapi.New(ledger.New(sqlc.New(pool), tbClient))}
+	errc := make(chan error, 1)
+	go func() { errc <- srv.ListenAndServe() }()
 	slog.Info("listening", "addr", addr)
-	svc := ledger.New(sqlc.New(pool), tbClient)
-	return http.ListenAndServe(addr, httpapi.New(svc))
+	select {
+	case err := <-errc:
+		return fmt.Errorf("error serving http: %w", err)
+	case <-ctx.Done():
+	}
+
+	slog.Info("shutting down")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("error shutting down http server: %w", err)
+	}
+	return nil
 }
 
 // requireEnv returns the value of the environment variable key, or an error when it is unset or empty.

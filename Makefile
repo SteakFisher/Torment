@@ -3,7 +3,7 @@ export TB_ADDRESS ?= 3000
 export TEST_DATABASE_URL ?= postgres://torment:torment@localhost:5432/torment_test?sslmode=disable
 export TEST_TB_ADDRESS ?= 3000
 
-.PHONY: up down run test generate
+.PHONY: up down run test e2e generate
 
 up:
 	docker compose up -d --wait
@@ -16,6 +16,10 @@ run: generate
 
 test: generate
 	go test ./...
+
+# e2e needs the server running (make run).
+e2e:
+	./scripts/e2e.sh
 
 generate:
 	go tool sqlc generate
