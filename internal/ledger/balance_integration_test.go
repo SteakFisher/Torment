@@ -23,8 +23,9 @@ func TestIntegrationBalances(t *testing.T) {
 		t.Fatalf("rider: %v", err)
 	}
 
-	if _, _, err := s.Transfer(ctx, []Posting{{ID: tb.ID().BigInt().String(), Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: "100"}}); err != nil {
-		t.Fatalf("error transferring: %v", err)
+	got, err := s.Transfer(ctx, [][]Posting{{{ID: tb.ID().BigInt().String(), Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: "100"}}})
+	if err != nil || got[0][0].Err != nil {
+		t.Fatalf("error transferring: %v, %+v", err, got)
 	}
 
 	want := map[string]map[string]int64{

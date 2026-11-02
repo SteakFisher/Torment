@@ -13,4 +13,8 @@ var (
 	// ErrInsufficientFunds means a posting would take an account below zero when the account does not
 	// allow it.
 	ErrInsufficientFunds = errors.New("insufficient funds")
+	// ErrIDAlreadyFailed means the id belongs to a transfer that failed; a new id is needed.
+	ErrIDAlreadyFailed = errors.New("id already failed")
+	// ErrChainFailed means another posting in the same chain failed.
+	ErrChainFailed = errors.New("chain failed")
 )
