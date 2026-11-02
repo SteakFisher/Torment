@@ -21,6 +21,7 @@ type fakeQuerier struct {
 	getWallets           func(ctx context.Context, arg sqlc.GetWalletsParams) ([]sqlc.GetWalletsRow, error)
 	insertWallets        func(ctx context.Context, arg sqlc.InsertWalletsParams) error
 	markWalletsTBCreated func(ctx context.Context, tbIds [][]byte) error
+	getWalletsByTBIDs    func(ctx context.Context, tbIds [][]byte) ([]sqlc.GetWalletsByTBIDsRow, error)
 }
 
 var _ sqlc.Querier = (*fakeQuerier)(nil)
@@ -55,6 +56,10 @@ func (f *fakeQuerier) InsertWallets(ctx context.Context, arg sqlc.InsertWalletsP
 
 func (f *fakeQuerier) MarkWalletsTBCreated(ctx context.Context, tbIds [][]byte) error {
 	return f.markWalletsTBCreated(ctx, tbIds)
+}
+
+func (f *fakeQuerier) GetWalletsByTBIDs(ctx context.Context, tbIds [][]byte) ([]sqlc.GetWalletsByTBIDsRow, error) {
+	return f.getWalletsByTBIDs(ctx, tbIds)
 }
 
 // fakeWallet is a wallet row in a walletStore.
@@ -128,6 +133,7 @@ type fakeTB struct {
 	lookupAccounts  func(ids []tb.Uint128) ([]tb.Account, error)
 	createTransfers func(transfers []tb.Transfer) ([]tb.CreateTransferResult, error)
 	lookupTransfers func(ids []tb.Uint128) ([]tb.Transfer, error)
+	queryTransfers  func(filter tb.QueryFilter) ([]tb.Transfer, error)
 }
 
 var _ tbClient = (*fakeTB)(nil)
@@ -146,4 +152,8 @@ func (f *fakeTB) CreateTransfers(transfers []tb.Transfer) ([]tb.CreateTransferRe
 
 func (f *fakeTB) LookupTransfers(ids []tb.Uint128) ([]tb.Transfer, error) {
 	return f.lookupTransfers(ids)
+}
+
+func (f *fakeTB) QueryTransfers(filter tb.QueryFilter) ([]tb.Transfer, error) {
+	return f.queryTransfers(filter)
 }

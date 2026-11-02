@@ -59,3 +59,10 @@ When TigerBeetle rejects postings, the result is reported for each one:
 - **A chain that fails on `exists`:** TigerBeetle stops a chain at the first `exists`. That makes a resent chain look the same as a new chain reusing an old id, so we look up the chain's ids. If every one exists with the same fields, the result is `exists`, otherwise `conflict`.
 - **Other chains:** each one is applied separately, so failures are reported per posting and never fail the whole request.
 - **Groups:** `group_id` is stored in `user_data_128`. It defaults to the posting's own id, which keeps retries consistent.
+
+## Groups
+`GET /groups/{group_id}/transfers`: a read only. TigerBeetle `query_transfers` on `user_data_128`, then one Postgres query maps the account ids to addresses. Oldest first.
+
+- **An unknown group returns 200 with an empty list.** TigerBeetle keeps no list of groups, so an unused id and an empty group look the same.
+- **At most 8189 transfers**, the most one TigerBeetle query returns.
+- **A TigerBeetle account with no wallet row returns 500.** Every TigerBeetle account is created from a Postgres row first, so this means the data is broken.

@@ -15,6 +15,7 @@ type Ledger interface {
 	RegisterAccount(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error)
 	Balances(ctx context.Context, address string) ([]ledger.Balance, error)
 	Transfer(ctx context.Context, chains [][]ledger.Posting) ([][]ledger.Transfer, error)
+	GroupTransfers(ctx context.Context, groupID string) ([]ledger.GroupTransfer, error)
 }
 
 // Fails to compile when *ledger.Service no longer satisfies Ledger.
@@ -30,6 +31,7 @@ func New(l Ledger) http.Handler {
 	mux.HandleFunc("POST /accounts", postAccount(l))
 	mux.HandleFunc("GET /accounts/{address}/balances", getBalances(l))
 	mux.HandleFunc("POST /transfers", postTransfer(l))
+	mux.HandleFunc("GET /groups/{group_id}/transfers", getGroupTransfers(l))
 	return mux
 }
 
