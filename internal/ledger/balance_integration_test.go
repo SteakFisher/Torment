@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	tb "github.com/tigerbeetle/tigerbeetle-go"
 )
 
 func TestIntegrationBalances(t *testing.T) {
@@ -21,7 +23,7 @@ func TestIntegrationBalances(t *testing.T) {
 		t.Fatalf("rider: %v", err)
 	}
 
-	if _, err := s.Transfer(ctx, []Posting{{Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: "100"}}); err != nil {
+	if _, _, err := s.Transfer(ctx, []Posting{{ID: tb.ID().BigInt().String(), Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: "100"}}); err != nil {
 		t.Fatalf("error transferring: %v", err)
 	}
 

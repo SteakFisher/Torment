@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"bytes"
 	"fmt"
 	"math/big"
 
@@ -20,6 +21,9 @@ func idFromBytes(b []byte) (tb.Uint128, error) {
 	}
 	return tb.BytesToUint128([16]byte(b)), nil
 }
+
+// maxUint128 is 2^128-1, which TigerBeetle rejects as an id.
+var maxUint128 = tb.BytesToUint128([16]byte(bytes.Repeat([]byte{0xff}, 16)))
 
 // parseUint128 parses s as a base-10 integer. It reports false unless the value is greater than zero
 // and fits in 128 bits.

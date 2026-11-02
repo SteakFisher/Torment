@@ -14,7 +14,7 @@ type fakeLedger struct {
 	registerCurrency func(ctx context.Context, code string) (ledger.Currency, error)
 	registerAccount  func(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error)
 	balances         func(ctx context.Context, address string) ([]ledger.Balance, error)
-	transfer         func(ctx context.Context, postings []ledger.Posting) ([]ledger.Transfer, error)
+	transfer         func(ctx context.Context, postings []ledger.Posting) ([]ledger.Transfer, bool, error)
 }
 
 var _ Ledger = fakeLedger{}
@@ -31,7 +31,7 @@ func (f fakeLedger) Balances(ctx context.Context, address string) ([]ledger.Bala
 	return f.balances(ctx, address)
 }
 
-func (f fakeLedger) Transfer(ctx context.Context, postings []ledger.Posting) ([]ledger.Transfer, error) {
+func (f fakeLedger) Transfer(ctx context.Context, postings []ledger.Posting) ([]ledger.Transfer, bool, error) {
 	return f.transfer(ctx, postings)
 }
 

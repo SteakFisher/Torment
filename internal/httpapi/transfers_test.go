@@ -17,14 +17,15 @@ import (
 )
 
 func TestPostTransfer(t *testing.T) {
-	body := `{"postings":[{"source":"world","destination":"rider:1:wallet","currency":"USD","amount":"100","group_id":"9"}]}`
-	wantPostings := []ledger.Posting{{Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: "100", GroupID: "9"}}
+	body := `{"postings":[{"id":"18446744073709551617","source":"world","destination":"rider:1:wallet","currency":"USD","amount":"100","group_id":"9"}]}`
+	wantPostings := []ledger.Posting{{ID: "18446744073709551617", Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: "100", GroupID: "9"}}
 	// 2^64 + 1 does not fit in a uint64
 	bigID := tb.BigIntToUint128(new(big.Int).SetBit(big.NewInt(1), 64, 1))
 
 	tests := []struct {
 		name       string
 		body       string
+		created    bool
 		err        error
 		wantStatus int
 		wantBody   string
@@ -32,25 +33,33 @@ func TestPostTransfer(t *testing.T) {
 		{
 			name:       "created",
 			body:       body,
+			created:    true,
 			wantStatus: http.StatusCreated,
+			wantBody:   `{"transfers":[{"id":"18446744073709551617","group_id":"9"}]}`,
+		},
+		{
+			name:       "already posted",
+			body:       body,
+			wantStatus: http.StatusOK,
 			wantBody:   `{"transfers":[{"id":"18446744073709551617","group_id":"9"}]}`,
 		},
 		{name: "malformed json", body: `{"postings":`, wantStatus: http.StatusBadRequest},
 		{name: "unknown field", body: `{"postings":[],"x":1}`, wantStatus: http.StatusBadRequest},
 		{name: "invalid", body: body, err: ledger.ErrInvalid, wantStatus: http.StatusBadRequest},
 		{name: "not found", body: body, err: ledger.ErrNotFound, wantStatus: http.StatusNotFound},
+		{name: "conflict", body: body, err: ledger.ErrConflict, wantStatus: http.StatusConflict},
 		{name: "insufficient funds", body: body, err: ledger.ErrInsufficientFunds, wantStatus: http.StatusUnprocessableEntity},
 		{name: "unexpected", body: body, err: errors.New("boom"), wantStatus: http.StatusInternalServerError},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var gotPostings []ledger.Posting
-			l := fakeLedger{transfer: func(_ context.Context, postings []ledger.Posting) ([]ledger.Transfer, error) {
+			l := fakeLedger{transfer: func(_ context.Context, postings []ledger.Posting) ([]ledger.Transfer, bool, error) {
 				gotPostings = postings
 				if tt.err != nil {
-					return nil, fmt.Errorf("wrapped: %w", tt.err)
+					return nil, false, fmt.Errorf("wrapped: %w", tt.err)
 				}
-				return []ledger.Transfer{{ID: bigID, GroupID: tb.ToUint128(9)}}, nil
+				return []ledger.Transfer{{ID: bigID, GroupID: tb.ToUint128(9)}}, tt.created, nil
 			}}
 			rec := httptest.NewRecorder()
 			New(l).ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/transfers", strings.NewReader(tt.body)))

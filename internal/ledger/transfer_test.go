@@ -13,9 +13,9 @@ import (
 )
 
 func TestTransfer(t *testing.T) {
-	// posting returns one world → rider posting of 100 USD, changed by edit
+	// posting returns one world → rider posting of 100 USD with id 5, changed by edit
 	posting := func(edit func(p *Posting)) []Posting {
-		p := Posting{Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: "100"}
+		p := Posting{ID: "5", Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: "100"}
 		if edit != nil {
 			edit(&p)
 		}
@@ -26,17 +26,21 @@ func TestTransfer(t *testing.T) {
 	bigGroup := tb.BigIntToUint128(new(big.Int).Lsh(big.NewInt(1), 64))
 
 	tests := []struct {
-		name      string
-		postings  []Posting
-		missing   string
-		status    tb.CreateTransferStatus
-		wantErr   error
-		wantOther bool
-		wantCall  bool
-		wantGroup *tb.Uint128
+		name        string
+		postings    []Posting
+		missing     string
+		status      tb.CreateTransferStatus
+		wantErr     error
+		wantOther   bool
+		wantCall    bool
+		wantCreated bool
+		wantGroup   *tb.Uint128
 	}{
 		{name: "no postings", wantErr: ErrInvalid},
 		{name: "two postings", postings: append(posting(nil), posting(nil)...), wantErr: ErrInvalid},
+		{name: "missing id", postings: posting(func(p *Posting) { p.ID = "" }), wantErr: ErrInvalid},
+		{name: "zero id", postings: posting(func(p *Posting) { p.ID = "0" }), wantErr: ErrInvalid},
+		{name: "max id", postings: posting(func(p *Posting) { p.ID = "340282366920938463463374607431768211455" }), wantErr: ErrInvalid},
 		{name: "bad source", postings: posting(func(p *Posting) { p.Source = "a b" }), wantErr: ErrInvalid},
 		{name: "bad destination", postings: posting(func(p *Posting) { p.Destination = "" }), wantErr: ErrInvalid},
 		{name: "same source and destination", postings: posting(func(p *Posting) { p.Destination = "world" }), wantErr: ErrInvalid},
@@ -49,14 +53,18 @@ func TestTransfer(t *testing.T) {
 		{name: "missing destination wallet", postings: posting(nil), missing: "rider:1:wallet", wantErr: ErrNotFound},
 		{name: "exceeds credits", postings: posting(nil), status: tb.TransferExceedsCredits, wantErr: ErrInsufficientFunds, wantCall: true},
 		{name: "exceeds debits", postings: posting(nil), status: tb.TransferExceedsDebits, wantErr: ErrInsufficientFunds, wantCall: true},
+		{name: "exists with different amount", postings: posting(nil), status: tb.TransferExistsWithDifferentAmount, wantErr: ErrConflict, wantCall: true},
+		{name: "id already failed", postings: posting(nil), status: tb.TransferIDAlreadyFailed, wantErr: ErrConflict, wantCall: true},
 		{name: "other status", postings: posting(nil), status: tb.TransferOverflowsDebits, wantOther: true, wantCall: true},
-		{name: "created", postings: posting(nil), status: tb.TransferCreated, wantCall: true},
+		{name: "created", postings: posting(nil), status: tb.TransferCreated, wantCall: true, wantCreated: true},
+		{name: "exists", postings: posting(nil), status: tb.TransferExists, wantCall: true},
 		{
-			name:      "created with group",
-			postings:  posting(func(p *Posting) { p.GroupID = "18446744073709551616" }),
-			status:    tb.TransferCreated,
-			wantCall:  true,
-			wantGroup: &bigGroup,
+			name:        "created with group",
+			postings:    posting(func(p *Posting) { p.GroupID = "18446744073709551616" }),
+			status:      tb.TransferCreated,
+			wantCall:    true,
+			wantCreated: true,
+			wantGroup:   &bigGroup,
 		},
 	}
 	for _, tt := range tests {
@@ -73,12 +81,12 @@ func TestTransfer(t *testing.T) {
 				return []tb.CreateTransferResult{{Status: tt.status}}, nil
 			}}
 
-			got, err := New(q, tbc).Transfer(context.Background(), tt.postings)
+			got, created, err := New(q, tbc).Transfer(context.Background(), tt.postings)
 			if (sent != nil) != tt.wantCall {
 				t.Fatalf("CreateTransfers called = %v, want %v", sent != nil, tt.wantCall)
 			}
 			if tt.wantOther {
-				if err == nil || errors.Is(err, ErrInvalid) || errors.Is(err, ErrNotFound) || errors.Is(err, ErrInsufficientFunds) {
+				if err == nil || errors.Is(err, ErrInvalid) || errors.Is(err, ErrNotFound) || errors.Is(err, ErrInsufficientFunds) || errors.Is(err, ErrConflict) {
 					t.Fatalf("err = %v, want an error that is none of the sentinels", err)
 				}
 				return
@@ -93,12 +101,15 @@ func TestTransfer(t *testing.T) {
 			if len(sent) != 1 {
 				t.Fatalf("sent %d transfers, want 1", len(sent))
 			}
+			if created != tt.wantCreated {
+				t.Fatalf("created = %v, want %v", created, tt.wantCreated)
+			}
 			tr := sent[0]
-			wantGroup := tr.ID
+			wantGroup := tb.ToUint128(5)
 			if tt.wantGroup != nil {
 				wantGroup = *tt.wantGroup
 			}
-			if tr.DebitAccountID != tbIDs["world"] || tr.CreditAccountID != tbIDs["rider:1:wallet"] ||
+			if tr.ID != tb.ToUint128(5) || tr.DebitAccountID != tbIDs["world"] || tr.CreditAccountID != tbIDs["rider:1:wallet"] ||
 				tr.Ledger != 7 || tr.Code != 1 || tr.Amount != tb.ToUint128(100) || tr.UserData128 != wantGroup {
 				t.Fatalf("sent transfer = %+v", tr)
 			}
