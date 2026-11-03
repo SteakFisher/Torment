@@ -48,10 +48,11 @@ func tbCode(t AccountType) uint16 {
 	return 0
 }
 
-// tbFlags returns the TigerBeetle account flags for t. Unless allowNegative is set, they make
-// TigerBeetle reject any transfer that would push the balance below zero on t's normal side.
+// tbFlags returns the TigerBeetle account flags for t. They always keep the balance after every transfer,
+// and unless allowNegative is set they make TigerBeetle reject any transfer that would push the balance
+// below zero on t's normal side.
 func tbFlags(t AccountType, allowNegative bool) uint16 {
-	var f tb.AccountFlags
+	f := tb.AccountFlags{History: true}
 	switch {
 	case allowNegative:
 	case debitNormal(t):

@@ -123,8 +123,9 @@ func TestRegisterAccount(t *testing.T) {
 
 func TestTBCodeAndFlags(t *testing.T) {
 	const (
-		debitsLimited  = 1 << 1 // debits_must_not_exceed_credits
-		creditsLimited = 1 << 2 // credits_must_not_exceed_debits
+		history        = 1 << 3
+		debitsLimited  = 1<<1 | history // debits_must_not_exceed_credits
+		creditsLimited = 1<<2 | history // credits_must_not_exceed_debits
 	)
 	tests := []struct {
 		typ           AccountType
@@ -133,15 +134,15 @@ func TestTBCodeAndFlags(t *testing.T) {
 		flags         uint16
 	}{
 		{typ: TypeAsset, code: 1, flags: creditsLimited},
-		{typ: TypeAsset, allowNegative: true, code: 1},
+		{typ: TypeAsset, allowNegative: true, code: 1, flags: history},
 		{typ: TypeExpense, code: 2, flags: creditsLimited},
-		{typ: TypeExpense, allowNegative: true, code: 2},
+		{typ: TypeExpense, allowNegative: true, code: 2, flags: history},
 		{typ: TypeLiability, code: 3, flags: debitsLimited},
-		{typ: TypeLiability, allowNegative: true, code: 3},
+		{typ: TypeLiability, allowNegative: true, code: 3, flags: history},
 		{typ: TypeEquity, code: 4, flags: debitsLimited},
-		{typ: TypeEquity, allowNegative: true, code: 4},
+		{typ: TypeEquity, allowNegative: true, code: 4, flags: history},
 		{typ: TypeRevenue, code: 5, flags: debitsLimited},
-		{typ: TypeRevenue, allowNegative: true, code: 5},
+		{typ: TypeRevenue, allowNegative: true, code: 5, flags: history},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%s/allowNegative=%v", tt.typ, tt.allowNegative), func(t *testing.T) {

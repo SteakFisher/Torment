@@ -32,7 +32,7 @@ func TestIntegrationRegisterAccountWallets(t *testing.T) {
 		}
 		ledgers[c.Name] = uint32(c.Ledger)
 	}
-	debitsLimited := tb.AccountFlags{DebitsMustNotExceedCredits: true}.ToUint16()
+	debitsLimited := tb.AccountFlags{DebitsMustNotExceedCredits: true, History: true}.ToUint16()
 
 	p := RegisterAccountParams{Address: "rider:1:wallet", Type: "liability", Currencies: []string{"USD", "AED"}}
 	first, _, err := s.RegisterAccount(ctx, p)
@@ -64,8 +64,8 @@ func TestIntegrationRegisterAccountWallets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("world: %v", err)
 	}
-	if a := lookupTBAccount(t, world.Wallets[0].ID); a.Flags != 0 || a.Code != tbCode(TypeAsset) {
-		t.Fatalf("world tigerbeetle account: code %d, flags %b; want code %d, no flags", a.Code, a.Flags, tbCode(TypeAsset))
+	if a := lookupTBAccount(t, world.Wallets[0].ID); a.Flags != (tb.AccountFlags{History: true}).ToUint16() || a.Code != tbCode(TypeAsset) {
+		t.Fatalf("world tigerbeetle account: code %d, flags %b; want code %d, only history", a.Code, a.Flags, tbCode(TypeAsset))
 	}
 
 	// a wallet row whose TigerBeetle account was never created

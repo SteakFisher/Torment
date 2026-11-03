@@ -34,6 +34,7 @@ One per (account, currency), and each is one TigerBeetle account. The type goes 
 - **Why the flag exists:** a transfer to a wallet with no TigerBeetle account fails with `account_not_found`, and TigerBeetle then permanently rejects that transfer id. So step 3 must succeed before any transfer is sent.
 - **Two requests creating the same wallet:** `unique(account_id, currency)` means the first insert wins, and both requests read back its id.
 - **Costs nothing when wallets are already confirmed:** one query, no TigerBeetle call.
+- **Every wallet has TigerBeetle's `history` flag**, so past balances can be queried. TigerBeetle 0.17.9 already stores a balance snapshot for every transfer (for CDC); the flag indexes it by account and keeps it from future pruning, about one small index entry per transfer. Flags can't change after creation, so this was decided before any real data.
 
 ## Balances
 A read only: Postgres wallets, then TigerBeetle `lookup_accounts`. A wallet with no TigerBeetle account reads as zero.
@@ -66,6 +67,12 @@ When TigerBeetle rejects postings, the result is reported for each one:
 - **An unknown group returns 200 with an empty list.** TigerBeetle keeps no list of groups, so an unused id and an empty group look the same.
 - **At most 8189 transfers**, the most one TigerBeetle query returns.
 - **A TigerBeetle account with no wallet row returns 500.** Every TigerBeetle account is created from a Postgres row first, so this means the data is broken.
+
+## Queries
+- **Patterns are capped at 1000 wallets**; more returns 400 asking to narrow the pattern. The ledger answers operational queries (one user's pots, a few system accounts). Totals across all users are analytics: export through TigerBeetle CDC to something like ClickHouse. That export is not built.
+- **Patterns:** `*` matches exactly one segment. In Postgres, a pattern becomes an anchored regex.
+- **`at` reads a past balance**: the last TigerBeetle snapshot at or before `at`. A wallet with none (created later, or no transfers yet) reads as zero and is still listed, not hidden.
+- **Pattern balances return the totals and each account's balance**, one total per (type, currency). Different types are never summed together. Both come from the same TigerBeetle read, so they always agree.
 
 ## Shutdown
 SIGINT or SIGTERM stops new connections and waits up to 10 seconds for requests in flight. A request cut off after that is the crash row under Transfers: retry with the same ids.
