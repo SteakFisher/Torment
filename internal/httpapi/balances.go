@@ -1,6 +1,12 @@
 package httpapi
 
-import "net/http"
+import (
+	"fmt"
+	"net/http"
+	"time"
+
+	"torment/internal/ledger"
+)
 
 // balanceJSON is an account's balance in one currency. Amount is in minor units as a decimal string.
 type balanceJSON struct {
@@ -9,12 +15,21 @@ type balanceJSON struct {
 	Amount    string `json:"amount"`
 }
 
-// getBalances handles GET /accounts/{address}/balances. It responds 200 with the balance of each of the
-// account's wallets, or 404 when the account does not exist.
+// getBalances handles GET /accounts/{address}/balances?at=. It responds 200 with the balance of each of
+// the account's wallets, as of at when given, 400 when at is not an RFC 3339 time, or 404 when the
+// account does not exist.
 func getBalances(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		address := r.PathValue("address")
-		balances, err := l.Balances(r.Context(), address)
+		var at time.Time
+		if s := r.URL.Query().Get("at"); s != "" {
+			var err error
+			if at, err = time.Parse(time.RFC3339Nano, s); err != nil {
+				writeError(w, fmt.Errorf("%w: at %q must be an RFC 3339 time", ledger.ErrInvalid, s))
+				return
+			}
+		}
+		balances, err := l.Balances(r.Context(), address, at)
 		if err != nil {
 			writeError(w, err)
 			return

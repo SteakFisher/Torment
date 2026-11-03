@@ -139,6 +139,7 @@ type fakeTB struct {
 	createTransfers func(transfers []tb.Transfer) ([]tb.CreateTransferResult, error)
 	lookupTransfers func(ids []tb.Uint128) ([]tb.Transfer, error)
 	queryTransfers  func(filter tb.QueryFilter) ([]tb.Transfer, error)
+	accountBalances func(filter tb.AccountFilter) ([]tb.AccountBalance, error)
 }
 
 var _ tbClient = (*fakeTB)(nil)
@@ -161,4 +162,8 @@ func (f *fakeTB) LookupTransfers(ids []tb.Uint128) ([]tb.Transfer, error) {
 
 func (f *fakeTB) QueryTransfers(filter tb.QueryFilter) ([]tb.Transfer, error) {
 	return f.queryTransfers(filter)
+}
+
+func (f *fakeTB) GetAccountBalances(filter tb.AccountFilter) ([]tb.AccountBalance, error) {
+	return f.accountBalances(filter)
 }

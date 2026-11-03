@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"torment/internal/ledger"
 )
@@ -13,7 +14,7 @@ import (
 type Ledger interface {
 	RegisterCurrency(ctx context.Context, code string) (ledger.Currency, error)
 	RegisterAccount(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error)
-	Balances(ctx context.Context, address string) ([]ledger.Balance, error)
+	Balances(ctx context.Context, address string, at time.Time) ([]ledger.Balance, error)
 	Transfer(ctx context.Context, chains [][]ledger.Posting) ([][]ledger.Transfer, error)
 	GroupTransfers(ctx context.Context, groupID string) ([]ledger.GroupTransfer, error)
 	ListAccounts(ctx context.Context, pattern, after string, limit int) ([]ledger.Account, bool, error)

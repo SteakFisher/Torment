@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"torment/internal/ledger"
 )
@@ -13,7 +14,7 @@ import (
 type fakeLedger struct {
 	registerCurrency func(ctx context.Context, code string) (ledger.Currency, error)
 	registerAccount  func(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error)
-	balances         func(ctx context.Context, address string) ([]ledger.Balance, error)
+	balances         func(ctx context.Context, address string, at time.Time) ([]ledger.Balance, error)
 	transfer         func(ctx context.Context, chains [][]ledger.Posting) ([][]ledger.Transfer, error)
 	groupTransfers   func(ctx context.Context, groupID string) ([]ledger.GroupTransfer, error)
 	listAccounts     func(ctx context.Context, pattern, after string, limit int) ([]ledger.Account, bool, error)
@@ -29,8 +30,8 @@ func (f fakeLedger) RegisterAccount(ctx context.Context, p ledger.RegisterAccoun
 	return f.registerAccount(ctx, p)
 }
 
-func (f fakeLedger) Balances(ctx context.Context, address string) ([]ledger.Balance, error) {
-	return f.balances(ctx, address)
+func (f fakeLedger) Balances(ctx context.Context, address string, at time.Time) ([]ledger.Balance, error) {
+	return f.balances(ctx, address, at)
 }
 
 func (f fakeLedger) Transfer(ctx context.Context, chains [][]ledger.Posting) ([][]ledger.Transfer, error) {

@@ -37,7 +37,7 @@ One per (account, currency), and each is one TigerBeetle account. The type goes 
 - **Every wallet has TigerBeetle's `history` flag**, so past balances can be queried. TigerBeetle 0.17.9 already stores a balance snapshot for every transfer (for CDC); the flag indexes it by account and keeps it from future pruning, about one small index entry per transfer. Flags can't change after creation, so this was decided before any real data.
 
 ## Balances
-A read only: Postgres wallets, then TigerBeetle `lookup_accounts`. A wallet with no TigerBeetle account reads as zero.
+A read only: Postgres wallets, then TigerBeetle `lookup_accounts`. A wallet with no TigerBeetle account reads as zero. With `?at=`, each wallet takes one `get_account_balances` call for its last snapshot at or before `at`, using TigerBeetle's clock.
 
 ## Transfers
 Each posting has a client-chosen `id`, used as the TigerBeetle transfer id. A posting on its own is independent. An array of postings is an atomic chain. The response gives a status for each posting.

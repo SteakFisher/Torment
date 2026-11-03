@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 )
@@ -122,7 +123,7 @@ func TestIntegrationTransferCreatesWallets(t *testing.T) {
 	}
 	checkUSD := func(address string, amount int64) {
 		t.Helper()
-		got, err := s.Balances(ctx, address)
+		got, err := s.Balances(ctx, address, time.Time{})
 		if err != nil || len(got) != 1 || got[0].Currency != "USD" || got[0].Amount.Int64() != amount {
 			t.Fatalf("%s balances = %+v, err %v; want USD %d", address, got, err, amount)
 		}

@@ -23,6 +23,7 @@ type tbClient interface {
 	CreateTransfers(transfers []tb.Transfer) ([]tb.CreateTransferResult, error)
 	LookupTransfers(ids []tb.Uint128) ([]tb.Transfer, error)
 	QueryTransfers(filter tb.QueryFilter) ([]tb.Transfer, error)
+	GetAccountBalances(filter tb.AccountFilter) ([]tb.AccountBalance, error)
 }
 
 // Fails to compile when tb.Client no longer satisfies tbClient.
