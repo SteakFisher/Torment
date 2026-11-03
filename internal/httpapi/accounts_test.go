@@ -72,3 +72,56 @@ func TestPostAccount(t *testing.T) {
 		})
 	}
 }
+
+func TestGetAccounts(t *testing.T) {
+	created := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	accounts := []ledger.Account{
+		{Address: "rider:1:wallet", Type: ledger.TypeLiability, CreatedAt: created, Wallets: []ledger.Wallet{{Currency: "USD", Precision: 2}}},
+		{Address: "rider:2:wallet", Type: ledger.TypeLiability, CreatedAt: created},
+	}
+	tests := []struct {
+		name       string
+		query      string
+		more       bool
+		err        error
+		wantArgs   string
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:       "page with more",
+			query:      "?address=rider:*:wallet&after=a&limit=2",
+			more:       true,
+			wantArgs:   "rider:*:wallet a 2",
+			wantStatus: http.StatusOK,
+			wantBody: `{"accounts":[{"address":"rider:1:wallet","type":"liability","allow_negative":false,"created_at":"2026-01-02T03:04:05Z","wallets":[{"currency":"USD","precision":2}]},` +
+				`{"address":"rider:2:wallet","type":"liability","allow_negative":false,"created_at":"2026-01-02T03:04:05Z","wallets":[]}],"next":"rider:2:wallet"}`,
+		},
+		{name: "last page", query: "", wantArgs: "  0", wantStatus: http.StatusOK},
+		{name: "bad limit", query: "?limit=x", wantStatus: http.StatusBadRequest},
+		{name: "invalid", query: "?address=a:.", err: ledger.ErrInvalid, wantArgs: "a:.  0", wantStatus: http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotArgs string
+			l := fakeLedger{listAccounts: func(_ context.Context, pattern, after string, limit int) ([]ledger.Account, bool, error) {
+				gotArgs = fmt.Sprintf("%s %s %d", pattern, after, limit)
+				if tt.err != nil {
+					return nil, false, fmt.Errorf("wrapped: %w", tt.err)
+				}
+				return accounts, tt.more, nil
+			}}
+			rec := httptest.NewRecorder()
+			New(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/accounts"+tt.query, nil))
+			if rec.Code != tt.wantStatus || gotArgs != tt.wantArgs {
+				t.Fatalf("status = %d, args %q; want %d, %q (body %s)", rec.Code, gotArgs, tt.wantStatus, tt.wantArgs, rec.Body)
+			}
+			if tt.wantBody != "" && strings.TrimSpace(rec.Body.String()) != tt.wantBody {
+				t.Fatalf("body = %s, want %s", rec.Body, tt.wantBody)
+			}
+			if tt.name == "last page" && strings.Contains(rec.Body.String(), "next") {
+				t.Fatalf("body = %s, want no next", rec.Body)
+			}
+		})
+	}
+}
