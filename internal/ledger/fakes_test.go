@@ -4,131 +4,129 @@ import (
 	"context"
 	"slices"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	tb "github.com/tigerbeetle/tigerbeetle-go"
-
-	"torment/internal/db/sqlc"
 )
 
-// fakeQuerier implements sqlc.Querier with per-test funcs; calling a method whose func is nil panics.
-type fakeQuerier struct {
-	sqlc.Querier
-	insertCurrency       func(ctx context.Context, arg sqlc.InsertCurrencyParams) (sqlc.Currency, error)
-	insertAccount        func(ctx context.Context, arg sqlc.InsertAccountParams) (sqlc.Account, error)
-	getAccount           func(ctx context.Context, address string) (sqlc.Account, error)
-	getCurrencies        func(ctx context.Context, names []string) ([]sqlc.Currency, error)
-	listWallets          func(ctx context.Context, accountID int64) ([]sqlc.ListWalletsRow, error)
-	getWallets           func(ctx context.Context, arg sqlc.GetWalletsParams) ([]sqlc.GetWalletsRow, error)
-	insertWallets        func(ctx context.Context, arg sqlc.InsertWalletsParams) error
-	markWalletsTBCreated func(ctx context.Context, tbIds [][]byte) error
-	getWalletsByTBIDs    func(ctx context.Context, tbIds [][]byte) ([]sqlc.GetWalletsByTBIDsRow, error)
-	listAccounts         func(ctx context.Context, arg sqlc.ListAccountsParams) ([]sqlc.ListAccountsRow, error)
-	listWalletsByPattern func(ctx context.Context, arg sqlc.ListWalletsByPatternParams) ([]sqlc.ListWalletsByPatternRow, error)
+// fakeStore implements Store with per-test funcs; calling a method whose func is nil panics.
+type fakeStore struct {
+	Store
+	insertCurrency     func(ctx context.Context, name string, precision int16) (Currency, error)
+	currencies         func(ctx context.Context, names []string) (map[string]Currency, error)
+	insertAccount      func(ctx context.Context, address string, typ AccountType, allowNegative bool) (Account, bool, error)
+	accountWallets     func(ctx context.Context, address, currency string) (Account, error)
+	listAccounts       func(ctx context.Context, re, after string, limit int) ([]Account, bool, error)
+	patternWallets     func(ctx context.Context, re, currency string, limit int) ([]AddressWallet, bool, error)
+	walletsByTBIDs     func(ctx context.Context, ids []tb.Uint128) (map[tb.Uint128]WalletKey, error)
+	storedWallets      func(ctx context.Context, keys []WalletKey) (map[WalletKey]StoredWallet, error)
+	insertWallets      func(ctx context.Context, wallets []NewWallet) error
+	markWalletsCreated func(ctx context.Context, ids []tb.Uint128) error
 }
 
-var _ sqlc.Querier = (*fakeQuerier)(nil)
+var _ Store = (*fakeStore)(nil)
 
-func (f *fakeQuerier) InsertCurrency(ctx context.Context, arg sqlc.InsertCurrencyParams) (sqlc.Currency, error) {
-	return f.insertCurrency(ctx, arg)
+func (f *fakeStore) InsertCurrency(ctx context.Context, name string, precision int16) (Currency, error) {
+	return f.insertCurrency(ctx, name, precision)
 }
 
-func (f *fakeQuerier) InsertAccount(ctx context.Context, arg sqlc.InsertAccountParams) (sqlc.Account, error) {
-	return f.insertAccount(ctx, arg)
+func (f *fakeStore) Currencies(ctx context.Context, names []string) (map[string]Currency, error) {
+	return f.currencies(ctx, names)
 }
 
-func (f *fakeQuerier) GetAccount(ctx context.Context, address string) (sqlc.Account, error) {
-	return f.getAccount(ctx, address)
+func (f *fakeStore) InsertAccount(ctx context.Context, address string, typ AccountType, allowNegative bool) (Account, bool, error) {
+	return f.insertAccount(ctx, address, typ, allowNegative)
 }
 
-func (f *fakeQuerier) GetCurrencies(ctx context.Context, names []string) ([]sqlc.Currency, error) {
-	return f.getCurrencies(ctx, names)
+func (f *fakeStore) AccountWallets(ctx context.Context, address, currency string) (Account, error) {
+	return f.accountWallets(ctx, address, currency)
 }
 
-func (f *fakeQuerier) ListWallets(ctx context.Context, accountID int64) ([]sqlc.ListWalletsRow, error) {
-	return f.listWallets(ctx, accountID)
+func (f *fakeStore) ListAccounts(ctx context.Context, re, after string, limit int) ([]Account, bool, error) {
+	return f.listAccounts(ctx, re, after, limit)
 }
 
-func (f *fakeQuerier) GetWallets(ctx context.Context, arg sqlc.GetWalletsParams) ([]sqlc.GetWalletsRow, error) {
-	return f.getWallets(ctx, arg)
+func (f *fakeStore) PatternWallets(ctx context.Context, re, currency string, limit int) ([]AddressWallet, bool, error) {
+	return f.patternWallets(ctx, re, currency, limit)
 }
 
-func (f *fakeQuerier) InsertWallets(ctx context.Context, arg sqlc.InsertWalletsParams) error {
-	return f.insertWallets(ctx, arg)
+func (f *fakeStore) WalletsByTBIDs(ctx context.Context, ids []tb.Uint128) (map[tb.Uint128]WalletKey, error) {
+	return f.walletsByTBIDs(ctx, ids)
 }
 
-func (f *fakeQuerier) MarkWalletsTBCreated(ctx context.Context, tbIds [][]byte) error {
-	return f.markWalletsTBCreated(ctx, tbIds)
+func (f *fakeStore) StoredWallets(ctx context.Context, keys []WalletKey) (map[WalletKey]StoredWallet, error) {
+	return f.storedWallets(ctx, keys)
 }
 
-func (f *fakeQuerier) GetWalletsByTBIDs(ctx context.Context, tbIds [][]byte) ([]sqlc.GetWalletsByTBIDsRow, error) {
-	return f.getWalletsByTBIDs(ctx, tbIds)
+func (f *fakeStore) InsertWallets(ctx context.Context, wallets []NewWallet) error {
+	return f.insertWallets(ctx, wallets)
 }
 
-func (f *fakeQuerier) ListAccounts(ctx context.Context, arg sqlc.ListAccountsParams) ([]sqlc.ListAccountsRow, error) {
-	return f.listAccounts(ctx, arg)
+func (f *fakeStore) MarkWalletsCreated(ctx context.Context, ids []tb.Uint128) error {
+	return f.markWalletsCreated(ctx, ids)
 }
 
-func (f *fakeQuerier) ListWalletsByPattern(ctx context.Context, arg sqlc.ListWalletsByPatternParams) ([]sqlc.ListWalletsByPatternRow, error) {
-	return f.listWalletsByPattern(ctx, arg)
+// fakeAccount is an account in a walletStore.
+type fakeAccount struct {
+	id  int64
+	typ AccountType
 }
 
-// fakeWallet is a wallet row in a walletStore.
+// fakeWallet is a wallet in a walletStore.
 type fakeWallet struct {
-	tbID    []byte
+	id      tb.Uint128
 	created bool
 }
 
-// walletStore holds accounts, currencies and wallets in memory for the wallet queries of a fakeQuerier,
+// walletStore holds accounts, currencies and wallets in memory for the wallet methods of a fakeStore,
 // and records the calls made to them. Every currency has precision 2.
 type walletStore struct {
-	accounts map[string]sqlc.Account // by address
-	ledgers  map[string]int32        // by currency name
-	wallets  map[walletKey]*fakeWallet
+	accounts map[string]fakeAccount // by address
+	ledgers  map[string]int32       // by currency name
+	wallets  map[WalletKey]*fakeWallet
 	gets     int
-	inserted []walletKey
-	marked   [][]byte
+	inserted []WalletKey
+	marked   []tb.Uint128
 }
 
 func newWalletStore() *walletStore {
-	return &walletStore{accounts: map[string]sqlc.Account{}, ledgers: map[string]int32{}, wallets: map[walletKey]*fakeWallet{}}
+	return &walletStore{accounts: map[string]fakeAccount{}, ledgers: map[string]int32{}, wallets: map[WalletKey]*fakeWallet{}}
 }
 
-// querier returns a fakeQuerier whose wallet queries run against w.
-func (w *walletStore) querier() *fakeQuerier {
-	return &fakeQuerier{
-		getWallets: func(_ context.Context, arg sqlc.GetWalletsParams) ([]sqlc.GetWalletsRow, error) {
+// store returns a fakeStore whose wallet methods run against w.
+func (w *walletStore) store() *fakeStore {
+	return &fakeStore{
+		storedWallets: func(_ context.Context, keys []WalletKey) (map[WalletKey]StoredWallet, error) {
 			w.gets++
-			var rows []sqlc.GetWalletsRow
-			for i, address := range arg.Addresses {
-				a, ok := w.accounts[address]
-				ledger, ok2 := w.ledgers[arg.Currencies[i]]
+			out := make(map[WalletKey]StoredWallet)
+			for _, k := range keys {
+				a, ok := w.accounts[k.Address]
+				ledger, ok2 := w.ledgers[k.Currency]
 				if !ok || !ok2 {
 					continue
 				}
-				r := sqlc.GetWalletsRow{Address: address, Currency: arg.Currencies[i], AccountID: a.ID, Type: a.Type, AllowNegative: a.AllowNegative, Ledger: ledger, Precision: 2}
-				if fw, ok := w.wallets[walletKey{address, arg.Currencies[i]}]; ok {
-					r.TbID, r.TbCreated = fw.tbID, pgtype.Bool{Bool: fw.created, Valid: true}
+				sw := StoredWallet{Ledger: ledger, Precision: 2, AccountID: a.id, Type: a.typ}
+				if fw, ok := w.wallets[k]; ok {
+					sw.ID, sw.Created = fw.id, fw.created
 				}
-				rows = append(rows, r)
+				out[k] = sw
 			}
-			return rows, nil
+			return out, nil
 		},
-		insertWallets: func(_ context.Context, arg sqlc.InsertWalletsParams) error {
-			for i, id := range arg.TbIds {
+		insertWallets: func(_ context.Context, wallets []NewWallet) error {
+			for _, nw := range wallets {
 				for address, a := range w.accounts {
-					k := walletKey{address, arg.Currencies[i]}
-					if a.ID == arg.AccountIds[i] && w.wallets[k] == nil {
+					k := WalletKey{address, nw.Currency}
+					if a.id == nw.AccountID && w.wallets[k] == nil {
 						w.inserted = append(w.inserted, k)
-						w.wallets[k] = &fakeWallet{tbID: id}
+						w.wallets[k] = &fakeWallet{id: nw.ID}
 					}
 				}
 			}
 			return nil
 		},
-		markWalletsTBCreated: func(_ context.Context, tbIds [][]byte) error {
-			w.marked = append(w.marked, tbIds...)
+		markWalletsCreated: func(_ context.Context, ids []tb.Uint128) error {
+			w.marked = append(w.marked, ids...)
 			for _, fw := range w.wallets {
-				if slices.ContainsFunc(tbIds, func(id []byte) bool { return slices.Equal(id, fw.tbID) }) {
+				if slices.Contains(ids, fw.id) {
 					fw.created = true
 				}
 			}

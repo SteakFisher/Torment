@@ -127,11 +127,11 @@ func parsePosting(p Posting) (tb.Transfer, error) {
 // at the same position in chains, creating any wallet that does not exist. It returns ErrNotFound when an
 // account or currency is not registered.
 func (s *Service) resolveWallets(ctx context.Context, chains [][]Posting, batch []tb.Transfer) error {
-	var keys []walletKey
-	seen := make(map[walletKey]bool)
+	var keys []WalletKey
+	seen := make(map[WalletKey]bool)
 	for _, chain := range chains {
 		for _, p := range chain {
-			for _, k := range []walletKey{{p.Source, p.Currency}, {p.Destination, p.Currency}} {
+			for _, k := range []WalletKey{{p.Source, p.Currency}, {p.Destination, p.Currency}} {
 				if !seen[k] {
 					seen[k] = true
 					keys = append(keys, k)
@@ -146,10 +146,10 @@ func (s *Service) resolveWallets(ctx context.Context, chains [][]Posting, batch 
 	k := 0
 	for _, chain := range chains {
 		for _, p := range chain {
-			debit := wallets[walletKey{p.Source, p.Currency}]
-			batch[k].DebitAccountID = debit.id
-			batch[k].CreditAccountID = wallets[walletKey{p.Destination, p.Currency}].id
-			batch[k].Ledger = uint32(debit.ledger)
+			debit := wallets[WalletKey{p.Source, p.Currency}]
+			batch[k].DebitAccountID = debit.ID
+			batch[k].CreditAccountID = wallets[WalletKey{p.Destination, p.Currency}].ID
+			batch[k].Ledger = uint32(debit.Ledger)
 			k++
 		}
 	}

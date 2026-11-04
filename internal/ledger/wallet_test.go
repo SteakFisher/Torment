@@ -7,8 +7,6 @@ import (
 	"testing"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
-
-	"torment/internal/db/sqlc"
 )
 
 // statuses returns a CreateAccounts func that answers with the given statuses.
@@ -68,26 +66,25 @@ func TestRegisterAccountWallets(t *testing.T) {
 			store := newWalletStore()
 			store.ledgers = ledgers
 			if tt.existing != nil {
-				store.accounts["rider:1:wallet"] = sqlc.Account{ID: 7, Address: "rider:1:wallet", Type: sqlc.AccountTypeLiability}
-				tt.existing.tbID = idToBytes(storedID)
-				store.wallets[walletKey{"rider:1:wallet", "USD"}] = tt.existing
+				store.accounts["rider:1:wallet"] = fakeAccount{id: 7, typ: TypeLiability}
+				tt.existing.id = storedID
+				store.wallets[WalletKey{"rider:1:wallet", "USD"}] = tt.existing
 			}
 			insertedAccount := false
-			q := store.querier()
-			q.getCurrencies = func(_ context.Context, names []string) ([]sqlc.Currency, error) {
-				var rows []sqlc.Currency
+			fs := store.store()
+			fs.currencies = func(_ context.Context, names []string) (map[string]Currency, error) {
+				found := map[string]Currency{}
 				for _, n := range names {
 					if l, ok := ledgers[n]; ok {
-						rows = append(rows, sqlc.Currency{Name: n, Precision: 2, Ledger: l})
+						found[n] = Currency{Name: n, Precision: 2, Ledger: l}
 					}
 				}
-				return rows, nil
+				return found, nil
 			}
-			q.insertAccount = func(_ context.Context, arg sqlc.InsertAccountParams) (sqlc.Account, error) {
+			fs.insertAccount = func(_ context.Context, address string, typ AccountType, _ bool) (Account, bool, error) {
 				insertedAccount = true
-				a := sqlc.Account{ID: 7, Address: arg.Address, Type: arg.Type}
-				store.accounts[arg.Address] = a
-				return a, nil
+				store.accounts[address] = fakeAccount{id: 7, typ: typ}
+				return Account{Address: address, Type: typ}, true, nil
 			}
 			var sent []tb.Account
 			tbc := &fakeTB{createAccounts: func(accounts []tb.Account) ([]tb.CreateAccountResult, error) {
@@ -99,7 +96,7 @@ func TestRegisterAccountWallets(t *testing.T) {
 				return results, nil
 			}}
 
-			acct, _, err := New(q, tbc).RegisterAccount(context.Background(), RegisterAccountParams{Address: "rider:1:wallet", Type: "liability", Currencies: tt.currencies})
+			acct, _, err := New(fs, tbc).RegisterAccount(context.Background(), RegisterAccountParams{Address: "rider:1:wallet", Type: "liability", Currencies: tt.currencies})
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) || insertedAccount || store.inserted != nil || sent != nil {
 					t.Fatalf("err = %v, account inserted %v, wallets inserted %v, sent %v; want %v and no writes", err, insertedAccount, store.inserted, sent, tt.wantErr)
@@ -129,7 +126,7 @@ func TestRegisterAccountWallets(t *testing.T) {
 			}
 			for i, c := range tt.wantSent {
 				a := sent[i]
-				if a.ID != ids[c] || a.Ledger != uint32(ledgers[c]) || a.Code != tbCode(TypeLiability) || a.Flags != tbFlags(TypeLiability, false) || !slices.Equal(store.marked[i], idToBytes(ids[c])) {
+				if a.ID != ids[c] || a.Ledger != uint32(ledgers[c]) || a.Code != tbCode(TypeLiability) || a.Flags != tbFlags(TypeLiability, false) || store.marked[i] != ids[c] {
 					t.Fatalf("sent %+v, marked %v for %s wallet %v", a, store.marked[i], c, ids[c])
 				}
 			}

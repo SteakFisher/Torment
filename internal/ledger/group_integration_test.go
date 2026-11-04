@@ -1,10 +1,12 @@
-package ledger
+package ledger_test
 
 import (
 	"context"
 	"testing"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
+
+	"torment/internal/ledger"
 )
 
 func TestIntegrationGroupTransfers(t *testing.T) {
@@ -13,18 +15,18 @@ func TestIntegrationGroupTransfers(t *testing.T) {
 	if _, err := s.RegisterCurrency(ctx, "USD/2"); err != nil {
 		t.Fatalf("error registering currency: %v", err)
 	}
-	if _, _, err := s.RegisterAccount(ctx, RegisterAccountParams{Address: "world", Type: "equity", AllowNegative: true}); err != nil {
+	if _, _, err := s.RegisterAccount(ctx, ledger.RegisterAccountParams{Address: "world", Type: "equity", AllowNegative: true}); err != nil {
 		t.Fatalf("world: %v", err)
 	}
-	if _, _, err := s.RegisterAccount(ctx, RegisterAccountParams{Address: "rider:1:wallet", Type: "liability"}); err != nil {
+	if _, _, err := s.RegisterAccount(ctx, ledger.RegisterAccountParams{Address: "rider:1:wallet", Type: "liability"}); err != nil {
 		t.Fatalf("rider: %v", err)
 	}
 
 	group := tb.ID().BigInt().String()
-	pay := Posting{ID: tb.ID().BigInt().String(), Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: "100", GroupID: group}
-	refund := Posting{ID: tb.ID().BigInt().String(), Source: "rider:1:wallet", Destination: "world", Currency: "USD", Amount: "30", GroupID: group}
-	other := Posting{ID: tb.ID().BigInt().String(), Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: "5"}
-	got, err := s.Transfer(ctx, [][]Posting{{pay}, {refund}, {other}})
+	pay := ledger.Posting{ID: tb.ID().BigInt().String(), Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: "100", GroupID: group}
+	refund := ledger.Posting{ID: tb.ID().BigInt().String(), Source: "rider:1:wallet", Destination: "world", Currency: "USD", Amount: "30", GroupID: group}
+	other := ledger.Posting{ID: tb.ID().BigInt().String(), Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: "5"}
+	got, err := s.Transfer(ctx, [][]ledger.Posting{{pay}, {refund}, {other}})
 	if err != nil {
 		t.Fatalf("error transferring: %v", err)
 	}
@@ -41,7 +43,7 @@ func TestIntegrationGroupTransfers(t *testing.T) {
 	if len(transfers) != 2 {
 		t.Fatalf("got %d transfers, want 2: %+v", len(transfers), transfers)
 	}
-	for i, want := range []Posting{pay, refund} {
+	for i, want := range []ledger.Posting{pay, refund} {
 		g := transfers[i]
 		if g.ID.BigInt().String() != want.ID || g.Source != want.Source || g.Destination != want.Destination || g.Currency != "USD" || g.Amount.String() != want.Amount {
 			t.Fatalf("transfer %d = %+v, want %+v", i, g, want)

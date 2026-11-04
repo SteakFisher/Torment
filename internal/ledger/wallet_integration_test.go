@@ -1,4 +1,4 @@
-package ledger
+package ledger_test
 
 import (
 	"context"
@@ -7,7 +7,12 @@ import (
 	"time"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
+
+	"torment/internal/ledger"
 )
+
+// TigerBeetle account codes of TypeAsset and TypeLiability.
+const assetCode, liabilityCode = 1, 3
 
 // lookupTBAccount returns the TigerBeetle account with id, failing the test when it does not exist.
 func lookupTBAccount(t *testing.T, id tb.Uint128) tb.Account {
@@ -35,14 +40,14 @@ func TestIntegrationRegisterAccountWallets(t *testing.T) {
 	}
 	debitsLimited := tb.AccountFlags{DebitsMustNotExceedCredits: true, History: true}.ToUint16()
 
-	p := RegisterAccountParams{Address: "rider:1:wallet", Type: "liability", Currencies: []string{"USD", "AED"}}
+	p := ledger.RegisterAccountParams{Address: "rider:1:wallet", Type: "liability", Currencies: []string{"USD", "AED"}}
 	first, _, err := s.RegisterAccount(ctx, p)
 	if err != nil || len(first.Wallets) != 2 {
 		t.Fatalf("first register: %+v, err %v", first, err)
 	}
 	for i, w := range first.Wallets {
 		a := lookupTBAccount(t, w.ID)
-		if a.Ledger != ledgers[w.Currency] || a.Code != tbCode(TypeLiability) || a.Flags != debitsLimited {
+		if a.Ledger != ledgers[w.Currency] || a.Code != liabilityCode || a.Flags != debitsLimited {
 			t.Fatalf("tigerbeetle account %d: ledger %d, code %d, flags %b", i, a.Ledger, a.Code, a.Flags)
 		}
 	}
@@ -61,20 +66,21 @@ func TestIntegrationRegisterAccountWallets(t *testing.T) {
 		t.Fatalf("wallet rows = %d, err %v; want 2", n, err)
 	}
 
-	world, _, err := s.RegisterAccount(ctx, RegisterAccountParams{Address: "world", Type: "asset", AllowNegative: true, Currencies: []string{"USD"}})
+	world, _, err := s.RegisterAccount(ctx, ledger.RegisterAccountParams{Address: "world", Type: "asset", AllowNegative: true, Currencies: []string{"USD"}})
 	if err != nil {
 		t.Fatalf("world: %v", err)
 	}
-	if a := lookupTBAccount(t, world.Wallets[0].ID); a.Flags != (tb.AccountFlags{History: true}).ToUint16() || a.Code != tbCode(TypeAsset) {
-		t.Fatalf("world tigerbeetle account: code %d, flags %b; want code %d, only history", a.Code, a.Flags, tbCode(TypeAsset))
+	if a := lookupTBAccount(t, world.Wallets[0].ID); a.Flags != (tb.AccountFlags{History: true}).ToUint16() || a.Code != assetCode {
+		t.Fatalf("world tigerbeetle account: code %d, flags %b; want code %d, only history", a.Code, a.Flags, assetCode)
 	}
 
 	// a wallet row whose TigerBeetle account was never created
 	orphan := tb.ID()
-	if _, err := testPool.Exec(ctx, "insert into wallets (tb_id, account_id, currency) select $1, id, 'AED' from accounts where address = 'world'", idToBytes(orphan)); err != nil {
+	orphanBytes := orphan.Bytes()
+	if _, err := testPool.Exec(ctx, "insert into wallets (tb_id, account_id, currency) select $1, id, 'AED' from accounts where address = 'world'", orphanBytes[:]); err != nil {
 		t.Fatalf("error inserting orphan wallet: %v", err)
 	}
-	repaired, _, err := s.RegisterAccount(ctx, RegisterAccountParams{Address: "world", Type: "asset", AllowNegative: true, Currencies: []string{"AED"}})
+	repaired, _, err := s.RegisterAccount(ctx, ledger.RegisterAccountParams{Address: "world", Type: "asset", AllowNegative: true, Currencies: []string{"AED"}})
 	if err != nil || repaired.Wallets[0].ID != orphan {
 		t.Fatalf("repair: %+v, err %v; want wallet id %s", repaired, err, orphan.BigInt())
 	}
@@ -105,18 +111,18 @@ func TestIntegrationTransferCreatesWallets(t *testing.T) {
 	if _, err := s.RegisterCurrency(ctx, "USD/2"); err != nil {
 		t.Fatalf("error registering currency: %v", err)
 	}
-	if _, _, err := s.RegisterAccount(ctx, RegisterAccountParams{Address: "world", Type: "equity", AllowNegative: true, Currencies: []string{"USD"}}); err != nil {
+	if _, _, err := s.RegisterAccount(ctx, ledger.RegisterAccountParams{Address: "world", Type: "equity", AllowNegative: true, Currencies: []string{"USD"}}); err != nil {
 		t.Fatalf("world: %v", err)
 	}
 	for _, address := range []string{"rider:1:wallet", "rider:2:wallet", "rider:3:wallet"} {
-		if _, _, err := s.RegisterAccount(ctx, RegisterAccountParams{Address: address, Type: "liability"}); err != nil {
+		if _, _, err := s.RegisterAccount(ctx, ledger.RegisterAccountParams{Address: address, Type: "liability"}); err != nil {
 			t.Fatalf("%s: %v", address, err)
 		}
 	}
 	// transfer posts amount USD from world to address with a new id and fails the test unless it is created
 	transfer := func(address, amount string) {
 		t.Helper()
-		got, err := s.Transfer(ctx, [][]Posting{{{ID: tb.ID().BigInt().String(), Source: "world", Destination: address, Currency: "USD", Amount: amount}}})
+		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: tb.ID().BigInt().String(), Source: "world", Destination: address, Currency: "USD", Amount: amount}}})
 		if err != nil || got[0][0].Err != nil || !got[0][0].Created {
 			t.Errorf("transfer to %s = %+v, err %v; want created", address, got, err)
 		}
@@ -137,7 +143,8 @@ func TestIntegrationTransferCreatesWallets(t *testing.T) {
 
 	// a wallet row whose TigerBeetle account was never created
 	orphan := tb.ID()
-	if _, err := testPool.Exec(ctx, "insert into wallets (tb_id, account_id, currency) select $1, id, 'USD' from accounts where address = 'rider:2:wallet'", idToBytes(orphan)); err != nil {
+	orphanBytes := orphan.Bytes()
+	if _, err := testPool.Exec(ctx, "insert into wallets (tb_id, account_id, currency) select $1, id, 'USD' from accounts where address = 'rider:2:wallet'", orphanBytes[:]); err != nil {
 		t.Fatalf("error inserting orphan wallet: %v", err)
 	}
 	transfer("rider:2:wallet", "50")

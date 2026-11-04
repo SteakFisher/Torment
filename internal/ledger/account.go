@@ -57,7 +57,7 @@ func (s *Service) RegisterAccount(ctx context.Context, p RegisterAccountParams) 
 		return Account{}, false, err
 	}
 
-	acct, created, err = s.insertAccount(ctx, p.Address, typ, p.AllowNegative)
+	acct, created, err = s.store.InsertAccount(ctx, p.Address, typ, p.AllowNegative)
 	if err != nil {
 		return Account{}, false, err
 	}
@@ -65,9 +65,9 @@ func (s *Service) RegisterAccount(ctx context.Context, p RegisterAccountParams) 
 		return Account{}, false, fmt.Errorf("%w: account %q already exists with different fields", ErrConflict, p.Address)
 	}
 
-	keys := make([]walletKey, len(names))
+	keys := make([]WalletKey, len(names))
 	for i, name := range names {
-		keys[i] = walletKey{p.Address, name}
+		keys[i] = WalletKey{p.Address, name}
 	}
 	wallets, err := s.ensureWallets(ctx, keys)
 	if err != nil {
@@ -75,7 +75,7 @@ func (s *Service) RegisterAccount(ctx context.Context, p RegisterAccountParams) 
 	}
 	for _, k := range keys {
 		w := wallets[k]
-		acct.Wallets = append(acct.Wallets, Wallet{Currency: k.currency, Precision: w.precision, ID: w.id})
+		acct.Wallets = append(acct.Wallets, Wallet{Currency: k.Currency, Precision: w.Precision, ID: w.ID})
 	}
 	return acct, created, nil
 }

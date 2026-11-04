@@ -50,7 +50,7 @@ func (s *Service) transferRecords(ctx context.Context, found []tb.Transfer) ([]T
 	for _, t := range found {
 		ids = append(ids, t.DebitAccountID, t.CreditAccountID)
 	}
-	wallets, err := s.walletsByTBIDs(ctx, ids)
+	wallets, err := s.store.WalletsByTBIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -65,9 +65,9 @@ func (s *Service) transferRecords(ctx context.Context, found []tb.Transfer) ([]T
 		out[i] = TransferRecord{
 			ID:          t.ID,
 			GroupID:     t.UserData128,
-			Source:      debit.address,
-			Destination: credit.address,
-			Currency:    debit.currency,
+			Source:      debit.Address,
+			Destination: credit.Address,
+			Currency:    debit.Currency,
 			Amount:      t.Amount.BigInt(),
 			Timestamp:   time.Unix(0, int64(t.Timestamp)).UTC(),
 		}

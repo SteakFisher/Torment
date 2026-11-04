@@ -7,10 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	tb "github.com/tigerbeetle/tigerbeetle-go"
-
-	"torment/internal/db/sqlc"
 )
 
 func TestPatternRegex(t *testing.T) {
@@ -46,41 +43,42 @@ func TestPatternRegex(t *testing.T) {
 }
 
 func TestListAccounts(t *testing.T) {
-	rows := []sqlc.ListAccountsRow{
-		{Address: "rider:1:bonus", Type: sqlc.AccountTypeLiability},
-		{Address: "rider:1:wallet", Type: sqlc.AccountTypeLiability, Currencies: []string{"AED", "USD"}, Precisions: []int16{2, 3}},
-		{Address: "rider:2:wallet", Type: sqlc.AccountTypeLiability},
+	stored := []Account{
+		{Address: "rider:1:bonus", Type: TypeLiability},
+		{Address: "rider:1:wallet", Type: TypeLiability, Wallets: []Wallet{{Currency: "AED", Precision: 2}, {Currency: "USD", Precision: 3}}},
+		{Address: "rider:2:wallet", Type: TypeLiability},
 	}
 	tests := []struct {
-		name     string
-		limit    int
-		wantLim  int32
-		wantMore bool
-		wantN    int
-		wantErr  error
+		name      string
+		limit     int
+		wantLimit int
+		wantMore  bool
+		wantN     int
+		wantErr   error
 	}{
-		{name: "default limit", limit: 0, wantLim: defaultListLimit + 1, wantN: 3},
-		{name: "more", limit: 2, wantLim: 3, wantMore: true, wantN: 2},
-		{name: "exact", limit: 3, wantLim: 4, wantN: 3},
+		{name: "default limit", limit: 0, wantLimit: defaultListLimit, wantN: 3},
+		{name: "more", limit: 2, wantLimit: 2, wantMore: true, wantN: 2},
+		{name: "exact", limit: 3, wantLimit: 3, wantN: 3},
 		{name: "negative", limit: -1, wantErr: ErrInvalid},
 		{name: "too large", limit: maxListLimit + 1, wantErr: ErrInvalid},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var got sqlc.ListAccountsParams
-			q := &fakeQuerier{listAccounts: func(_ context.Context, arg sqlc.ListAccountsParams) ([]sqlc.ListAccountsRow, error) {
-				got = arg
-				return rows[:min(len(rows), int(arg.Lim))], nil
+			var gotRE, gotAfter string
+			var gotLimit int
+			store := &fakeStore{listAccounts: func(_ context.Context, re, after string, limit int) ([]Account, bool, error) {
+				gotRE, gotAfter, gotLimit = re, after, limit
+				return stored[:min(len(stored), limit)], len(stored) > limit, nil
 			}}
-			accounts, more, err := New(q, nil).ListAccounts(context.Background(), "rider:*:*", "rider:0", tt.limit)
+			accounts, more, err := New(store, nil).ListAccounts(context.Background(), "rider:*:*", "rider:0", tt.limit)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
 			if err != nil {
 				return
 			}
-			if got != (sqlc.ListAccountsParams{Pattern: "^rider:[^:]+:[^:]+$", After: "rider:0", Lim: tt.wantLim}) {
-				t.Fatalf("query params = %+v", got)
+			if gotRE != "^rider:[^:]+:[^:]+$" || gotAfter != "rider:0" || gotLimit != tt.wantLimit {
+				t.Fatalf("store got re %q, after %q, limit %d", gotRE, gotAfter, gotLimit)
 			}
 			if len(accounts) != tt.wantN || more != tt.wantMore {
 				t.Fatalf("got %d accounts, more %v; want %d, %v", len(accounts), more, tt.wantN, tt.wantMore)
@@ -95,11 +93,11 @@ func TestListAccounts(t *testing.T) {
 
 func TestPatternBalances(t *testing.T) {
 	ids := []tb.Uint128{tb.ID(), tb.ID(), tb.ID(), tb.ID()}
-	wallets := []sqlc.ListWalletsByPatternRow{
-		{Address: "rider:1:bonus", Type: sqlc.AccountTypeLiability, Currency: "USD", Precision: 2, TbID: idToBytes(ids[0])},
-		{Address: "rider:1:card", Type: sqlc.AccountTypeAsset, Currency: "USD", Precision: 2, TbID: idToBytes(ids[1])},
-		{Address: "rider:1:wallet", Type: sqlc.AccountTypeLiability, Currency: "AED", Precision: 2, TbID: idToBytes(ids[2])},
-		{Address: "rider:1:wallet", Type: sqlc.AccountTypeLiability, Currency: "USD", Precision: 2, TbID: idToBytes(ids[3])},
+	wallets := []AddressWallet{
+		{Address: "rider:1:bonus", Type: TypeLiability, Wallet: Wallet{Currency: "USD", Precision: 2, ID: ids[0]}},
+		{Address: "rider:1:card", Type: TypeAsset, Wallet: Wallet{Currency: "USD", Precision: 2, ID: ids[1]}},
+		{Address: "rider:1:wallet", Type: TypeLiability, Wallet: Wallet{Currency: "AED", Precision: 2, ID: ids[2]}},
+		{Address: "rider:1:wallet", Type: TypeLiability, Wallet: Wallet{Currency: "USD", Precision: 2, ID: ids[3]}},
 	}
 	// every account has 10 debited and 40 credited, except AED which has no TigerBeetle account
 	inTB := []tb.Account{
@@ -107,19 +105,20 @@ func TestPatternBalances(t *testing.T) {
 		{ID: ids[1], DebitsPosted: tb.ToUint128(10), CreditsPosted: tb.ToUint128(40)},
 		{ID: ids[3], DebitsPosted: tb.ToUint128(10), CreditsPosted: tb.ToUint128(40)},
 	}
-	var got sqlc.ListWalletsByPatternParams
-	q := &fakeQuerier{listWalletsByPattern: func(_ context.Context, arg sqlc.ListWalletsByPatternParams) ([]sqlc.ListWalletsByPatternRow, error) {
-		got = arg
-		return wallets, nil
+	var gotRE, gotCurrency string
+	var gotLimit int
+	store := &fakeStore{patternWallets: func(_ context.Context, re, currency string, limit int) ([]AddressWallet, bool, error) {
+		gotRE, gotCurrency, gotLimit = re, currency, limit
+		return wallets, false, nil
 	}}
 	tbc := &fakeTB{lookupAccounts: func([]tb.Uint128) ([]tb.Account, error) { return inTB, nil }}
 
-	totals, accounts, err := New(q, tbc).PatternBalances(context.Background(), "rider:1:*", "", time.Time{})
+	totals, accounts, err := New(store, tbc).PatternBalances(context.Background(), "rider:1:*", "", time.Time{})
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if got != (sqlc.ListWalletsByPatternParams{Pattern: "^rider:1:[^:]+$", Lim: maxPatternWallets + 1}) {
-		t.Fatalf("query params = %+v", got)
+	if gotRE != "^rider:1:[^:]+$" || gotCurrency != "" || gotLimit != maxPatternWallets {
+		t.Fatalf("store got re %q, currency %q, limit %d", gotRE, gotCurrency, gotLimit)
 	}
 	// asset sorts before liability by type code; the asset nets to -30, liabilities to 30 each
 	wantTotals := []string{"asset USD -30", "liability AED 0", "liability USD 60"}
@@ -145,18 +144,17 @@ func TestPatternBalances(t *testing.T) {
 		}
 	}
 
-	tooMany := make([]sqlc.ListWalletsByPatternRow, maxPatternWallets+1)
-	q.listWalletsByPattern = func(context.Context, sqlc.ListWalletsByPatternParams) ([]sqlc.ListWalletsByPatternRow, error) {
-		return tooMany, nil
+	store.patternWallets = func(context.Context, string, string, int) ([]AddressWallet, bool, error) {
+		return nil, true, nil
 	}
-	if _, _, err := New(q, tbc).PatternBalances(context.Background(), "*", "", time.Time{}); !errors.Is(err, ErrInvalid) {
+	if _, _, err := New(store, tbc).PatternBalances(context.Background(), "*", "", time.Time{}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("too many wallets err = %v, want ErrInvalid", err)
 	}
 	for _, c := range []struct {
 		pattern string
 		at      time.Time
 	}{{"rider:.*", time.Time{}}, {"rider", time.Unix(-1, 0)}} {
-		if _, _, err := New(q, tbc).PatternBalances(context.Background(), c.pattern, "", c.at); !errors.Is(err, ErrInvalid) {
+		if _, _, err := New(store, tbc).PatternBalances(context.Background(), c.pattern, "", c.at); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("pattern %q at %v err = %v, want ErrInvalid", c.pattern, c.at, err)
 		}
 	}
@@ -173,22 +171,21 @@ func TestAccountTransfers(t *testing.T) {
 		usd: {transfer(usd, 50), transfer(usd, 30), transfer(usd, 10)},
 		aed: {transfer(aed, 40), transfer(aed, 20)},
 	}
-	q := &fakeQuerier{
-		getAccount: func(_ context.Context, address string) (sqlc.Account, error) {
+	store := &fakeStore{
+		accountWallets: func(_ context.Context, address, currency string) (Account, error) {
 			if address != "rider:1:wallet" {
-				return sqlc.Account{}, pgx.ErrNoRows
+				return Account{}, ErrNotFound
 			}
-			return sqlc.Account{ID: 7, Address: address, Type: sqlc.AccountTypeLiability}, nil
+			acct := Account{Address: address, Type: TypeLiability}
+			for _, w := range []Wallet{{Currency: "AED", ID: aed}, {Currency: "USD", ID: usd}} {
+				if currency == "" || w.Currency == currency {
+					acct.Wallets = append(acct.Wallets, w)
+				}
+			}
+			return acct, nil
 		},
-		listWallets: func(context.Context, int64) ([]sqlc.ListWalletsRow, error) {
-			return []sqlc.ListWalletsRow{{TbID: idToBytes(aed), Currency: "AED"}, {TbID: idToBytes(usd), Currency: "USD"}}, nil
-		},
-		getWalletsByTBIDs: func(context.Context, [][]byte) ([]sqlc.GetWalletsByTBIDsRow, error) {
-			return []sqlc.GetWalletsByTBIDsRow{
-				{TbID: idToBytes(usd), Address: "rider:1:wallet", Currency: "USD"},
-				{TbID: idToBytes(aed), Address: "rider:1:wallet", Currency: "AED"},
-				{TbID: idToBytes(world), Address: "world", Currency: "USD"},
-			}, nil
+		walletsByTBIDs: func(context.Context, []tb.Uint128) (map[tb.Uint128]WalletKey, error) {
+			return map[tb.Uint128]WalletKey{usd: {"rider:1:wallet", "USD"}, aed: {"rider:1:wallet", "AED"}, world: {"world", "USD"}}, nil
 		},
 	}
 
@@ -228,7 +225,7 @@ func TestAccountTransfers(t *testing.T) {
 				}
 				return out, nil
 			}}
-			got, more, err := New(q, tbc).AccountTransfers(context.Background(), tt.p)
+			got, more, err := New(store, tbc).AccountTransfers(context.Background(), tt.p)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}

@@ -29,7 +29,7 @@ func (s *Service) Balances(ctx context.Context, address string, at time.Time) ([
 	if err := validateAt(at); err != nil {
 		return nil, err
 	}
-	acct, err := s.accountWallets(ctx, address, "")
+	acct, err := s.store.AccountWallets(ctx, address, "")
 	if err != nil {
 		return nil, err
 	}

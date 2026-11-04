@@ -3,11 +3,8 @@ package ledger
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
-
-	"github.com/jackc/pgx/v5/pgconn"
-
-	"torment/internal/db/sqlc"
 )
 
 func TestParseCurrencyCode(t *testing.T) {
@@ -61,18 +58,18 @@ func TestRegisterCurrency(t *testing.T) {
 		wantCall  bool
 	}{
 		{name: "invalid code", code: "usd", wantErr: ErrInvalid},
-		{name: "unique violation", code: "USD/2", insertErr: &pgconn.PgError{Code: "23505"}, wantErr: ErrConflict, wantCall: true},
+		{name: "conflict", code: "USD/2", insertErr: fmt.Errorf("%w: currency exists", ErrConflict), wantErr: ErrConflict, wantCall: true},
 		{name: "success", code: "USD/2", wantCall: true},
 		{name: "success without precision", code: "JPY", wantCall: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			called := false
-			q := &fakeQuerier{insertCurrency: func(_ context.Context, arg sqlc.InsertCurrencyParams) (sqlc.Currency, error) {
+			store := &fakeStore{insertCurrency: func(_ context.Context, name string, precision int16) (Currency, error) {
 				called = true
-				return sqlc.Currency{Name: arg.Name, Precision: arg.Precision, Ledger: 7}, tt.insertErr
+				return Currency{Name: name, Precision: precision, Ledger: 7}, tt.insertErr
 			}}
-			got, err := New(q, nil).RegisterCurrency(context.Background(), tt.code)
+			got, err := New(store, nil).RegisterCurrency(context.Background(), tt.code)
 			if called != tt.wantCall {
 				t.Fatalf("InsertCurrency called = %v, want %v", called, tt.wantCall)
 			}

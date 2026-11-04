@@ -7,18 +7,13 @@ import (
 	"time"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
-
-	"torment/internal/db/sqlc"
 )
 
 func TestGroupTransfers(t *testing.T) {
 	world, rider, orphan := tb.ID(), tb.ID(), tb.ID()
 	pay := tb.Transfer{ID: tb.ID(), DebitAccountID: world, CreditAccountID: rider, Amount: tb.ToUint128(100), Timestamp: 1_000_000_000}
 	refund := tb.Transfer{ID: tb.ID(), DebitAccountID: rider, CreditAccountID: world, Amount: tb.ToUint128(30), Timestamp: 2_000_000_000}
-	rows := []sqlc.GetWalletsByTBIDsRow{
-		{TbID: idToBytes(world), Address: "world", Currency: "USD"},
-		{TbID: idToBytes(rider), Address: "rider:1:wallet", Currency: "USD"},
-	}
+	wallets := map[tb.Uint128]WalletKey{world: {"world", "USD"}, rider: {"rider:1:wallet", "USD"}}
 
 	tests := []struct {
 		name      string
@@ -49,12 +44,12 @@ func TestGroupTransfers(t *testing.T) {
 				return tt.found, nil
 			}}
 			queried := false
-			q := &fakeQuerier{getWalletsByTBIDs: func(context.Context, [][]byte) ([]sqlc.GetWalletsByTBIDsRow, error) {
+			store := &fakeStore{walletsByTBIDs: func(context.Context, []tb.Uint128) (map[tb.Uint128]WalletKey, error) {
 				queried = true
-				return rows, nil
+				return wallets, nil
 			}}
 
-			got, err := New(q, tbc).GroupTransfers(context.Background(), tt.groupID)
+			got, err := New(store, tbc).GroupTransfers(context.Background(), tt.groupID)
 			if tt.wantOther {
 				if err == nil {
 					t.Fatal("err = nil, want an error")
@@ -63,7 +58,7 @@ func TestGroupTransfers(t *testing.T) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
 			if queried != tt.wantQuery {
-				t.Fatalf("GetWalletsByTBIDs called = %v, want %v", queried, tt.wantQuery)
+				t.Fatalf("WalletsByTBIDs called = %v, want %v", queried, tt.wantQuery)
 			}
 			if err != nil {
 				return

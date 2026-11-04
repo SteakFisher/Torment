@@ -1,4 +1,4 @@
-package ledger
+package ledger_test
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 
 	"torment/internal/db"
-	"torment/internal/db/sqlc"
+	"torment/internal/ledger"
 )
 
 var (
@@ -57,7 +57,7 @@ func run(m *testing.M) int {
 
 // newIntegrationService returns a Service on an emptied test database and the test TigerBeetle cluster,
 // skipping unless TEST_DATABASE_URL and TEST_TB_ADDRESS are both set.
-func newIntegrationService(t *testing.T) *Service {
+func newIntegrationService(t *testing.T) *ledger.Service {
 	t.Helper()
 	if testPool == nil || testTB == nil {
 		t.Skip("TEST_DATABASE_URL or TEST_TB_ADDRESS is not set")
@@ -65,5 +65,5 @@ func newIntegrationService(t *testing.T) *Service {
 	if _, err := testPool.Exec(context.Background(), "truncate wallets, accounts, currencies"); err != nil {
 		t.Fatalf("error truncating tables: %v", err)
 	}
-	return New(sqlc.New(testPool), testTB)
+	return ledger.New(db.NewStore(testPool), testTB)
 }

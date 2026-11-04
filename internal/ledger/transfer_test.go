@@ -10,8 +10,6 @@ import (
 	"testing"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
-
-	"torment/internal/db/sqlc"
 )
 
 var testWalletIDs = map[string]tb.Uint128{"world": tb.ID(), "rider:1:wallet": tb.ID(), "rider:2:wallet": tb.ID()}
@@ -24,8 +22,8 @@ func testStore(missing string) *walletStore {
 	i := int64(1)
 	for address, id := range testWalletIDs {
 		if address != missing {
-			w.accounts[address] = sqlc.Account{ID: i, Address: address, Type: sqlc.AccountTypeLiability}
-			w.wallets[walletKey{address, "USD"}] = &fakeWallet{tbID: idToBytes(id), created: true}
+			w.accounts[address] = fakeAccount{id: i, typ: TypeLiability}
+			w.wallets[WalletKey{address, "USD"}] = &fakeWallet{id: id, created: true}
 			i++
 		}
 	}
@@ -93,7 +91,7 @@ func TestTransferRejects(t *testing.T) {
 				t.Fatal("CreateTransfers called")
 				return nil, nil
 			}}
-			got, err := New(testStore(tt.missing).querier(), tbc).Transfer(context.Background(), tt.chains)
+			got, err := New(testStore(tt.missing).store(), tbc).Transfer(context.Background(), tt.chains)
 			if !errors.Is(err, tt.wantErr) || got != nil {
 				t.Fatalf("got %+v, err %v; want %v", got, err, tt.wantErr)
 			}
@@ -114,7 +112,7 @@ func TestTransferBatch(t *testing.T) {
 		return make([]tb.CreateTransferResult, len(transfers)), nil
 	}}
 	store := testStore("")
-	if _, err := New(store.querier(), tbc).Transfer(context.Background(), chains); err != nil {
+	if _, err := New(store.store(), tbc).Transfer(context.Background(), chains); err != nil {
 		t.Fatalf("error transferring: %v", err)
 	}
 	if store.gets != 1 || store.inserted != nil || store.marked != nil {
@@ -257,7 +255,7 @@ func TestTransferResults(t *testing.T) {
 					return found, nil
 				},
 			}
-			got, err := New(testStore("").querier(), tbc).Transfer(context.Background(), testChains(tt.lengths...))
+			got, err := New(testStore("").store(), tbc).Transfer(context.Background(), testChains(tt.lengths...))
 			if err != nil {
 				t.Fatalf("error transferring: %v", err)
 			}
@@ -311,7 +309,7 @@ func TestTransferLookupError(t *testing.T) {
 		},
 		lookupTransfers: func([]tb.Uint128) ([]tb.Transfer, error) { return nil, boom },
 	}
-	got, err := New(testStore("").querier(), tbc).Transfer(context.Background(), testChains(2, 1))
+	got, err := New(testStore("").store(), tbc).Transfer(context.Background(), testChains(2, 1))
 	if err != nil {
 		t.Fatalf("error transferring: %v", err)
 	}
@@ -321,7 +319,7 @@ func TestTransferLookupError(t *testing.T) {
 }
 
 func TestTransferEnsuresWallets(t *testing.T) {
-	rider := walletKey{"rider:1:wallet", "USD"}
+	rider := WalletKey{"rider:1:wallet", "USD"}
 	stored := tb.ID()
 	boom := errors.New("boom")
 	tests := []struct {
@@ -332,9 +330,9 @@ func TestTransferEnsuresWallets(t *testing.T) {
 		wantInserted bool
 	}{
 		{name: "no wallet", create: statuses(tb.AccountCreated), wantInserted: true},
-		{name: "wallet not created", wallet: &fakeWallet{tbID: idToBytes(stored)}, create: statuses(tb.AccountExists)},
+		{name: "wallet not created", wallet: &fakeWallet{id: stored}, create: statuses(tb.AccountExists)},
 		{name: "account rejected", create: statuses(tb.AccountLedgerMustNotBeZero), wantErr: true, wantInserted: true},
-		{name: "client error", wallet: &fakeWallet{tbID: idToBytes(stored)}, create: func([]tb.Account) ([]tb.CreateAccountResult, error) { return nil, boom }, wantErr: true},
+		{name: "client error", wallet: &fakeWallet{id: stored}, create: func([]tb.Account) ([]tb.CreateAccountResult, error) { return nil, boom }, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -355,16 +353,16 @@ func TestTransferEnsuresWallets(t *testing.T) {
 					return make([]tb.CreateTransferResult, len(tr)), nil
 				},
 			}
-			_, err := New(store.querier(), tbc).Transfer(context.Background(), testChains(1))
+			_, err := New(store.store(), tbc).Transfer(context.Background(), testChains(1))
 
-			wantInserted, wantGets := []walletKey(nil), 1
+			wantInserted, wantGets := []WalletKey(nil), 1
 			if tt.wantInserted {
-				wantInserted, wantGets = []walletKey{rider}, 2
+				wantInserted, wantGets = []WalletKey{rider}, 2
 			}
 			if !slices.Equal(store.inserted, wantInserted) || store.gets != wantGets {
 				t.Fatalf("inserted %v, lookups %d; want %v, %d", store.inserted, store.gets, wantInserted, wantGets)
 			}
-			id, _ := idFromBytes(store.wallets[rider].tbID)
+			id := store.wallets[rider].id
 			want := tb.Account{ID: id, Ledger: 7, Code: tbCode(TypeLiability), Flags: tbFlags(TypeLiability, false)}
 			if len(accounts) != 1 || accounts[0] != want {
 				t.Fatalf("CreateAccounts sent %+v, want [%+v]", accounts, want)
@@ -378,8 +376,8 @@ func TestTransferEnsuresWallets(t *testing.T) {
 			if err != nil {
 				t.Fatalf("error transferring: %v", err)
 			}
-			if len(store.marked) != 1 || !slices.Equal(store.marked[0], idToBytes(id)) || !store.wallets[rider].created {
-				t.Fatalf("marked %v, want [%v]", store.marked, idToBytes(id))
+			if len(store.marked) != 1 || store.marked[0] != id || !store.wallets[rider].created {
+				t.Fatalf("marked %v, want [%v]", store.marked, id)
 			}
 			if len(transfers) != 1 || transfers[0].CreditAccountID != id || transfers[0].DebitAccountID != testWalletIDs["world"] {
 				t.Fatalf("transfers %+v; want world to wallet %s", transfers, id.BigInt())

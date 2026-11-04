@@ -1,4 +1,4 @@
-package ledger
+package ledger_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"time"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
+
+	"torment/internal/ledger"
 )
 
 func TestIntegrationBalances(t *testing.T) {
@@ -17,17 +19,17 @@ func TestIntegrationBalances(t *testing.T) {
 			t.Fatalf("error registering currency %s: %v", code, err)
 		}
 	}
-	if _, _, err := s.RegisterAccount(ctx, RegisterAccountParams{Address: "world", Type: "equity", AllowNegative: true, Currencies: []string{"USD"}}); err != nil {
+	if _, _, err := s.RegisterAccount(ctx, ledger.RegisterAccountParams{Address: "world", Type: "equity", AllowNegative: true, Currencies: []string{"USD"}}); err != nil {
 		t.Fatalf("world: %v", err)
 	}
-	if _, _, err := s.RegisterAccount(ctx, RegisterAccountParams{Address: "rider:1:wallet", Type: "liability", Currencies: []string{"USD", "AED"}}); err != nil {
+	if _, _, err := s.RegisterAccount(ctx, ledger.RegisterAccountParams{Address: "rider:1:wallet", Type: "liability", Currencies: []string{"USD", "AED"}}); err != nil {
 		t.Fatalf("rider: %v", err)
 	}
 
 	// pay moves amount of USD from world to the rider and returns TigerBeetle's timestamp for it
 	pay := func(amount string) time.Time {
 		t.Helper()
-		got, err := s.Transfer(ctx, [][]Posting{{{ID: tb.ID().BigInt().String(), Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: amount}}})
+		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: tb.ID().BigInt().String(), Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: amount}}})
 		if err != nil || got[0][0].Err != nil {
 			t.Fatalf("error transferring: %v, %+v", err, got)
 		}
@@ -80,7 +82,7 @@ func TestIntegrationBalances(t *testing.T) {
 		}
 	}
 
-	if _, err := s.Balances(ctx, "nobody", time.Time{}); !errors.Is(err, ErrNotFound) {
+	if _, err := s.Balances(ctx, "nobody", time.Time{}); !errors.Is(err, ledger.ErrNotFound) {
 		t.Fatalf("unknown address err = %v, want ErrNotFound", err)
 	}
 }

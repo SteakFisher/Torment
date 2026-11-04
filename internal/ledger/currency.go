@@ -44,7 +44,7 @@ func (s *Service) RegisterCurrency(ctx context.Context, code string) (Currency, 
 	if err != nil {
 		return Currency{}, err
 	}
-	return s.insertCurrency(ctx, name, precision)
+	return s.store.InsertCurrency(ctx, name, precision)
 }
 
 // lookupCurrencies returns each named currency, keyed by name. It returns
@@ -53,7 +53,7 @@ func (s *Service) lookupCurrencies(ctx context.Context, names []string) (map[str
 	if len(names) == 0 {
 		return nil, nil
 	}
-	currencies, err := s.currencies(ctx, names)
+	currencies, err := s.store.Currencies(ctx, names)
 	if err != nil {
 		return nil, err
 	}

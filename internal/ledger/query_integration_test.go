@@ -1,4 +1,4 @@
-package ledger
+package ledger_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"time"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
+
+	"torment/internal/ledger"
 )
 
 func TestIntegrationListAccounts(t *testing.T) {
@@ -17,7 +19,7 @@ func TestIntegrationListAccounts(t *testing.T) {
 			t.Fatalf("error registering currency %s: %v", code, err)
 		}
 	}
-	for _, p := range []RegisterAccountParams{
+	for _, p := range []ledger.RegisterAccountParams{
 		{Address: "rider:1:wallet", Type: "liability", Currencies: []string{"USD", "AED"}},
 		{Address: "rider:1:bonus", Type: "liability"},
 		{Address: "rider:2:wallet", Type: "liability"},
@@ -79,7 +81,7 @@ func TestIntegrationPatternBalances(t *testing.T) {
 			t.Fatalf("error registering currency %s: %v", code, err)
 		}
 	}
-	for _, p := range []RegisterAccountParams{
+	for _, p := range []ledger.RegisterAccountParams{
 		{Address: "world", Type: "equity", AllowNegative: true},
 		{Address: "rider:1:wallet", Type: "liability", Currencies: []string{"AED"}},
 		{Address: "rider:1:bonus", Type: "liability"},
@@ -93,7 +95,7 @@ func TestIntegrationPatternBalances(t *testing.T) {
 	// pay moves amount of USD and returns TigerBeetle's timestamp for it
 	pay := func(source, destination, amount string) time.Time {
 		t.Helper()
-		got, err := s.Transfer(ctx, [][]Posting{{{ID: tb.ID().BigInt().String(), Source: source, Destination: destination, Currency: "USD", Amount: amount}}})
+		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: tb.ID().BigInt().String(), Source: source, Destination: destination, Currency: "USD", Amount: amount}}})
 		if err != nil || got[0][0].Err != nil {
 			t.Fatalf("error transferring: %v, %+v", err, got)
 		}
@@ -151,7 +153,7 @@ func TestIntegrationAccountTransfers(t *testing.T) {
 			t.Fatalf("error registering currency %s: %v", code, err)
 		}
 	}
-	for _, p := range []RegisterAccountParams{
+	for _, p := range []ledger.RegisterAccountParams{
 		{Address: "world", Type: "equity", AllowNegative: true},
 		{Address: "rider:1:wallet", Type: "liability"},
 		{Address: "rider:2:wallet", Type: "liability"},
@@ -164,7 +166,7 @@ func TestIntegrationAccountTransfers(t *testing.T) {
 	pay := func(source, destination, currency, amount string) string {
 		t.Helper()
 		id := tb.ID().BigInt().String()
-		got, err := s.Transfer(ctx, [][]Posting{{{ID: id, Source: source, Destination: destination, Currency: currency, Amount: amount}}})
+		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: id, Source: source, Destination: destination, Currency: currency, Amount: amount}}})
 		if err != nil || got[0][0].Err != nil {
 			t.Fatalf("error transferring: %v, %+v", err, got)
 		}
@@ -176,7 +178,7 @@ func TestIntegrationAccountTransfers(t *testing.T) {
 	c := pay("rider:1:wallet", "rider:2:wallet", "USD", "30")
 
 	// ids lists one page of rider 1's transfers by id, newest first
-	ids := func(p AccountTransfersParams) ([]string, []TransferRecord, bool) {
+	ids := func(p ledger.AccountTransfersParams) ([]string, []ledger.TransferRecord, bool) {
 		t.Helper()
 		p.Address = "rider:1:wallet"
 		got, more, err := s.AccountTransfers(ctx, p)
@@ -190,7 +192,7 @@ func TestIntegrationAccountTransfers(t *testing.T) {
 		return out, got, more
 	}
 
-	all, records, more := ids(AccountTransfersParams{})
+	all, records, more := ids(ledger.AccountTransfersParams{})
 	if fmt.Sprint(all) != fmt.Sprint([]string{c, b, a}) || more {
 		t.Fatalf("all = %v, more %v; want %v", all, more, []string{c, b, a})
 	}
@@ -198,20 +200,20 @@ func TestIntegrationAccountTransfers(t *testing.T) {
 		t.Fatalf("newest = %+v", r)
 	}
 
-	page1, records, more := ids(AccountTransfersParams{Limit: 2})
+	page1, records, more := ids(ledger.AccountTransfersParams{Limit: 2})
 	if fmt.Sprint(page1) != fmt.Sprint([]string{c, b}) || !more {
 		t.Fatalf("page 1 = %v, more %v", page1, more)
 	}
-	page2, _, more := ids(AccountTransfersParams{Limit: 2, Before: records[1].Timestamp})
+	page2, _, more := ids(ledger.AccountTransfersParams{Limit: 2, Before: records[1].Timestamp})
 	if fmt.Sprint(page2) != fmt.Sprint([]string{a}) || more {
 		t.Fatalf("page 2 = %v, more %v", page2, more)
 	}
 
-	if usd, _, _ := ids(AccountTransfersParams{Currency: "USD"}); fmt.Sprint(usd) != fmt.Sprint([]string{c, a}) {
+	if usd, _, _ := ids(ledger.AccountTransfersParams{Currency: "USD"}); fmt.Sprint(usd) != fmt.Sprint([]string{c, a}) {
 		t.Fatalf("USD = %v", usd)
 	}
-	_, all3, _ := ids(AccountTransfersParams{})
-	if since, _, _ := ids(AccountTransfersParams{From: all3[1].Timestamp}); fmt.Sprint(since) != fmt.Sprint([]string{c, b}) {
+	_, all3, _ := ids(ledger.AccountTransfersParams{})
+	if since, _, _ := ids(ledger.AccountTransfersParams{From: all3[1].Timestamp}); fmt.Sprint(since) != fmt.Sprint([]string{c, b}) {
 		t.Fatalf("from b = %v", since)
 	}
 }

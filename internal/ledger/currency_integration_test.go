@@ -1,9 +1,10 @@
-package ledger
+package ledger_test
 
 import (
 	"context"
 	"errors"
 	"testing"
+	"torment/internal/ledger"
 )
 
 func TestIntegrationRegisterCurrency(t *testing.T) {
@@ -30,7 +31,7 @@ func TestIntegrationRegisterCurrency(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := s.RegisterCurrency(ctx, tt.code); !errors.Is(err, ErrConflict) {
+			if _, err := s.RegisterCurrency(ctx, tt.code); !errors.Is(err, ledger.ErrConflict) {
 				t.Fatalf("err = %v, want ErrConflict", err)
 			}
 		})

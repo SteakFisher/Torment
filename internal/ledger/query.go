@@ -60,7 +60,7 @@ func (s *Service) ListAccounts(ctx context.Context, pattern, after string, limit
 	if limit == 0 {
 		limit = defaultListLimit
 	}
-	return s.listAccounts(ctx, re, after, limit)
+	return s.store.ListAccounts(ctx, re, after, limit)
 }
 
 // AccountBalances is one account's balances in a pattern balance query.
@@ -92,7 +92,7 @@ func (s *Service) PatternBalances(ctx context.Context, pattern, currency string,
 	if err := validateAt(at); err != nil {
 		return nil, nil, err
 	}
-	wallets, tooMany, err := s.patternWallets(ctx, re, currency, maxPatternWallets)
+	wallets, tooMany, err := s.store.PatternWallets(ctx, re, currency, maxPatternWallets)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -119,16 +119,16 @@ func (s *Service) PatternBalances(ctx context.Context, pattern, currency string,
 	sums := map[totalKey]*TypeTotal{}
 	var accounts []AccountBalances
 	for _, w := range wallets {
-		amount := netAmount(w.typ, byID[w.ID])
-		if len(accounts) == 0 || accounts[len(accounts)-1].Address != w.address {
-			accounts = append(accounts, AccountBalances{Address: w.address, Type: w.typ})
+		amount := netAmount(w.Type, byID[w.ID])
+		if len(accounts) == 0 || accounts[len(accounts)-1].Address != w.Address {
+			accounts = append(accounts, AccountBalances{Address: w.Address, Type: w.Type})
 		}
 		last := &accounts[len(accounts)-1]
 		last.Balances = append(last.Balances, Balance{Currency: w.Currency, Precision: w.Precision, Amount: amount})
 
-		k := totalKey{w.typ, w.Currency}
+		k := totalKey{w.Type, w.Currency}
 		if sums[k] == nil {
-			sums[k] = &TypeTotal{Type: w.typ, Currency: w.Currency, Precision: w.Precision, Amount: new(big.Int)}
+			sums[k] = &TypeTotal{Type: w.Type, Currency: w.Currency, Precision: w.Precision, Amount: new(big.Int)}
 		}
 		sums[k].Amount.Add(sums[k].Amount, amount)
 	}
@@ -170,7 +170,7 @@ func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams
 	if err := validateAt(p.Before); err != nil {
 		return nil, false, err
 	}
-	acct, err := s.accountWallets(ctx, p.Address, p.Currency)
+	acct, err := s.store.AccountWallets(ctx, p.Address, p.Currency)
 	if err != nil {
 		return nil, false, err
 	}

@@ -1,4 +1,4 @@
-package ledger
+package ledger_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"time"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
+
+	"torment/internal/ledger"
 )
 
 func TestIntegrationTransfer(t *testing.T) {
@@ -15,11 +17,11 @@ func TestIntegrationTransfer(t *testing.T) {
 	if _, err := s.RegisterCurrency(ctx, "USD/2"); err != nil {
 		t.Fatalf("error registering currency: %v", err)
 	}
-	if _, _, err := s.RegisterAccount(ctx, RegisterAccountParams{Address: "world", Type: "equity", AllowNegative: true, Currencies: []string{"USD"}}); err != nil {
+	if _, _, err := s.RegisterAccount(ctx, ledger.RegisterAccountParams{Address: "world", Type: "equity", AllowNegative: true, Currencies: []string{"USD"}}); err != nil {
 		t.Fatalf("world: %v", err)
 	}
 	for _, address := range []string{"rider:1:wallet", "rider:2:wallet"} {
-		if _, _, err := s.RegisterAccount(ctx, RegisterAccountParams{Address: address, Type: "liability", Currencies: []string{"USD"}}); err != nil {
+		if _, _, err := s.RegisterAccount(ctx, ledger.RegisterAccountParams{Address: address, Type: "liability", Currencies: []string{"USD"}}); err != nil {
 			t.Fatalf("%s: %v", address, err)
 		}
 	}
@@ -33,7 +35,7 @@ func TestIntegrationTransfer(t *testing.T) {
 		}
 	}
 	// transfer posts chains and fails the test on a request error
-	transfer := func(chains ...[]Posting) [][]Transfer {
+	transfer := func(chains ...[]ledger.Posting) [][]ledger.Transfer {
 		t.Helper()
 		got, err := s.Transfer(ctx, chains)
 		if err != nil {
@@ -42,43 +44,43 @@ func TestIntegrationTransfer(t *testing.T) {
 		return got
 	}
 	// posting returns one posting with a new id
-	posting := func(source, destination, amount, group string) Posting {
-		return Posting{ID: tb.ID().BigInt().String(), Source: source, Destination: destination, Currency: "USD", Amount: amount, GroupID: group}
+	posting := func(source, destination, amount, group string) ledger.Posting {
+		return ledger.Posting{ID: tb.ID().BigInt().String(), Source: source, Destination: destination, Currency: "USD", Amount: amount, GroupID: group}
 	}
 
 	plain := posting("world", "rider:1:wallet", "100", "")
-	first := transfer([]Posting{plain})[0][0]
+	first := transfer([]ledger.Posting{plain})[0][0]
 	if first.Err != nil || !first.Created {
 		t.Fatalf("transfer = %+v; want created", first)
 	}
 	checkUSD(map[string]int64{"world": -100, "rider:1:wallet": 100})
 
-	if again := transfer([]Posting{plain})[0][0]; again != (Transfer{ID: first.ID, GroupID: first.GroupID}) {
+	if again := transfer([]ledger.Posting{plain})[0][0]; again != (ledger.Transfer{ID: first.ID, GroupID: first.GroupID}) {
 		t.Fatalf("same transfer again = %+v; want %+v not created", again, first)
 	}
 	checkUSD(map[string]int64{"world": -100, "rider:1:wallet": 100})
 
 	changed := plain
 	changed.Amount = "101"
-	if got := transfer([]Posting{changed})[0][0]; !errors.Is(got.Err, ErrConflict) {
+	if got := transfer([]ledger.Posting{changed})[0][0]; !errors.Is(got.Err, ledger.ErrConflict) {
 		t.Fatalf("same id with different amount err = %v, want ErrConflict", got.Err)
 	}
 
 	overdraw := posting("rider:1:wallet", "world", "150", "")
-	if got := transfer([]Posting{overdraw})[0][0]; !errors.Is(got.Err, ErrInsufficientFunds) {
+	if got := transfer([]ledger.Posting{overdraw})[0][0]; !errors.Is(got.Err, ledger.ErrInsufficientFunds) {
 		t.Fatalf("overdraw err = %v, want ErrInsufficientFunds", got.Err)
 	}
 	checkUSD(map[string]int64{"world": -100, "rider:1:wallet": 100})
-	if got := transfer([]Posting{posting("world", "rider:1:wallet", "100", "")})[0][0]; got.Err != nil {
+	if got := transfer([]ledger.Posting{posting("world", "rider:1:wallet", "100", "")})[0][0]; got.Err != nil {
 		t.Fatalf("error topping up: %v", got.Err)
 	}
-	if got := transfer([]Posting{overdraw})[0][0]; !errors.Is(got.Err, ErrIDAlreadyFailed) {
+	if got := transfer([]ledger.Posting{overdraw})[0][0]; !errors.Is(got.Err, ledger.ErrIDAlreadyFailed) {
 		t.Fatalf("failed id after top-up err = %v, want ErrIDAlreadyFailed", got.Err)
 	}
 	checkUSD(map[string]int64{"world": -200, "rider:1:wallet": 200})
 
 	group := tb.ID()
-	grouped := transfer([]Posting{posting("rider:1:wallet", "world", "40", group.BigInt().String())})[0][0]
+	grouped := transfer([]ledger.Posting{posting("rider:1:wallet", "world", "40", group.BigInt().String())})[0][0]
 	if grouped.Err != nil || grouped.GroupID != group {
 		t.Fatalf("transfer with group = %+v; want group id %s", grouped, group.BigInt())
 	}
@@ -94,26 +96,26 @@ func TestIntegrationTransfer(t *testing.T) {
 	}
 	checkUSD(map[string]int64{"world": -160, "rider:1:wallet": 160, "rider:2:wallet": 0})
 
-	overspent := transfer([]Posting{
+	overspent := transfer([]ledger.Posting{
 		posting("rider:1:wallet", "rider:2:wallet", "50", ""),
 		posting("rider:2:wallet", "world", "20", ""),
 		posting("rider:2:wallet", "world", "100", ""),
 	})[0]
-	if !errors.Is(overspent[0].Err, ErrChainFailed) || !errors.Is(overspent[1].Err, ErrChainFailed) || !errors.Is(overspent[2].Err, ErrInsufficientFunds) {
+	if !errors.Is(overspent[0].Err, ledger.ErrChainFailed) || !errors.Is(overspent[1].Err, ledger.ErrChainFailed) || !errors.Is(overspent[2].Err, ledger.ErrInsufficientFunds) {
 		t.Fatalf("overspending chain = %+v; want chain failed, chain failed, insufficient funds", overspent)
 	}
 	checkUSD(map[string]int64{"world": -160, "rider:1:wallet": 160, "rider:2:wallet": 0})
 
 	independent := transfer(
-		[]Posting{posting("rider:1:wallet", "rider:2:wallet", "60", "")},
-		[]Posting{posting("rider:2:wallet", "world", "100", "")},
+		[]ledger.Posting{posting("rider:1:wallet", "rider:2:wallet", "60", "")},
+		[]ledger.Posting{posting("rider:2:wallet", "world", "100", "")},
 	)
-	if !independent[0][0].Created || independent[0][0].Err != nil || !errors.Is(independent[1][0].Err, ErrInsufficientFunds) {
+	if !independent[0][0].Created || independent[0][0].Err != nil || !errors.Is(independent[1][0].Err, ledger.ErrInsufficientFunds) {
 		t.Fatalf("independent chains = %+v; want created, insufficient funds", independent)
 	}
 	checkUSD(map[string]int64{"world": -160, "rider:1:wallet": 100, "rider:2:wallet": 60})
 
-	chain := []Posting{posting("rider:1:wallet", "rider:2:wallet", "10", ""), posting("rider:2:wallet", "world", "5", "")}
+	chain := []ledger.Posting{posting("rider:1:wallet", "rider:2:wallet", "10", ""), posting("rider:2:wallet", "world", "5", "")}
 	for _, tr := range transfer(chain)[0] {
 		if tr.Err != nil || !tr.Created {
 			t.Fatalf("chain posting = %+v; want created", tr)
@@ -128,8 +130,8 @@ func TestIntegrationTransfer(t *testing.T) {
 	checkUSD(map[string]int64{"world": -155, "rider:1:wallet": 90, "rider:2:wallet": 65})
 
 	fresh := posting("rider:2:wallet", "world", "5", "")
-	reused := transfer([]Posting{chain[0], fresh})[0]
-	if !errors.Is(reused[0].Err, ErrConflict) || !errors.Is(reused[1].Err, ErrChainFailed) {
+	reused := transfer([]ledger.Posting{chain[0], fresh})[0]
+	if !errors.Is(reused[0].Err, ledger.ErrConflict) || !errors.Is(reused[1].Err, ledger.ErrChainFailed) {
 		t.Fatalf("chain reusing an id = %+v; want conflict, chain failed", reused)
 	}
 	if found, err := testTB.LookupTransfers([]tb.Uint128{reused[1].ID}); err != nil || len(found) != 0 {

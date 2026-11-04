@@ -6,10 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-
-	"github.com/jackc/pgx/v5"
-
-	"torment/internal/db/sqlc"
 )
 
 func TestValidateAddress(t *testing.T) {
@@ -54,7 +50,7 @@ func TestParseAccountType(t *testing.T) {
 }
 
 func TestRegisterAccount(t *testing.T) {
-	stored := sqlc.Account{Address: "rider:1:wallet", Type: sqlc.AccountTypeLiability}
+	stored := Account{Address: "rider:1:wallet", Type: TypeLiability}
 	valid := RegisterAccountParams{Address: "rider:1:wallet", Type: "liability"}
 	with := func(f func(*RegisterAccountParams)) RegisterAccountParams {
 		p := valid
@@ -65,39 +61,36 @@ func TestRegisterAccount(t *testing.T) {
 	tests := []struct {
 		name        string
 		params      RegisterAccountParams
+		exists      bool // the store already has stored
 		insertErr   error
 		wantCreated bool
 		wantErr     error
 		wantInsert  bool
-		wantGet     bool
 	}{
 		{name: "invalid address", params: with(func(p *RegisterAccountParams) { p.Address = "a::b" }), wantErr: ErrInvalid},
 		{name: "invalid type", params: with(func(p *RegisterAccountParams) { p.Type = "debit" }), wantErr: ErrInvalid},
 		{name: "created", params: valid, wantCreated: true, wantInsert: true},
-		{name: "replay", params: valid, insertErr: pgx.ErrNoRows, wantInsert: true, wantGet: true},
-		{name: "different type", params: with(func(p *RegisterAccountParams) { p.Type = "asset" }), insertErr: pgx.ErrNoRows, wantErr: ErrConflict, wantInsert: true, wantGet: true},
-		{name: "different allow_negative", params: with(func(p *RegisterAccountParams) { p.AllowNegative = true }), insertErr: pgx.ErrNoRows, wantErr: ErrConflict, wantInsert: true, wantGet: true},
+		{name: "replay", params: valid, exists: true, wantInsert: true},
+		{name: "different type", params: with(func(p *RegisterAccountParams) { p.Type = "asset" }), exists: true, wantErr: ErrConflict, wantInsert: true},
+		{name: "different allow_negative", params: with(func(p *RegisterAccountParams) { p.AllowNegative = true }), exists: true, wantErr: ErrConflict, wantInsert: true},
 		{name: "insert fails", params: valid, insertErr: errors.New("boom"), wantInsert: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			inserted, got := false, false
-			q := &fakeQuerier{
-				insertAccount: func(_ context.Context, arg sqlc.InsertAccountParams) (sqlc.Account, error) {
-					inserted = true
-					if tt.insertErr != nil {
-						return sqlc.Account{}, tt.insertErr
-					}
-					return sqlc.Account{Address: arg.Address, Type: arg.Type, AllowNegative: arg.AllowNegative}, nil
-				},
-				getAccount: func(context.Context, string) (sqlc.Account, error) {
-					got = true
-					return stored, nil
-				},
-			}
-			acct, created, err := New(q, nil).RegisterAccount(context.Background(), tt.params)
-			if inserted != tt.wantInsert || got != tt.wantGet {
-				t.Fatalf("insert called = %v, get called = %v; want %v, %v", inserted, got, tt.wantInsert, tt.wantGet)
+			inserted := false
+			store := &fakeStore{insertAccount: func(_ context.Context, address string, typ AccountType, allowNegative bool) (Account, bool, error) {
+				inserted = true
+				switch {
+				case tt.insertErr != nil:
+					return Account{}, false, tt.insertErr
+				case tt.exists:
+					return stored, false, nil
+				}
+				return Account{Address: address, Type: typ, AllowNegative: allowNegative}, true, nil
+			}}
+			acct, created, err := New(store, nil).RegisterAccount(context.Background(), tt.params)
+			if inserted != tt.wantInsert {
+				t.Fatalf("insert called = %v, want %v", inserted, tt.wantInsert)
 			}
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
@@ -105,7 +98,7 @@ func TestRegisterAccount(t *testing.T) {
 				}
 				return
 			}
-			if tt.insertErr != nil && !errors.Is(tt.insertErr, pgx.ErrNoRows) {
+			if tt.insertErr != nil {
 				if err == nil || errors.Is(err, ErrConflict) {
 					t.Fatalf("err = %v, want a wrapped unexpected error", err)
 				}

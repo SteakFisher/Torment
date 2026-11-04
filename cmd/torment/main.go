@@ -16,7 +16,6 @@ import (
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 
 	"torment/internal/db"
-	"torment/internal/db/sqlc"
 	"torment/internal/httpapi"
 	"torment/internal/ledger"
 )
@@ -73,7 +72,7 @@ func run() error {
 		return fmt.Errorf("error pinging tigerbeetle: %w", err)
 	}
 
-	srv := &http.Server{Addr: addr, Handler: httpapi.New(ledger.New(sqlc.New(pool), tbClient), apiKeys)}
+	srv := &http.Server{Addr: addr, Handler: httpapi.New(ledger.New(db.NewStore(pool), tbClient), apiKeys)}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
 	slog.Info("listening", "addr", addr)
