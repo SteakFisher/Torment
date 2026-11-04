@@ -21,7 +21,7 @@ type balanceJSON struct {
 func getBalances(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		address := r.PathValue("address")
-		at, err := parseAt(r)
+		at, err := parseTime(r, "at")
 		if err != nil {
 			writeError(w, err)
 			return
@@ -58,7 +58,7 @@ type accountBalancesJSON struct {
 // pattern matching too many wallets.
 func getPatternBalances(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		at, err := parseAt(r)
+		at, err := parseTime(r, "at")
 		if err != nil {
 			writeError(w, err)
 			return
@@ -92,16 +92,16 @@ func newBalancesJSON(balances []ledger.Balance) []balanceJSON {
 	return out
 }
 
-// parseAt returns the request's at query parameter, or the zero time when it is absent. It returns
-// ledger.ErrInvalid when at is not an RFC 3339 time.
-func parseAt(r *http.Request) (time.Time, error) {
-	s := r.URL.Query().Get("at")
+// parseTime returns the request's query parameter name as a time, or the zero time when it is absent. It
+// returns ledger.ErrInvalid when the value is not an RFC 3339 time.
+func parseTime(r *http.Request, name string) (time.Time, error) {
+	s := r.URL.Query().Get(name)
 	if s == "" {
 		return time.Time{}, nil
 	}
-	at, err := time.Parse(time.RFC3339Nano, s)
+	t, err := time.Parse(time.RFC3339Nano, s)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("%w: at %q must be an RFC 3339 time", ledger.ErrInvalid, s)
+		return time.Time{}, fmt.Errorf("%w: %s %q must be an RFC 3339 time", ledger.ErrInvalid, name, s)
 	}
-	return at, nil
+	return t, nil
 }

@@ -61,13 +61,10 @@ func postAccount(l Ledger) http.HandlerFunc {
 func getAccounts(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
-		limit := 0
-		if s := q.Get("limit"); s != "" {
-			var err error
-			if limit, err = strconv.Atoi(s); err != nil {
-				writeError(w, fmt.Errorf("%w: limit %q must be an integer", ledger.ErrInvalid, s))
-				return
-			}
+		limit, err := parseLimit(r)
+		if err != nil {
+			writeError(w, err)
+			return
 		}
 		accounts, more, err := l.ListAccounts(r.Context(), q.Get("address"), q.Get("after"), limit)
 		if err != nil {
@@ -100,4 +97,18 @@ func newAccountJSON(acct ledger.Account) accountJSON {
 		CreatedAt:     acct.CreatedAt,
 		Wallets:       wallets,
 	}
+}
+
+// parseLimit returns the request's limit query parameter, or 0 when it is absent. It returns
+// ledger.ErrInvalid when limit is not an integer.
+func parseLimit(r *http.Request) (int, error) {
+	s := r.URL.Query().Get("limit")
+	if s == "" {
+		return 0, nil
+	}
+	limit, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, fmt.Errorf("%w: limit %q must be an integer", ledger.ErrInvalid, s)
+	}
+	return limit, nil
 }

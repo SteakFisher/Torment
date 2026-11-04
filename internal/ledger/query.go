@@ -3,6 +3,7 @@ package ledger
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"regexp"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 
 	"torment/internal/db/sqlc"
@@ -161,4 +163,81 @@ func (s *Service) PatternBalances(ctx context.Context, pattern, currency string,
 		return cmp.Or(cmp.Compare(tbCode(a.Type), tbCode(b.Type)), cmp.Compare(a.Currency, b.Currency))
 	})
 	return totals, accounts, nil
+}
+
+// AccountTransfersParams is the input to AccountTransfers. A zero From or Before leaves that side of the
+// time range open, and a zero Limit means defaultListLimit.
+type AccountTransfersParams struct {
+	Address  string
+	Currency string // empty for every currency
+	From     time.Time
+	Before   time.Time
+	Limit    int
+}
+
+// AccountTransfers returns the transfers of the account at p.Address committed at or after p.From and
+// before p.Before, newest first. more reports whether older transfers remain; passing the last Timestamp
+// as Before gets the next page. It makes one TigerBeetle request per wallet in scope. It returns
+// ErrNotFound when no account has the address, and ErrInvalid for a limit outside 0 to maxListLimit or a
+// time outside TigerBeetle's range.
+func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams) (transfers []TransferRecord, more bool, err error) {
+	if p.Limit < 0 || p.Limit > maxListLimit {
+		return nil, false, fmt.Errorf("%w: limit %d must be between 1 and %d", ErrInvalid, p.Limit, maxListLimit)
+	}
+	if p.Limit == 0 {
+		p.Limit = defaultListLimit
+	}
+	if err := validateAt(p.From); err != nil {
+		return nil, false, err
+	}
+	if err := validateAt(p.Before); err != nil {
+		return nil, false, err
+	}
+	acct, err := s.q.GetAccount(ctx, p.Address)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, fmt.Errorf("%w: account %q", ErrNotFound, p.Address)
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("error getting account: %w", err)
+	}
+	wallets, err := s.q.ListWallets(ctx, acct.ID)
+	if err != nil {
+		return nil, false, fmt.Errorf("error listing wallets: %w", err)
+	}
+
+	filter := tb.AccountFilter{
+		// One extra transfer tells whether another page exists.
+		Limit: uint32(p.Limit + 1),
+		Flags: tb.AccountFilterFlags{Debits: true, Credits: true, Reversed: true}.ToUint32(),
+	}
+	if !p.From.IsZero() {
+		filter.TimestampMin = uint64(p.From.UnixNano())
+	}
+	if !p.Before.IsZero() {
+		filter.TimestampMax = uint64(p.Before.UnixNano()) - 1
+		if filter.TimestampMin > filter.TimestampMax {
+			return []TransferRecord{}, false, nil
+		}
+	}
+	var found []tb.Transfer
+	for _, w := range wallets {
+		if p.Currency != "" && w.Currency != p.Currency {
+			continue
+		}
+		if filter.AccountID, err = idFromBytes(w.TbID); err != nil {
+			return nil, false, err
+		}
+		got, err := s.tb.GetAccountTransfers(filter)
+		if err != nil {
+			return nil, false, fmt.Errorf("error getting tigerbeetle account transfers: %w", err)
+		}
+		found = append(found, got...)
+	}
+	// The newest p.Limit across all wallets are among each wallet's newest p.Limit.
+	slices.SortFunc(found, func(a, b tb.Transfer) int { return cmp.Compare(b.Timestamp, a.Timestamp) })
+	if more = len(found) > p.Limit; more {
+		found = found[:p.Limit]
+	}
+	transfers, err = s.transferRecords(ctx, found)
+	return transfers, more, err
 }

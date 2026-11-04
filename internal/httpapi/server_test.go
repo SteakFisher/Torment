@@ -16,9 +16,10 @@ type fakeLedger struct {
 	registerAccount  func(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error)
 	balances         func(ctx context.Context, address string, at time.Time) ([]ledger.Balance, error)
 	transfer         func(ctx context.Context, chains [][]ledger.Posting) ([][]ledger.Transfer, error)
-	groupTransfers   func(ctx context.Context, groupID string) ([]ledger.GroupTransfer, error)
+	groupTransfers   func(ctx context.Context, groupID string) ([]ledger.TransferRecord, error)
 	listAccounts     func(ctx context.Context, pattern, after string, limit int) ([]ledger.Account, bool, error)
 	patternBalances  func(ctx context.Context, pattern, currency string, at time.Time) ([]ledger.TypeTotal, []ledger.AccountBalances, error)
+	accountTransfers func(ctx context.Context, p ledger.AccountTransfersParams) ([]ledger.TransferRecord, bool, error)
 }
 
 var _ Ledger = fakeLedger{}
@@ -39,7 +40,7 @@ func (f fakeLedger) Transfer(ctx context.Context, chains [][]ledger.Posting) ([]
 	return f.transfer(ctx, chains)
 }
 
-func (f fakeLedger) GroupTransfers(ctx context.Context, groupID string) ([]ledger.GroupTransfer, error) {
+func (f fakeLedger) GroupTransfers(ctx context.Context, groupID string) ([]ledger.TransferRecord, error) {
 	return f.groupTransfers(ctx, groupID)
 }
 
@@ -49,6 +50,10 @@ func (f fakeLedger) ListAccounts(ctx context.Context, pattern, after string, lim
 
 func (f fakeLedger) PatternBalances(ctx context.Context, pattern, currency string, at time.Time) ([]ledger.TypeTotal, []ledger.AccountBalances, error) {
 	return f.patternBalances(ctx, pattern, currency, at)
+}
+
+func (f fakeLedger) AccountTransfers(ctx context.Context, p ledger.AccountTransfersParams) ([]ledger.TransferRecord, bool, error) {
+	return f.accountTransfers(ctx, p)
 }
 
 func TestHealthz(t *testing.T) {

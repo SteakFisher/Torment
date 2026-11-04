@@ -142,3 +142,76 @@ func TestIntegrationPatternBalances(t *testing.T) {
 		t.Fatalf("nobody:* = %q, want nothing", got)
 	}
 }
+
+func TestIntegrationAccountTransfers(t *testing.T) {
+	s := newIntegrationService(t)
+	ctx := context.Background()
+	for _, code := range []string{"USD/2", "AED/2"} {
+		if _, err := s.RegisterCurrency(ctx, code); err != nil {
+			t.Fatalf("error registering currency %s: %v", code, err)
+		}
+	}
+	for _, p := range []RegisterAccountParams{
+		{Address: "world", Type: "equity", AllowNegative: true},
+		{Address: "rider:1:wallet", Type: "liability"},
+		{Address: "rider:2:wallet", Type: "liability"},
+	} {
+		if _, _, err := s.RegisterAccount(ctx, p); err != nil {
+			t.Fatalf("%s: %v", p.Address, err)
+		}
+	}
+	// pay sends one posting and returns its id
+	pay := func(source, destination, currency, amount string) string {
+		t.Helper()
+		id := tb.ID().BigInt().String()
+		got, err := s.Transfer(ctx, [][]Posting{{{ID: id, Source: source, Destination: destination, Currency: currency, Amount: amount}}})
+		if err != nil || got[0][0].Err != nil {
+			t.Fatalf("error transferring: %v, %+v", err, got)
+		}
+		return id
+	}
+	a := pay("world", "rider:1:wallet", "USD", "100")
+	b := pay("world", "rider:1:wallet", "AED", "40")
+	pay("world", "rider:2:wallet", "USD", "7") // not rider 1's
+	c := pay("rider:1:wallet", "rider:2:wallet", "USD", "30")
+
+	// ids lists one page of rider 1's transfers by id, newest first
+	ids := func(p AccountTransfersParams) ([]string, []TransferRecord, bool) {
+		t.Helper()
+		p.Address = "rider:1:wallet"
+		got, more, err := s.AccountTransfers(ctx, p)
+		if err != nil {
+			t.Fatalf("error getting transfers: %v", err)
+		}
+		var out []string
+		for _, g := range got {
+			out = append(out, g.ID.BigInt().String())
+		}
+		return out, got, more
+	}
+
+	all, records, more := ids(AccountTransfersParams{})
+	if fmt.Sprint(all) != fmt.Sprint([]string{c, b, a}) || more {
+		t.Fatalf("all = %v, more %v; want %v", all, more, []string{c, b, a})
+	}
+	if r := records[0]; r.Source != "rider:1:wallet" || r.Destination != "rider:2:wallet" || r.Currency != "USD" || r.Amount.Int64() != 30 || r.GroupID.BigInt().String() != c {
+		t.Fatalf("newest = %+v", r)
+	}
+
+	page1, records, more := ids(AccountTransfersParams{Limit: 2})
+	if fmt.Sprint(page1) != fmt.Sprint([]string{c, b}) || !more {
+		t.Fatalf("page 1 = %v, more %v", page1, more)
+	}
+	page2, _, more := ids(AccountTransfersParams{Limit: 2, Before: records[1].Timestamp})
+	if fmt.Sprint(page2) != fmt.Sprint([]string{a}) || more {
+		t.Fatalf("page 2 = %v, more %v", page2, more)
+	}
+
+	if usd, _, _ := ids(AccountTransfersParams{Currency: "USD"}); fmt.Sprint(usd) != fmt.Sprint([]string{c, a}) {
+		t.Fatalf("USD = %v", usd)
+	}
+	_, all3, _ := ids(AccountTransfersParams{})
+	if since, _, _ := ids(AccountTransfersParams{From: all3[1].Timestamp}); fmt.Sprint(since) != fmt.Sprint([]string{c, b}) {
+		t.Fatalf("from b = %v", since)
+	}
+}

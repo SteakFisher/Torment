@@ -26,15 +26,15 @@ func TestGroupTransfers(t *testing.T) {
 		found     []tb.Transfer
 		wantErr   error
 		wantOther bool // any error other than wantErr
-		want      []GroupTransfer
+		want      []TransferRecord
 		wantQuery bool
 	}{
 		{name: "malformed", groupID: "x", wantErr: ErrInvalid},
 		{name: "zero", groupID: "0", wantErr: ErrInvalid},
-		{name: "no transfers", groupID: "9", want: []GroupTransfer{}},
+		{name: "no transfers", groupID: "9", want: []TransferRecord{}},
 		{
 			name: "transfers", groupID: "9", found: []tb.Transfer{pay, refund}, wantQuery: true,
-			want: []GroupTransfer{
+			want: []TransferRecord{
 				{ID: pay.ID, Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: pay.Amount.BigInt(), Timestamp: time.Unix(1, 0).UTC()},
 				{ID: refund.ID, Source: "rider:1:wallet", Destination: "world", Currency: "USD", Amount: refund.Amount.BigInt(), Timestamp: time.Unix(2, 0).UTC()},
 			},

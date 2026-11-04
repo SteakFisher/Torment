@@ -12,10 +12,11 @@ import (
 // maxGroupTransfers is the most transfers TigerBeetle returns from one query.
 const maxGroupTransfers = 8189
 
-// GroupTransfer is a transfer in a group. Amount is in minor units of Currency. Timestamp is when
+// TransferRecord is a committed transfer. Amount is in minor units of Currency. Timestamp is when
 // TigerBeetle committed the transfer.
-type GroupTransfer struct {
+type TransferRecord struct {
 	ID          tb.Uint128
+	GroupID     tb.Uint128
 	Source      string
 	Destination string
 	Currency    string
@@ -26,7 +27,7 @@ type GroupTransfer struct {
 // GroupTransfers returns the transfers whose group id is groupID, oldest first. An unused group id has no
 // transfers. It returns ErrInvalid when groupID is not a base-10 integer greater than zero that fits in
 // 128 bits.
-func (s *Service) GroupTransfers(ctx context.Context, groupID string) ([]GroupTransfer, error) {
+func (s *Service) GroupTransfers(ctx context.Context, groupID string) ([]TransferRecord, error) {
 	group, ok := parseUint128(groupID)
 	if !ok {
 		return nil, fmt.Errorf("%w: group_id %q must be a base-10 integer greater than zero that fits in 128 bits", ErrInvalid, groupID)
@@ -36,10 +37,15 @@ func (s *Service) GroupTransfers(ctx context.Context, groupID string) ([]GroupTr
 	if err != nil {
 		return nil, fmt.Errorf("error querying tigerbeetle transfers: %w", err)
 	}
-	if len(found) == 0 {
-		return []GroupTransfer{}, nil
-	}
+	return s.transferRecords(ctx, found)
+}
 
+// transferRecords returns found as TransferRecords in the same order, with TigerBeetle account ids
+// replaced by wallet addresses and currencies. It returns an error when an account has no wallet.
+func (s *Service) transferRecords(ctx context.Context, found []tb.Transfer) ([]TransferRecord, error) {
+	if len(found) == 0 {
+		return []TransferRecord{}, nil
+	}
 	var ids [][]byte
 	for _, t := range found {
 		ids = append(ids, idToBytes(t.DebitAccountID), idToBytes(t.CreditAccountID))
@@ -58,15 +64,16 @@ func (s *Service) GroupTransfers(ctx context.Context, groupID string) ([]GroupTr
 		wallets[id] = wallet{r.Address, r.Currency}
 	}
 
-	out := make([]GroupTransfer, len(found))
+	out := make([]TransferRecord, len(found))
 	for i, t := range found {
 		debit, ok := wallets[t.DebitAccountID]
 		credit, ok2 := wallets[t.CreditAccountID]
 		if !ok || !ok2 {
 			return nil, fmt.Errorf("transfer %s has a tigerbeetle account with no wallet", t.ID.BigInt())
 		}
-		out[i] = GroupTransfer{
+		out[i] = TransferRecord{
 			ID:          t.ID,
+			GroupID:     t.UserData128,
 			Source:      debit.address,
 			Destination: credit.address,
 			Currency:    debit.currency,

@@ -139,12 +139,13 @@ func (w *walletStore) querier() *fakeQuerier {
 
 // fakeTB implements tbClient with per-test funcs; calling a method whose func is nil panics.
 type fakeTB struct {
-	createAccounts  func(accounts []tb.Account) ([]tb.CreateAccountResult, error)
-	lookupAccounts  func(ids []tb.Uint128) ([]tb.Account, error)
-	createTransfers func(transfers []tb.Transfer) ([]tb.CreateTransferResult, error)
-	lookupTransfers func(ids []tb.Uint128) ([]tb.Transfer, error)
-	queryTransfers  func(filter tb.QueryFilter) ([]tb.Transfer, error)
-	accountBalances func(filter tb.AccountFilter) ([]tb.AccountBalance, error)
+	createAccounts   func(accounts []tb.Account) ([]tb.CreateAccountResult, error)
+	lookupAccounts   func(ids []tb.Uint128) ([]tb.Account, error)
+	createTransfers  func(transfers []tb.Transfer) ([]tb.CreateTransferResult, error)
+	lookupTransfers  func(ids []tb.Uint128) ([]tb.Transfer, error)
+	queryTransfers   func(filter tb.QueryFilter) ([]tb.Transfer, error)
+	accountBalances  func(filter tb.AccountFilter) ([]tb.AccountBalance, error)
+	accountTransfers func(filter tb.AccountFilter) ([]tb.Transfer, error)
 }
 
 var _ tbClient = (*fakeTB)(nil)
@@ -171,4 +172,8 @@ func (f *fakeTB) QueryTransfers(filter tb.QueryFilter) ([]tb.Transfer, error) {
 
 func (f *fakeTB) GetAccountBalances(filter tb.AccountFilter) ([]tb.AccountBalance, error) {
 	return f.accountBalances(filter)
+}
+
+func (f *fakeTB) GetAccountTransfers(filter tb.AccountFilter) ([]tb.Transfer, error) {
+	return f.accountTransfers(filter)
 }

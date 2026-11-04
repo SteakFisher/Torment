@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 
 	"torment/internal/db/sqlc"
@@ -158,5 +159,100 @@ func TestPatternBalances(t *testing.T) {
 		if _, _, err := New(q, tbc).PatternBalances(context.Background(), c.pattern, "", c.at); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("pattern %q at %v err = %v, want ErrInvalid", c.pattern, c.at, err)
 		}
+	}
+}
+
+func TestAccountTransfers(t *testing.T) {
+	usd, aed, world := tb.ID(), tb.ID(), tb.ID()
+	// transfer returns a transfer between the rider's wallet and world with the given timestamp
+	transfer := func(wallet tb.Uint128, ts uint64) tb.Transfer {
+		return tb.Transfer{ID: tb.ToUint128(ts), DebitAccountID: world, CreditAccountID: wallet, Amount: tb.ToUint128(1), Timestamp: ts}
+	}
+	// USD has transfers at 50, 30 and 10; AED at 40 and 20. Each wallet returns at most filter.Limit, newest first.
+	inTB := map[tb.Uint128][]tb.Transfer{
+		usd: {transfer(usd, 50), transfer(usd, 30), transfer(usd, 10)},
+		aed: {transfer(aed, 40), transfer(aed, 20)},
+	}
+	q := &fakeQuerier{
+		getAccount: func(_ context.Context, address string) (sqlc.Account, error) {
+			if address != "rider:1:wallet" {
+				return sqlc.Account{}, pgx.ErrNoRows
+			}
+			return sqlc.Account{ID: 7, Address: address, Type: sqlc.AccountTypeLiability}, nil
+		},
+		listWallets: func(context.Context, int64) ([]sqlc.ListWalletsRow, error) {
+			return []sqlc.ListWalletsRow{{TbID: idToBytes(aed), Currency: "AED"}, {TbID: idToBytes(usd), Currency: "USD"}}, nil
+		},
+		getWalletsByTBIDs: func(context.Context, [][]byte) ([]sqlc.GetWalletsByTBIDsRow, error) {
+			return []sqlc.GetWalletsByTBIDsRow{
+				{TbID: idToBytes(usd), Address: "rider:1:wallet", Currency: "USD"},
+				{TbID: idToBytes(aed), Address: "rider:1:wallet", Currency: "AED"},
+				{TbID: idToBytes(world), Address: "world", Currency: "USD"},
+			}, nil
+		},
+	}
+
+	tests := []struct {
+		name       string
+		p          AccountTransfersParams
+		wantTimes  []int64
+		wantMore   bool
+		wantFilter tb.AccountFilter // AccountID is not compared
+		wantErr    error
+	}{
+		{name: "merged newest first", p: AccountTransfersParams{Address: "rider:1:wallet"}, wantTimes: []int64{50, 40, 30, 20, 10}, wantFilter: tb.AccountFilter{Limit: defaultListLimit + 1}},
+		{name: "page", p: AccountTransfersParams{Address: "rider:1:wallet", Limit: 2}, wantTimes: []int64{50, 40}, wantMore: true, wantFilter: tb.AccountFilter{Limit: 3}},
+		{name: "one currency", p: AccountTransfersParams{Address: "rider:1:wallet", Currency: "AED"}, wantTimes: []int64{40, 20}, wantFilter: tb.AccountFilter{Limit: defaultListLimit + 1}},
+		{
+			name:       "range",
+			p:          AccountTransfersParams{Address: "rider:1:wallet", From: time.Unix(0, 20), Before: time.Unix(0, 41), Limit: 5},
+			wantTimes:  []int64{40, 30, 20},
+			wantFilter: tb.AccountFilter{TimestampMin: 20, TimestampMax: 40, Limit: 6},
+		},
+		{name: "empty range", p: AccountTransfersParams{Address: "rider:1:wallet", From: time.Unix(0, 30), Before: time.Unix(0, 30)}, wantTimes: []int64{}},
+		{name: "unknown account", p: AccountTransfersParams{Address: "nobody"}, wantErr: ErrNotFound},
+		{name: "bad limit", p: AccountTransfersParams{Address: "rider:1:wallet", Limit: maxListLimit + 1}, wantErr: ErrInvalid},
+		{name: "bad time", p: AccountTransfersParams{Address: "rider:1:wallet", Before: time.Unix(-1, 0)}, wantErr: ErrInvalid},
+	}
+	flags := tb.AccountFilterFlags{Debits: true, Credits: true, Reversed: true}.ToUint32()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var filters []tb.AccountFilter
+			tbc := &fakeTB{accountTransfers: func(f tb.AccountFilter) ([]tb.Transfer, error) {
+				filters = append(filters, f)
+				var out []tb.Transfer
+				for _, tr := range inTB[f.AccountID] {
+					if tr.Timestamp >= f.TimestampMin && (f.TimestampMax == 0 || tr.Timestamp <= f.TimestampMax) && len(out) < int(f.Limit) {
+						out = append(out, tr)
+					}
+				}
+				return out, nil
+			}}
+			got, more, err := New(q, tbc).AccountTransfers(context.Background(), tt.p)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			if err != nil {
+				return
+			}
+			var times []int64
+			for _, g := range got {
+				times = append(times, g.Timestamp.UnixNano())
+				if g.Source != "world" || g.Destination != "rider:1:wallet" {
+					t.Fatalf("transfer = %+v; want world to rider:1:wallet", g)
+				}
+			}
+			if fmt.Sprint(times) != fmt.Sprint(tt.wantTimes) || more != tt.wantMore {
+				t.Fatalf("timestamps = %v, more %v; want %v, %v", times, more, tt.wantTimes, tt.wantMore)
+			}
+			for _, f := range filters {
+				f.AccountID = tb.Uint128{}
+				want := tt.wantFilter
+				want.Flags = flags
+				if f != want {
+					t.Fatalf("filter = %+v, want %+v", f, want)
+				}
+			}
+		})
 	}
 }
