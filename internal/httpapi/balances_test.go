@@ -64,3 +64,56 @@ func TestGetBalances(t *testing.T) {
 		})
 	}
 }
+
+func TestGetPatternBalances(t *testing.T) {
+	totals := []ledger.TypeTotal{{Type: ledger.TypeLiability, Currency: "USD", Precision: 2, Amount: big.NewInt(150)}}
+	accounts := []ledger.AccountBalances{
+		{Address: "rider:1:bonus", Type: ledger.TypeLiability, Balances: []ledger.Balance{{Currency: "USD", Precision: 2, Amount: big.NewInt(50)}}},
+		{Address: "rider:1:wallet", Type: ledger.TypeLiability, Balances: []ledger.Balance{{Currency: "USD", Precision: 2, Amount: big.NewInt(100)}}},
+	}
+	tests := []struct {
+		name       string
+		query      string
+		err        error
+		empty      bool
+		wantArgs   string
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:       "balances",
+			query:      "?address=rider:1:*&currency=USD&at=2026-10-31T00:00:00Z",
+			wantArgs:   "rider:1:* USD 2026-10-31T00:00:00Z",
+			wantStatus: http.StatusOK,
+			wantBody: `{"address":"rider:1:*","totals":[{"type":"liability","currency":"USD","precision":2,"amount":"150"}],"accounts":[` +
+				`{"address":"rider:1:bonus","type":"liability","balances":[{"currency":"USD","precision":2,"amount":"50"}]},` +
+				`{"address":"rider:1:wallet","type":"liability","balances":[{"currency":"USD","precision":2,"amount":"100"}]}]}`,
+		},
+		{name: "none", query: "?address=nobody", empty: true, wantArgs: "nobody  0001-01-01T00:00:00Z", wantStatus: http.StatusOK, wantBody: `{"address":"nobody","totals":[],"accounts":[]}`},
+		{name: "bad at", query: "?at=x", wantStatus: http.StatusBadRequest},
+		{name: "invalid", query: "?address=*", err: ledger.ErrInvalid, wantArgs: "*  0001-01-01T00:00:00Z", wantStatus: http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotArgs string
+			l := fakeLedger{patternBalances: func(_ context.Context, pattern, currency string, at time.Time) ([]ledger.TypeTotal, []ledger.AccountBalances, error) {
+				gotArgs = fmt.Sprintf("%s %s %s", pattern, currency, at.Format(time.RFC3339))
+				switch {
+				case tt.err != nil:
+					return nil, nil, fmt.Errorf("wrapped: %w", tt.err)
+				case tt.empty:
+					return []ledger.TypeTotal{}, []ledger.AccountBalances{}, nil
+				}
+				return totals, accounts, nil
+			}}
+			rec := httptest.NewRecorder()
+			New(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/balances"+tt.query, nil))
+			if rec.Code != tt.wantStatus || gotArgs != tt.wantArgs {
+				t.Fatalf("status = %d, args %q; want %d, %q (body %s)", rec.Code, gotArgs, tt.wantStatus, tt.wantArgs, rec.Body)
+			}
+			if tt.wantBody != "" && strings.TrimSpace(rec.Body.String()) != tt.wantBody {
+				t.Fatalf("body = %s, want %s", rec.Body, tt.wantBody)
+			}
+		})
+	}
+}

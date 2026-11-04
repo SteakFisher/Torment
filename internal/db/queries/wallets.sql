@@ -30,3 +30,14 @@ select w.tb_id, a.address, w.currency
 from wallets w
 join accounts a on a.id = w.account_id
 where w.tb_id = any(@tb_ids::bytea[]);
+
+-- name: ListWalletsByPattern :many
+-- Returns up to lim wallets of the accounts whose address matches the regex pattern, only in currency
+-- unless it is empty, ordered by address and currency.
+select a.address, a.type, w.currency, c.precision, w.tb_id
+from accounts a
+join wallets w on w.account_id = a.id
+join currencies c on c.name = w.currency
+where a.address ~ @pattern::text and (@currency::text = '' or w.currency = @currency::text)
+order by a.address, w.currency
+limit @lim::int;

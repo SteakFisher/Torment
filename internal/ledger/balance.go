@@ -28,8 +28,8 @@ type posted struct{ debits, credits tb.Uint128 }
 // TigerBeetle account, or no transfer by at, has a zero balance. It returns ErrNotFound when no account
 // has the address, and ErrInvalid when at is not between 1970 and 2262.
 func (s *Service) Balances(ctx context.Context, address string, at time.Time) ([]Balance, error) {
-	if !at.IsZero() && (at.UnixNano() <= 0 || at.Year() >= 2262) {
-		return nil, fmt.Errorf("%w: at %s must be between 1970 and 2262", ErrInvalid, at.Format(time.RFC3339))
+	if err := validateAt(at); err != nil {
+		return nil, err
 	}
 	acct, err := s.q.GetAccount(ctx, address)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -52,27 +52,44 @@ func (s *Service) Balances(ctx context.Context, address string, at time.Time) ([
 			return nil, err
 		}
 	}
-	var totals map[tb.Uint128]posted
-	if at.IsZero() {
-		totals, err = s.postedNow(ids)
-	} else {
-		totals, err = s.postedAt(ids, at)
-	}
+	totals, err := s.postedTotals(ids, at)
 	if err != nil {
 		return nil, err
 	}
 
-	typ := AccountType(acct.Type)
 	balances := make([]Balance, len(wallets))
 	for i, w := range wallets {
-		p := totals[ids[i]] // zero when missing
-		amount := new(big.Int).Sub(p.credits.BigInt(), p.debits.BigInt())
-		if debitNormal(typ) {
-			amount.Neg(amount)
-		}
-		balances[i] = Balance{Currency: w.Currency, Precision: w.Precision, Amount: amount}
+		balances[i] = Balance{Currency: w.Currency, Precision: w.Precision, Amount: netAmount(AccountType(acct.Type), totals[ids[i]])}
 	}
 	return balances, nil
+}
+
+// netAmount returns the balance of an account of type typ with posted totals p: debits minus credits for
+// a debit-normal type, credits minus debits otherwise.
+func netAmount(typ AccountType, p posted) *big.Int {
+	amount := new(big.Int).Sub(p.credits.BigInt(), p.debits.BigInt())
+	if debitNormal(typ) {
+		amount.Neg(amount)
+	}
+	return amount
+}
+
+// postedTotals returns the posted totals of the TigerBeetle accounts ids, now when at is zero and as of at
+// otherwise. Accounts with nothing to report are left out.
+func (s *Service) postedTotals(ids []tb.Uint128, at time.Time) (map[tb.Uint128]posted, error) {
+	if at.IsZero() {
+		return s.postedNow(ids)
+	}
+	return s.postedAt(ids, at)
+}
+
+// validateAt returns ErrInvalid unless at is zero or between 1970 and 2262, the range of TigerBeetle
+// timestamps.
+func validateAt(at time.Time) error {
+	if !at.IsZero() && (at.UnixNano() <= 0 || at.Year() >= 2262) {
+		return fmt.Errorf("%w: at %s must be between 1970 and 2262", ErrInvalid, at.Format(time.RFC3339))
+	}
+	return nil
 }
 
 // postedNow returns the current posted totals of the TigerBeetle accounts ids, in one request. Accounts

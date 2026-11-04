@@ -3,7 +3,11 @@ package ledger
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
+	"time"
+
+	tb "github.com/tigerbeetle/tigerbeetle-go"
 
 	"torment/internal/db/sqlc"
 )
@@ -85,5 +89,74 @@ func TestListAccounts(t *testing.T) {
 				t.Fatalf("wallets = %+v", w)
 			}
 		})
+	}
+}
+
+func TestPatternBalances(t *testing.T) {
+	ids := []tb.Uint128{tb.ID(), tb.ID(), tb.ID(), tb.ID()}
+	wallets := []sqlc.ListWalletsByPatternRow{
+		{Address: "rider:1:bonus", Type: sqlc.AccountTypeLiability, Currency: "USD", Precision: 2, TbID: idToBytes(ids[0])},
+		{Address: "rider:1:card", Type: sqlc.AccountTypeAsset, Currency: "USD", Precision: 2, TbID: idToBytes(ids[1])},
+		{Address: "rider:1:wallet", Type: sqlc.AccountTypeLiability, Currency: "AED", Precision: 2, TbID: idToBytes(ids[2])},
+		{Address: "rider:1:wallet", Type: sqlc.AccountTypeLiability, Currency: "USD", Precision: 2, TbID: idToBytes(ids[3])},
+	}
+	// every account has 10 debited and 40 credited, except AED which has no TigerBeetle account
+	inTB := []tb.Account{
+		{ID: ids[0], DebitsPosted: tb.ToUint128(10), CreditsPosted: tb.ToUint128(40)},
+		{ID: ids[1], DebitsPosted: tb.ToUint128(10), CreditsPosted: tb.ToUint128(40)},
+		{ID: ids[3], DebitsPosted: tb.ToUint128(10), CreditsPosted: tb.ToUint128(40)},
+	}
+	var got sqlc.ListWalletsByPatternParams
+	q := &fakeQuerier{listWalletsByPattern: func(_ context.Context, arg sqlc.ListWalletsByPatternParams) ([]sqlc.ListWalletsByPatternRow, error) {
+		got = arg
+		return wallets, nil
+	}}
+	tbc := &fakeTB{lookupAccounts: func([]tb.Uint128) ([]tb.Account, error) { return inTB, nil }}
+
+	totals, accounts, err := New(q, tbc).PatternBalances(context.Background(), "rider:1:*", "", time.Time{})
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if got != (sqlc.ListWalletsByPatternParams{Pattern: "^rider:1:[^:]+$", Lim: maxPatternWallets + 1}) {
+		t.Fatalf("query params = %+v", got)
+	}
+	// asset sorts before liability by type code; the asset nets to -30, liabilities to 30 each
+	wantTotals := []string{"asset USD -30", "liability AED 0", "liability USD 60"}
+	if len(totals) != len(wantTotals) {
+		t.Fatalf("totals = %+v", totals)
+	}
+	for i, tt := range totals {
+		if s := fmt.Sprintf("%s %s %s", tt.Type, tt.Currency, tt.Amount); s != wantTotals[i] {
+			t.Fatalf("total %d = %s, want %s", i, s, wantTotals[i])
+		}
+	}
+	wantAccounts := []string{"rider:1:bonus [USD 30]", "rider:1:card [USD -30]", "rider:1:wallet [AED 0 USD 30]"}
+	if len(accounts) != len(wantAccounts) {
+		t.Fatalf("accounts = %+v", accounts)
+	}
+	for i, a := range accounts {
+		var parts []string
+		for _, b := range a.Balances {
+			parts = append(parts, b.Currency, b.Amount.String())
+		}
+		if s := fmt.Sprintf("%s %v", a.Address, parts); s != wantAccounts[i] {
+			t.Fatalf("account %d = %s, want %s", i, s, wantAccounts[i])
+		}
+	}
+
+	tooMany := make([]sqlc.ListWalletsByPatternRow, maxPatternWallets+1)
+	q.listWalletsByPattern = func(context.Context, sqlc.ListWalletsByPatternParams) ([]sqlc.ListWalletsByPatternRow, error) {
+		return tooMany, nil
+	}
+	if _, _, err := New(q, tbc).PatternBalances(context.Background(), "*", "", time.Time{}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("too many wallets err = %v, want ErrInvalid", err)
+	}
+	for _, c := range []struct {
+		pattern string
+		at      time.Time
+	}{{"rider:.*", time.Time{}}, {"rider", time.Unix(-1, 0)}} {
+		if _, _, err := New(q, tbc).PatternBalances(context.Background(), c.pattern, "", c.at); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("pattern %q at %v err = %v, want ErrInvalid", c.pattern, c.at, err)
+		}
 	}
 }

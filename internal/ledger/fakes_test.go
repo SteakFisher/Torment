@@ -23,6 +23,7 @@ type fakeQuerier struct {
 	markWalletsTBCreated func(ctx context.Context, tbIds [][]byte) error
 	getWalletsByTBIDs    func(ctx context.Context, tbIds [][]byte) ([]sqlc.GetWalletsByTBIDsRow, error)
 	listAccounts         func(ctx context.Context, arg sqlc.ListAccountsParams) ([]sqlc.ListAccountsRow, error)
+	listWalletsByPattern func(ctx context.Context, arg sqlc.ListWalletsByPatternParams) ([]sqlc.ListWalletsByPatternRow, error)
 }
 
 var _ sqlc.Querier = (*fakeQuerier)(nil)
@@ -65,6 +66,10 @@ func (f *fakeQuerier) GetWalletsByTBIDs(ctx context.Context, tbIds [][]byte) ([]
 
 func (f *fakeQuerier) ListAccounts(ctx context.Context, arg sqlc.ListAccountsParams) ([]sqlc.ListAccountsRow, error) {
 	return f.listAccounts(ctx, arg)
+}
+
+func (f *fakeQuerier) ListWalletsByPattern(ctx context.Context, arg sqlc.ListWalletsByPatternParams) ([]sqlc.ListWalletsByPatternRow, error) {
+	return f.listWalletsByPattern(ctx, arg)
 }
 
 // fakeWallet is a wallet row in a walletStore.
