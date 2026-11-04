@@ -95,6 +95,7 @@ func validateAt(at time.Time) error {
 // postedNow returns the current posted totals of the TigerBeetle accounts ids, in one request. Accounts
 // missing from TigerBeetle are left out.
 func (s *Service) postedNow(ids []tb.Uint128) (map[tb.Uint128]posted, error) {
+	// ponytail: one request, so more than 8189 ids fails.
 	found, err := s.tb.LookupAccounts(ids)
 	if err != nil {
 		return nil, fmt.Errorf("error looking up tigerbeetle accounts: %w", err)

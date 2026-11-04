@@ -62,7 +62,7 @@ func TestPostAccount(t *testing.T) {
 				}, tt.created, nil
 			}}
 			rec := httptest.NewRecorder()
-			New(l).ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/accounts", strings.NewReader(tt.body)))
+			routes(l).ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/accounts", strings.NewReader(tt.body)))
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d (body %s)", rec.Code, tt.wantStatus, rec.Body)
 			}
@@ -112,7 +112,7 @@ func TestGetAccounts(t *testing.T) {
 				return accounts, tt.more, nil
 			}}
 			rec := httptest.NewRecorder()
-			New(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/accounts"+tt.query, nil))
+			routes(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/accounts"+tt.query, nil))
 			if rec.Code != tt.wantStatus || gotArgs != tt.wantArgs {
 				t.Fatalf("status = %d, args %q; want %d, %q (body %s)", rec.Code, gotArgs, tt.wantStatus, tt.wantArgs, rec.Body)
 			}

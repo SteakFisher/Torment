@@ -49,7 +49,7 @@ func TestPostTransfer(t *testing.T) {
 		}, nil
 	}}
 	rec := httptest.NewRecorder()
-	New(l).ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/transfers", strings.NewReader(body)))
+	routes(l).ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/transfers", strings.NewReader(body)))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d (body %s)", rec.Code, http.StatusOK, rec.Body)
 	}
@@ -95,7 +95,7 @@ func TestPostTransferErrors(t *testing.T) {
 				return nil, fmt.Errorf("wrapped: %w", tt.err)
 			}}
 			rec := httptest.NewRecorder()
-			New(l).ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/transfers", strings.NewReader(tt.body)))
+			routes(l).ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/transfers", strings.NewReader(tt.body)))
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d (body %s)", rec.Code, tt.wantStatus, rec.Body)
 			}

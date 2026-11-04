@@ -25,12 +25,19 @@ type Ledger interface {
 // Fails to compile when *ledger.Service no longer satisfies Ledger.
 var _ Ledger = (*ledger.Service)(nil)
 
-// New returns the HTTP handler with every route registered.
-func New(l Ledger) http.Handler {
+// New returns the HTTP handler. GET /healthz is open; every other route requires one of apiKeys.
+func New(l Ledger, apiKeys []string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok\n"))
 	})
+	mux.Handle("/", requireAPIKey(apiKeys, routes(l)))
+	return mux
+}
+
+// routes returns the API routes without authentication.
+func routes(l Ledger) http.Handler {
+	mux := http.NewServeMux()
 	mux.HandleFunc("POST /currencies", postCurrency(l))
 	mux.HandleFunc("POST /accounts", postAccount(l))
 	mux.HandleFunc("GET /accounts", getAccounts(l))

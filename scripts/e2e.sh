@@ -1,17 +1,19 @@
 #!/bin/sh
-# Runs the main API flow against a running server at BASE_URL (default http://localhost:8080) and exits
+# Runs the main API flow against a running server at BASE_URL (default http://localhost:8080), sending
+# API_KEY (required) as the bearer token, and exits
 # non-zero at the first failed check. Each run uses a new rider and new transfer ids, so it can be rerun
 # against the same databases.
 set -eu
 
 BASE_URL=${BASE_URL:-http://localhost:8080}
+API_KEY=${API_KEY:?API_KEY is not set}
 run=$(date +%s)
 rider="rider:$run:wallet"
 pay=${run}1 overspend=${run}2 refund=${run}3 eur=${run}4
 
 # post PATH BODY and get PATH print the response body, a space and the status code, on one line.
-post() { curl -sS -X POST -H 'Content-Type: application/json' -d "$2" -w ' %{http_code}' "$BASE_URL$1" | tr -d '\n'; }
-get() { curl -sS -w ' %{http_code}' "$BASE_URL$1" | tr -d '\n'; }
+post() { curl -sS -H "Authorization: Bearer $API_KEY" -X POST -H 'Content-Type: application/json' -d "$2" -w ' %{http_code}' "$BASE_URL$1" | tr -d '\n'; }
+get() { curl -sS -H "Authorization: Bearer $API_KEY" -w ' %{http_code}' "$BASE_URL$1" | tr -d '\n'; }
 
 # expect NAME OUTPUT PATTERN fails unless OUTPUT matches the extended regex PATTERN.
 expect() {
@@ -28,6 +30,7 @@ posting() {
 	printf '{"postings":[{"id":"%s","source":"%s","destination":"%s","currency":"%s","amount":"%s","group_id":"%s"}]}' "$1" "$2" "$3" "$4" "$5" "${6:-}"
 }
 
+expect "no key is rejected" "$(curl -sS -w ' %{http_code}' "$BASE_URL/accounts")" ' 401$'
 expect "register USD" "$(post /currencies '{"code":"USD/2"}')" ' (201|409)$'
 expect "register EUR" "$(post /currencies '{"code":"EUR/2"}')" ' (201|409)$'
 expect "register world" "$(post /accounts '{"address":"world","type":"equity","allow_negative":true}')" ' (200|201)$'
@@ -46,3 +49,15 @@ expect "group has pay then refund" "$(get "/groups/$pay/transfers")" "\"id\":\"$
 
 expect "pay 5 EUR" "$(post /transfers "$(posting "$eur" world "$rider" EUR 500)")" '"status":"created".* 200$'
 expect "rider has EUR and USD" "$(get "/accounts/$rider/balances")" '"currency":"EUR","precision":2,"amount":"500".*"currency":"USD","precision":2,"amount":"7000".* 200$'
+
+# at_pay is the time TB committed the pay transfer.
+at_pay=$(get "/groups/$pay/transfers" | sed -E "s/.*\"id\":\"$pay\"[^}]*\"timestamp\":\"([^\"]+)\".*/\1/")
+expect "rider had 100 USD at pay" "$(get "/accounts/$rider/balances?at=$at_pay")" '"currency":"USD","precision":2,"amount":"10000".* 200$'
+
+expect "list rider accounts" "$(get "/accounts?address=rider:$run:*")" "\"address\":\"$rider\".*\"currency\":\"EUR\".*\"currency\":\"USD\".* 200\$"
+expect "rider totals" "$(get "/balances?address=rider:$run:*")" '"totals":\[\{"type":"liability","currency":"EUR","precision":2,"amount":"500"\},\{"type":"liability","currency":"USD","precision":2,"amount":"7000"\}\].* 200$'
+
+page=$(get "/accounts/$rider/transfers?currency=USD&limit=1")
+expect "newest USD transfer is the refund" "$page" "\"id\":\"$refund\".*\"next\":.* 200\$"
+before=$(printf '%s' "$page" | sed -E 's/.*"next":"([^"]+)".*/\1/')
+expect "next page is the pay" "$(get "/accounts/$rider/transfers?currency=USD&limit=1&before=$before")" "\"id\":\"$pay\".* 200\$"

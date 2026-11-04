@@ -45,7 +45,7 @@ func TestGetGroupTransfers(t *testing.T) {
 				return tt.transfers, nil
 			}}
 			rec := httptest.NewRecorder()
-			New(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/groups/9/transfers", nil))
+			routes(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/groups/9/transfers", nil))
 			if rec.Code != tt.wantStatus || gotGroup != "9" {
 				t.Fatalf("status = %d, group %q; want %d (body %s)", rec.Code, gotGroup, tt.wantStatus, rec.Body)
 			}
@@ -93,7 +93,7 @@ func TestGetAccountTransfers(t *testing.T) {
 				return transfers, tt.more, nil
 			}}
 			rec := httptest.NewRecorder()
-			New(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/accounts/rider:1:wallet/transfers"+tt.query, nil))
+			routes(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/accounts/rider:1:wallet/transfers"+tt.query, nil))
 			if rec.Code != tt.wantStatus || got.Address != tt.wantParams.Address || got.Currency != tt.wantParams.Currency ||
 				!got.From.Equal(tt.wantParams.From) || !got.Before.Equal(tt.wantParams.Before) || got.Limit != tt.wantParams.Limit {
 				t.Fatalf("status = %d, params %+v; want %d, %+v (body %s)", rec.Code, got, tt.wantStatus, tt.wantParams, rec.Body)

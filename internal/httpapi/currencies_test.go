@@ -37,7 +37,7 @@ func TestPostCurrency(t *testing.T) {
 				return ledger.Currency{Name: "USD", Precision: 2, Ledger: 1}, nil
 			}}
 			rec := httptest.NewRecorder()
-			New(l).ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/currencies", strings.NewReader(tt.body)))
+			routes(l).ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/currencies", strings.NewReader(tt.body)))
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d (body %s)", rec.Code, tt.wantStatus, rec.Body)
 			}

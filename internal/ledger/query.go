@@ -169,7 +169,7 @@ func (s *Service) PatternBalances(ctx context.Context, pattern, currency string,
 // time range open, and a zero Limit means defaultListLimit.
 type AccountTransfersParams struct {
 	Address  string
-	Currency string // empty for every currency
+	Currency string
 	From     time.Time
 	Before   time.Time
 	Limit    int

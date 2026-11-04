@@ -50,7 +50,7 @@ func TestGetBalances(t *testing.T) {
 				return tt.balances, nil
 			}}
 			rec := httptest.NewRecorder()
-			New(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/accounts/rider:1:wallet/balances"+tt.query, nil))
+			routes(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/accounts/rider:1:wallet/balances"+tt.query, nil))
 			wantAddress := "rider:1:wallet"
 			if tt.noCall {
 				wantAddress = ""
@@ -107,7 +107,7 @@ func TestGetPatternBalances(t *testing.T) {
 				return totals, accounts, nil
 			}}
 			rec := httptest.NewRecorder()
-			New(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/balances"+tt.query, nil))
+			routes(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/balances"+tt.query, nil))
 			if rec.Code != tt.wantStatus || gotArgs != tt.wantArgs {
 				t.Fatalf("status = %d, args %q; want %d, %q (body %s)", rec.Code, gotArgs, tt.wantStatus, tt.wantArgs, rec.Body)
 			}

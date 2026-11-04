@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -29,7 +30,7 @@ func main() {
 
 // run connects to Postgres and TigerBeetle, applies migrations and serves HTTP until the server fails or
 // the process gets SIGINT or SIGTERM, then waits up to 10 seconds for requests in flight to finish.
-// It reads DATABASE_URL and TB_ADDRESS (required) and ADDR (default ":8080") from the environment.
+// It reads DATABASE_URL, TB_ADDRESS and API_KEYS (required) and ADDR (default ":8080") from the environment.
 func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -39,6 +40,10 @@ func run() error {
 		return err
 	}
 	tbAddress, err := requireEnv("TB_ADDRESS")
+	if err != nil {
+		return err
+	}
+	apiKeys, err := parseAPIKeys(os.Getenv("API_KEYS"))
 	if err != nil {
 		return err
 	}
@@ -68,7 +73,7 @@ func run() error {
 		return fmt.Errorf("error pinging tigerbeetle: %w", err)
 	}
 
-	srv := &http.Server{Addr: addr, Handler: httpapi.New(ledger.New(sqlc.New(pool), tbClient))}
+	srv := &http.Server{Addr: addr, Handler: httpapi.New(ledger.New(sqlc.New(pool), tbClient), apiKeys)}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
 	slog.Info("listening", "addr", addr)
@@ -94,6 +99,21 @@ func requireEnv(key string) (string, error) {
 		return "", fmt.Errorf("%s is not set", key)
 	}
 	return v, nil
+}
+
+// parseAPIKeys splits a comma-separated list of API keys, dropping spaces around each key and empty
+// entries. It returns an error when no key remains.
+func parseAPIKeys(s string) ([]string, error) {
+	var keys []string
+	for k := range strings.SplitSeq(s, ",") {
+		if k = strings.TrimSpace(k); k != "" {
+			keys = append(keys, k)
+		}
+	}
+	if len(keys) == 0 {
+		return nil, errors.New("API_KEYS is not set")
+	}
+	return keys, nil
 }
 
 // pingTB round-trips a no-op request, failing if no reply arrives within timeout.

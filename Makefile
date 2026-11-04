@@ -2,6 +2,9 @@ export DATABASE_URL ?= postgres://torment:torment@localhost:5432/torment?sslmode
 export TB_ADDRESS ?= 3000
 export TEST_DATABASE_URL ?= postgres://torment:torment@localhost:5432/torment_test?sslmode=disable
 export TEST_TB_ADDRESS ?= 3000
+# Dev only: run and e2e share this key.
+export API_KEYS ?= dev-key
+export API_KEY ?= dev-key
 
 .PHONY: up down run test e2e generate
 
