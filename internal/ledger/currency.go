@@ -2,14 +2,9 @@ package ledger
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
-
-	"github.com/jackc/pgx/v5/pgconn"
-
-	"torment/internal/db/sqlc"
 )
 
 // Currency maps a currency name to its Precision, the number of decimal places in one minor unit,
@@ -49,15 +44,7 @@ func (s *Service) RegisterCurrency(ctx context.Context, code string) (Currency, 
 	if err != nil {
 		return Currency{}, err
 	}
-	row, err := s.q.InsertCurrency(ctx, sqlc.InsertCurrencyParams{Name: name, Precision: precision})
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
-			return Currency{}, fmt.Errorf("%w: currency %q already exists", ErrConflict, name)
-		}
-		return Currency{}, fmt.Errorf("error inserting currency: %w", err)
-	}
-	return Currency{Name: row.Name, Precision: row.Precision, Ledger: row.Ledger}, nil
+	return s.insertCurrency(ctx, name, precision)
 }
 
 // lookupCurrencies returns each named currency, keyed by name. It returns
@@ -66,13 +53,9 @@ func (s *Service) lookupCurrencies(ctx context.Context, names []string) (map[str
 	if len(names) == 0 {
 		return nil, nil
 	}
-	rows, err := s.q.GetCurrencies(ctx, names)
+	currencies, err := s.currencies(ctx, names)
 	if err != nil {
-		return nil, fmt.Errorf("error getting currencies: %w", err)
-	}
-	currencies := make(map[string]Currency, len(rows))
-	for _, r := range rows {
-		currencies[r.Name] = Currency{Name: r.Name, Precision: r.Precision, Ledger: r.Ledger}
+		return nil, err
 	}
 	for _, name := range names {
 		if _, ok := currencies[name]; !ok {

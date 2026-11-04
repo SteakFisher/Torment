@@ -2,12 +2,10 @@ package ledger
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/big"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 )
 
@@ -31,35 +29,26 @@ func (s *Service) Balances(ctx context.Context, address string, at time.Time) ([
 	if err := validateAt(at); err != nil {
 		return nil, err
 	}
-	acct, err := s.q.GetAccount(ctx, address)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("%w: account %q", ErrNotFound, address)
-	}
+	acct, err := s.accountWallets(ctx, address, "")
 	if err != nil {
-		return nil, fmt.Errorf("error getting account: %w", err)
+		return nil, err
 	}
-	wallets, err := s.q.ListWallets(ctx, acct.ID)
-	if err != nil {
-		return nil, fmt.Errorf("error listing wallets: %w", err)
-	}
-	if len(wallets) == 0 {
+	if len(acct.Wallets) == 0 {
 		return []Balance{}, nil
 	}
 
-	ids := make([]tb.Uint128, len(wallets))
-	for i, w := range wallets {
-		if ids[i], err = idFromBytes(w.TbID); err != nil {
-			return nil, err
-		}
+	ids := make([]tb.Uint128, len(acct.Wallets))
+	for i, w := range acct.Wallets {
+		ids[i] = w.ID
 	}
 	totals, err := s.postedTotals(ids, at)
 	if err != nil {
 		return nil, err
 	}
 
-	balances := make([]Balance, len(wallets))
-	for i, w := range wallets {
-		balances[i] = Balance{Currency: w.Currency, Precision: w.Precision, Amount: netAmount(AccountType(acct.Type), totals[ids[i]])}
+	balances := make([]Balance, len(acct.Wallets))
+	for i, w := range acct.Wallets {
+		balances[i] = Balance{Currency: w.Currency, Precision: w.Precision, Amount: netAmount(acct.Type, totals[w.ID])}
 	}
 	return balances, nil
 }

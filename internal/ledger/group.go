@@ -46,22 +46,13 @@ func (s *Service) transferRecords(ctx context.Context, found []tb.Transfer) ([]T
 	if len(found) == 0 {
 		return []TransferRecord{}, nil
 	}
-	var ids [][]byte
+	var ids []tb.Uint128
 	for _, t := range found {
-		ids = append(ids, idToBytes(t.DebitAccountID), idToBytes(t.CreditAccountID))
+		ids = append(ids, t.DebitAccountID, t.CreditAccountID)
 	}
-	rows, err := s.q.GetWalletsByTBIDs(ctx, ids)
+	wallets, err := s.walletsByTBIDs(ctx, ids)
 	if err != nil {
-		return nil, fmt.Errorf("error getting wallets: %w", err)
-	}
-	type wallet struct{ address, currency string }
-	wallets := make(map[tb.Uint128]wallet, len(rows))
-	for _, r := range rows {
-		id, err := idFromBytes(r.TbID)
-		if err != nil {
-			return nil, err
-		}
-		wallets[id] = wallet{r.Address, r.Currency}
+		return nil, err
 	}
 
 	out := make([]TransferRecord, len(found))

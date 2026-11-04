@@ -2,14 +2,9 @@ package ledger
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"regexp"
 	"time"
-
-	"github.com/jackc/pgx/v5"
-
-	"torment/internal/db/sqlc"
 )
 
 // Account is a registered account, identified by its address. It holds no balances itself; those live
@@ -62,24 +57,12 @@ func (s *Service) RegisterAccount(ctx context.Context, p RegisterAccountParams) 
 		return Account{}, false, err
 	}
 
-	row, err := s.q.InsertAccount(ctx, sqlc.InsertAccountParams{
-		Address:       p.Address,
-		Type:          sqlc.AccountType(typ),
-		AllowNegative: p.AllowNegative,
-	})
-	switch {
-	case err == nil:
-		created = true
-	case errors.Is(err, pgx.ErrNoRows):
-		row, err = s.q.GetAccount(ctx, p.Address)
-		if err != nil {
-			return Account{}, false, fmt.Errorf("error getting account: %w", err)
-		}
-		if AccountType(row.Type) != typ || row.AllowNegative != p.AllowNegative {
-			return Account{}, false, fmt.Errorf("%w: account %q already exists with different fields", ErrConflict, p.Address)
-		}
-	default:
-		return Account{}, false, fmt.Errorf("error inserting account: %w", err)
+	acct, created, err = s.insertAccount(ctx, p.Address, typ, p.AllowNegative)
+	if err != nil {
+		return Account{}, false, err
+	}
+	if !created && (acct.Type != typ || acct.AllowNegative != p.AllowNegative) {
+		return Account{}, false, fmt.Errorf("%w: account %q already exists with different fields", ErrConflict, p.Address)
 	}
 
 	keys := make([]walletKey, len(names))
@@ -90,7 +73,6 @@ func (s *Service) RegisterAccount(ctx context.Context, p RegisterAccountParams) 
 	if err != nil {
 		return Account{}, false, err
 	}
-	acct = toAccount(row)
 	for _, k := range keys {
 		w := wallets[k]
 		acct.Wallets = append(acct.Wallets, Wallet{Currency: k.currency, Precision: w.precision, ID: w.id})
@@ -109,13 +91,4 @@ func dedupe(ss []string) []string {
 		}
 	}
 	return out
-}
-
-func toAccount(row sqlc.Account) Account {
-	return Account{
-		Address:       row.Address,
-		Type:          AccountType(row.Type),
-		AllowNegative: row.AllowNegative,
-		CreatedAt:     row.CreatedAt.Time,
-	}
 }

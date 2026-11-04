@@ -3,7 +3,6 @@ package ledger
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"math/big"
 	"regexp"
@@ -11,10 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	tb "github.com/tigerbeetle/tigerbeetle-go"
-
-	"torment/internal/db/sqlc"
 )
 
 const (
@@ -64,22 +60,7 @@ func (s *Service) ListAccounts(ctx context.Context, pattern, after string, limit
 	if limit == 0 {
 		limit = defaultListLimit
 	}
-	// One extra row tells whether another page exists.
-	rows, err := s.q.ListAccounts(ctx, sqlc.ListAccountsParams{Pattern: re, After: after, Lim: int32(limit + 1)})
-	if err != nil {
-		return nil, false, fmt.Errorf("error listing accounts: %w", err)
-	}
-	if more = len(rows) > limit; more {
-		rows = rows[:limit]
-	}
-	accounts = make([]Account, len(rows))
-	for i, r := range rows {
-		accounts[i] = Account{Address: r.Address, Type: AccountType(r.Type), AllowNegative: r.AllowNegative, CreatedAt: r.CreatedAt.Time}
-		for j, c := range r.Currencies {
-			accounts[i].Wallets = append(accounts[i].Wallets, Wallet{Currency: c, Precision: r.Precisions[j]})
-		}
-	}
-	return accounts, more, nil
+	return s.listAccounts(ctx, re, after, limit)
 }
 
 // AccountBalances is one account's balances in a pattern balance query.
@@ -111,12 +92,11 @@ func (s *Service) PatternBalances(ctx context.Context, pattern, currency string,
 	if err := validateAt(at); err != nil {
 		return nil, nil, err
 	}
-	// One extra row tells whether the pattern exceeds the cap.
-	wallets, err := s.q.ListWalletsByPattern(ctx, sqlc.ListWalletsByPatternParams{Pattern: re, Currency: currency, Lim: maxPatternWallets + 1})
+	wallets, tooMany, err := s.patternWallets(ctx, re, currency, maxPatternWallets)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error listing wallets: %w", err)
+		return nil, nil, err
 	}
-	if len(wallets) > maxPatternWallets {
+	if tooMany {
 		return nil, nil, fmt.Errorf("%w: address pattern %q matches more than %d wallets; narrow it", ErrInvalid, pattern, maxPatternWallets)
 	}
 	if len(wallets) == 0 {
@@ -125,9 +105,7 @@ func (s *Service) PatternBalances(ctx context.Context, pattern, currency string,
 
 	ids := make([]tb.Uint128, len(wallets))
 	for i, w := range wallets {
-		if ids[i], err = idFromBytes(w.TbID); err != nil {
-			return nil, nil, err
-		}
+		ids[i] = w.ID
 	}
 	byID, err := s.postedTotals(ids, at)
 	if err != nil {
@@ -140,18 +118,17 @@ func (s *Service) PatternBalances(ctx context.Context, pattern, currency string,
 	}
 	sums := map[totalKey]*TypeTotal{}
 	var accounts []AccountBalances
-	for i, w := range wallets {
-		typ := AccountType(w.Type)
-		amount := netAmount(typ, byID[ids[i]])
-		if len(accounts) == 0 || accounts[len(accounts)-1].Address != w.Address {
-			accounts = append(accounts, AccountBalances{Address: w.Address, Type: typ})
+	for _, w := range wallets {
+		amount := netAmount(w.typ, byID[w.ID])
+		if len(accounts) == 0 || accounts[len(accounts)-1].Address != w.address {
+			accounts = append(accounts, AccountBalances{Address: w.address, Type: w.typ})
 		}
 		last := &accounts[len(accounts)-1]
 		last.Balances = append(last.Balances, Balance{Currency: w.Currency, Precision: w.Precision, Amount: amount})
 
-		k := totalKey{typ, w.Currency}
+		k := totalKey{w.typ, w.Currency}
 		if sums[k] == nil {
-			sums[k] = &TypeTotal{Type: typ, Currency: w.Currency, Precision: w.Precision, Amount: new(big.Int)}
+			sums[k] = &TypeTotal{Type: w.typ, Currency: w.Currency, Precision: w.Precision, Amount: new(big.Int)}
 		}
 		sums[k].Amount.Add(sums[k].Amount, amount)
 	}
@@ -193,16 +170,9 @@ func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams
 	if err := validateAt(p.Before); err != nil {
 		return nil, false, err
 	}
-	acct, err := s.q.GetAccount(ctx, p.Address)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, false, fmt.Errorf("%w: account %q", ErrNotFound, p.Address)
-	}
+	acct, err := s.accountWallets(ctx, p.Address, p.Currency)
 	if err != nil {
-		return nil, false, fmt.Errorf("error getting account: %w", err)
-	}
-	wallets, err := s.q.ListWallets(ctx, acct.ID)
-	if err != nil {
-		return nil, false, fmt.Errorf("error listing wallets: %w", err)
+		return nil, false, err
 	}
 
 	filter := tb.AccountFilter{
@@ -220,13 +190,8 @@ func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams
 		}
 	}
 	var found []tb.Transfer
-	for _, w := range wallets {
-		if p.Currency != "" && w.Currency != p.Currency {
-			continue
-		}
-		if filter.AccountID, err = idFromBytes(w.TbID); err != nil {
-			return nil, false, err
-		}
+	for _, w := range acct.Wallets {
+		filter.AccountID = w.ID
 		got, err := s.tb.GetAccountTransfers(filter)
 		if err != nil {
 			return nil, false, fmt.Errorf("error getting tigerbeetle account transfers: %w", err)
