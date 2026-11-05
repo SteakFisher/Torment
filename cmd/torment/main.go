@@ -63,16 +63,19 @@ func run() error {
 		return err
 	}
 
-	tbClient, err := tb.NewClient(tb.ToUint128(0), []string{tbAddress})
+	// A client sends one request at a time, so writes get their own client and never wait behind reads.
+	tbWrites, err := connectTB(tbAddress)
 	if err != nil {
-		return fmt.Errorf("error creating tigerbeetle client: %w", err)
+		return err
 	}
-	defer tbClient.Close()
-	if err := pingTB(tbClient, 5*time.Second); err != nil {
-		return fmt.Errorf("error pinging tigerbeetle: %w", err)
+	defer tbWrites.Close()
+	tbReads, err := connectTB(tbAddress)
+	if err != nil {
+		return err
 	}
+	defer tbReads.Close()
 
-	srv := &http.Server{Addr: addr, Handler: httpapi.New(ledger.New(db.NewStore(pool), tbClient), apiKeys)}
+	srv := &http.Server{Addr: addr, Handler: httpapi.New(ledger.New(db.NewStore(pool), tbWrites, tbReads), apiKeys)}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
 	slog.Info("listening", "addr", addr)
@@ -113,6 +116,20 @@ func parseAPIKeys(s string) ([]string, error) {
 		return nil, errors.New("API_KEYS is not set")
 	}
 	return keys, nil
+}
+
+// connectTB returns a TigerBeetle client for the cluster at address, once it answers a ping within 5
+// seconds.
+func connectTB(address string) (tb.Client, error) {
+	c, err := tb.NewClient(tb.ToUint128(0), []string{address})
+	if err != nil {
+		return nil, fmt.Errorf("error creating tigerbeetle client: %w", err)
+	}
+	if err := pingTB(c, 5*time.Second); err != nil {
+		c.Close()
+		return nil, fmt.Errorf("error pinging tigerbeetle: %w", err)
+	}
+	return c, nil
 }
 
 // pingTB round-trips a no-op request, failing if no reply arrives within timeout.

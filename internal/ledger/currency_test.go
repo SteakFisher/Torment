@@ -73,7 +73,7 @@ func TestRegisterCurrency(t *testing.T) {
 				}
 				return Currency{Name: name, Precision: precision, Ledger: 7}, true, nil
 			}}
-			got, created, err := New(store, nil).RegisterCurrency(context.Background(), tt.code)
+			got, created, err := New(store, nil, nil).RegisterCurrency(context.Background(), tt.code)
 			if called != tt.wantCall {
 				t.Fatalf("InsertCurrency called = %v, want %v", called, tt.wantCall)
 			}

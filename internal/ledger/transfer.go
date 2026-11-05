@@ -46,7 +46,7 @@ func (s *Service) Transfer(ctx context.Context, chains [][]Posting) ([][]Transfe
 	if err := s.resolveWallets(ctx, chains, batch); err != nil {
 		return nil, err
 	}
-	results, err := s.tb.CreateTransfers(batch)
+	results, err := s.writes.CreateTransfers(batch)
 	if err != nil {
 		return nil, fmt.Errorf("error creating tigerbeetle transfers: %w", err)
 	}
@@ -211,7 +211,7 @@ func (s *Service) checkExistingChains(chains []existingChain) {
 			ids = append(ids, t.ID)
 		}
 	}
-	found, err := s.tb.LookupTransfers(ids)
+	found, err := s.writes.LookupTransfers(ids)
 	if err != nil {
 		err = fmt.Errorf("error looking up tigerbeetle transfers: %w", err)
 		for _, c := range chains {

@@ -35,7 +35,7 @@ func TestEnsureTBAccounts(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := New(nil, &fakeTB{createAccounts: tt.create}).ensureTBAccounts(accounts)
+			err := New(nil, &fakeTB{createAccounts: tt.create}, nil).ensureTBAccounts(accounts)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -96,7 +96,7 @@ func TestRegisterAccountWallets(t *testing.T) {
 				return results, nil
 			}}
 
-			acct, _, err := New(fs, tbc).RegisterAccount(context.Background(), RegisterAccountParams{Address: "rider:1:wallet", Type: "liability", Currencies: tt.currencies})
+			acct, _, err := New(fs, tbc, tbc).RegisterAccount(context.Background(), RegisterAccountParams{Address: "rider:1:wallet", Type: "liability", Currencies: tt.currencies})
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) || insertedAccount || store.inserted != nil || sent != nil {
 					t.Fatalf("err = %v, account inserted %v, wallets inserted %v, sent %v; want %v and no writes", err, insertedAccount, store.inserted, sent, tt.wantErr)

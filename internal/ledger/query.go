@@ -3,11 +3,13 @@ package ledger
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
@@ -199,14 +201,25 @@ func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams
 			return []TransferRecord{}, false, nil
 		}
 	}
+	// The calls run at once so the client sends them together in one request.
+	perWallet := make([][]tb.Transfer, len(ids))
+	errs := make([]error, len(ids))
+	var wg sync.WaitGroup
+	for i, id := range ids {
+		wg.Go(func() {
+			f := filter
+			f.AccountID = id
+			perWallet[i], errs[i] = s.reads.GetAccountTransfers(f)
+		})
+	}
+	wg.Wait()
+	if err := errors.Join(errs...); err != nil {
+		return nil, false, fmt.Errorf("error getting tigerbeetle account transfers: %w", err)
+	}
+
 	var found []tb.Transfer
 	seen := map[tb.Uint128]bool{}
-	for _, id := range ids {
-		filter.AccountID = id
-		got, err := s.tb.GetAccountTransfers(filter)
-		if err != nil {
-			return nil, false, fmt.Errorf("error getting tigerbeetle account transfers: %w", err)
-		}
+	for _, got := range perWallet {
 		for _, t := range got {
 			if !seen[t.ID] {
 				seen[t.ID] = true

@@ -7,19 +7,27 @@ import (
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 )
 
-// tbClient is the subset of the TigerBeetle client the Service calls.
-type tbClient interface {
+// tbWriter is the part of the TigerBeetle client that transfers and registration call. A client sends
+// one request at a time, so writes get their own client and never queue behind reads.
+type tbWriter interface {
 	CreateAccounts(accounts []tb.Account) ([]tb.CreateAccountResult, error)
-	LookupAccounts(ids []tb.Uint128) ([]tb.Account, error)
 	CreateTransfers(transfers []tb.Transfer) ([]tb.CreateTransferResult, error)
 	LookupTransfers(ids []tb.Uint128) ([]tb.Transfer, error)
+}
+
+// tbReader is the part of the TigerBeetle client that balance, history and group reads call.
+type tbReader interface {
+	LookupAccounts(ids []tb.Uint128) ([]tb.Account, error)
 	QueryTransfers(filter tb.QueryFilter) ([]tb.Transfer, error)
 	GetAccountBalances(filter tb.AccountFilter) ([]tb.AccountBalance, error)
 	GetAccountTransfers(filter tb.AccountFilter) ([]tb.Transfer, error)
 }
 
-// Fails to compile when tb.Client no longer satisfies tbClient.
-var _ tbClient = tb.Client(nil)
+// Fail to compile when tb.Client no longer satisfies tbWriter or tbReader.
+var (
+	_ tbWriter = tb.Client(nil)
+	_ tbReader = tb.Client(nil)
+)
 
 // newTBAccount returns the TigerBeetle account for a wallet with the given id on ledger, owned by an
 // account of type typ.
@@ -34,7 +42,7 @@ func (s *Service) ensureTBAccounts(accounts []tb.Account) error {
 	if len(accounts) == 0 {
 		return nil
 	}
-	results, err := s.tb.CreateAccounts(accounts)
+	results, err := s.writes.CreateAccounts(accounts)
 	if err != nil {
 		return fmt.Errorf("error creating tigerbeetle accounts: %w", err)
 	}

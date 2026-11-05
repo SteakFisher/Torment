@@ -80,6 +80,11 @@ When TigerBeetle rejects postings, the result is reported for each one:
 - **`at` reads a past balance**: the last TigerBeetle snapshot at or before `at`. A wallet with none (created later, or no transfers yet) reads as zero and is still listed, not hidden.
 - **Pattern balances return the totals and each account's balance**, one total per (type, currency). Different types are never summed together. Both come from the same TigerBeetle read, so they always agree.
 
+## TigerBeetle clients
+- **Writes and reads use separate clients.** A client has at most one request in flight, and calls of different kinds queue one after another. On a shared client, every slow read delays the writes queued behind it. The compiler enforces the split: `tbWriter` has only the create calls and the transfer lookup that settles a failed chain, and `tbReader` has the rest.
+- **Two sessions per instance.** A cluster allows 64 client sessions by default, so up to 32 Torment instances.
+- **Reads that query one account at a time send their queries at once** (history, balances at a time). TigerBeetle's API takes one account per history or balance query, but the client merges concurrent calls of the same kind into one request. Measured locally for 21 wallets: 75 ms one after another, 7 ms at once.
+
 ## Shutdown
 SIGINT or SIGTERM stops new connections and waits up to 10 seconds for requests in flight. A request cut off after that is the crash row under Transfers: retry with the same ids.
 

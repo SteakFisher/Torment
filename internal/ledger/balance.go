@@ -2,8 +2,10 @@ package ledger
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
+	"sync"
 	"time"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
@@ -86,7 +88,7 @@ func validateAt(at time.Time) error {
 // missing from TigerBeetle are left out.
 func (s *Service) postedNow(ids []tb.Uint128) (map[tb.Uint128]posted, error) {
 	// ponytail: one request, so more than 8189 ids fails.
-	found, err := s.tb.LookupAccounts(ids)
+	found, err := s.reads.LookupAccounts(ids)
 	if err != nil {
 		return nil, fmt.Errorf("error looking up tigerbeetle accounts: %w", err)
 	}
@@ -98,20 +100,30 @@ func (s *Service) postedNow(ids []tb.Uint128) (map[tb.Uint128]posted, error) {
 }
 
 // postedAt returns the posted totals of the TigerBeetle accounts ids after their last transfer at or
-// before at, with one request per account. Accounts with no such transfer are left out.
+// before at, with one query per account. The queries run at once so the client sends them together in
+// one request. Accounts with no such transfer are left out.
 func (s *Service) postedAt(ids []tb.Uint128, at time.Time) (map[tb.Uint128]posted, error) {
-	totals := make(map[tb.Uint128]posted, len(ids))
-	for _, id := range ids {
-		found, err := s.tb.GetAccountBalances(tb.AccountFilter{
-			AccountID:    id,
-			TimestampMax: uint64(at.UnixNano()),
-			Limit:        1,
-			Flags:        tb.AccountFilterFlags{Debits: true, Credits: true, Reversed: true}.ToUint32(),
+	perAccount := make([][]tb.AccountBalance, len(ids))
+	errs := make([]error, len(ids))
+	var wg sync.WaitGroup
+	for i, id := range ids {
+		wg.Go(func() {
+			perAccount[i], errs[i] = s.reads.GetAccountBalances(tb.AccountFilter{
+				AccountID:    id,
+				TimestampMax: uint64(at.UnixNano()),
+				Limit:        1,
+				Flags:        tb.AccountFilterFlags{Debits: true, Credits: true, Reversed: true}.ToUint32(),
+			})
 		})
-		if err != nil {
-			return nil, fmt.Errorf("error getting tigerbeetle account balances: %w", err)
-		}
-		if len(found) == 1 {
+	}
+	wg.Wait()
+	if err := errors.Join(errs...); err != nil {
+		return nil, fmt.Errorf("error getting tigerbeetle account balances: %w", err)
+	}
+
+	totals := make(map[tb.Uint128]posted, len(ids))
+	for i, id := range ids {
+		if found := perAccount[i]; len(found) == 1 {
 			totals[id] = posted{found[0].DebitsPosted, found[0].CreditsPosted}
 		}
 	}

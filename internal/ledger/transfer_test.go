@@ -91,7 +91,7 @@ func TestTransferRejects(t *testing.T) {
 				t.Fatal("CreateTransfers called")
 				return nil, nil
 			}}
-			got, err := New(testStore(tt.missing).store(), tbc).Transfer(context.Background(), tt.chains)
+			got, err := New(testStore(tt.missing).store(), tbc, tbc).Transfer(context.Background(), tt.chains)
 			if !errors.Is(err, tt.wantErr) || got != nil {
 				t.Fatalf("got %+v, err %v; want %v", got, err, tt.wantErr)
 			}
@@ -112,7 +112,7 @@ func TestTransferBatch(t *testing.T) {
 		return make([]tb.CreateTransferResult, len(transfers)), nil
 	}}
 	store := testStore("")
-	if _, err := New(store.store(), tbc).Transfer(context.Background(), chains); err != nil {
+	if _, err := New(store.store(), tbc, tbc).Transfer(context.Background(), chains); err != nil {
 		t.Fatalf("error transferring: %v", err)
 	}
 	if store.gets != 1 || store.inserted != nil || store.marked != nil {
@@ -255,7 +255,7 @@ func TestTransferResults(t *testing.T) {
 					return found, nil
 				},
 			}
-			got, err := New(testStore("").store(), tbc).Transfer(context.Background(), testChains(tt.lengths...))
+			got, err := New(testStore("").store(), tbc, tbc).Transfer(context.Background(), testChains(tt.lengths...))
 			if err != nil {
 				t.Fatalf("error transferring: %v", err)
 			}
@@ -309,7 +309,7 @@ func TestTransferLookupError(t *testing.T) {
 		},
 		lookupTransfers: func([]tb.Uint128) ([]tb.Transfer, error) { return nil, boom },
 	}
-	got, err := New(testStore("").store(), tbc).Transfer(context.Background(), testChains(2, 1))
+	got, err := New(testStore("").store(), tbc, tbc).Transfer(context.Background(), testChains(2, 1))
 	if err != nil {
 		t.Fatalf("error transferring: %v", err)
 	}
@@ -353,7 +353,7 @@ func TestTransferEnsuresWallets(t *testing.T) {
 					return make([]tb.CreateTransferResult, len(tr)), nil
 				},
 			}
-			_, err := New(store.store(), tbc).Transfer(context.Background(), testChains(1))
+			_, err := New(store.store(), tbc, tbc).Transfer(context.Background(), testChains(1))
 
 			wantInserted, wantGets := []WalletKey(nil), 1
 			if tt.wantInserted {

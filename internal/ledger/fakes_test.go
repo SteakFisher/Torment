@@ -3,6 +3,7 @@ package ledger
 import (
 	"context"
 	"slices"
+	"sync"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 )
@@ -140,8 +141,10 @@ func (w *walletStore) store() *fakeStore {
 	}
 }
 
-// fakeTB implements tbClient with per-test funcs; calling a method whose func is nil panics.
+// fakeTB implements tbWriter and tbReader with per-test funcs, one call at a time; calling a method
+// whose func is nil panics.
 type fakeTB struct {
+	mu               sync.Mutex
 	createAccounts   func(accounts []tb.Account) ([]tb.CreateAccountResult, error)
 	lookupAccounts   func(ids []tb.Uint128) ([]tb.Account, error)
 	createTransfers  func(transfers []tb.Transfer) ([]tb.CreateTransferResult, error)
@@ -151,32 +154,49 @@ type fakeTB struct {
 	accountTransfers func(filter tb.AccountFilter) ([]tb.Transfer, error)
 }
 
-var _ tbClient = (*fakeTB)(nil)
+var (
+	_ tbWriter = (*fakeTB)(nil)
+	_ tbReader = (*fakeTB)(nil)
+)
 
 func (f *fakeTB) CreateAccounts(accounts []tb.Account) ([]tb.CreateAccountResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.createAccounts(accounts)
 }
 
 func (f *fakeTB) LookupAccounts(ids []tb.Uint128) ([]tb.Account, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.lookupAccounts(ids)
 }
 
 func (f *fakeTB) CreateTransfers(transfers []tb.Transfer) ([]tb.CreateTransferResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.createTransfers(transfers)
 }
 
 func (f *fakeTB) LookupTransfers(ids []tb.Uint128) ([]tb.Transfer, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.lookupTransfers(ids)
 }
 
 func (f *fakeTB) QueryTransfers(filter tb.QueryFilter) ([]tb.Transfer, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.queryTransfers(filter)
 }
 
 func (f *fakeTB) GetAccountBalances(filter tb.AccountFilter) ([]tb.AccountBalance, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.accountBalances(filter)
 }
 
 func (f *fakeTB) GetAccountTransfers(filter tb.AccountFilter) ([]tb.Transfer, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.accountTransfers(filter)
 }

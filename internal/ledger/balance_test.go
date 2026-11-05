@@ -53,7 +53,7 @@ func TestBalances(t *testing.T) {
 				return inTB, nil
 			}}
 
-			got, err := New(store, tbc).Balances(context.Background(), "rider:1:wallet", tt.currency, time.Time{})
+			got, err := New(store, tbc, tbc).Balances(context.Background(), "rider:1:wallet", tt.currency, time.Time{})
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
@@ -94,7 +94,7 @@ func TestBalancesAt(t *testing.T) {
 		return nil, nil
 	}}
 
-	got, err := New(store, tbc).Balances(context.Background(), "rider:1:wallet", "", at)
+	got, err := New(store, tbc, tbc).Balances(context.Background(), "rider:1:wallet", "", at)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -102,14 +102,17 @@ func TestBalancesAt(t *testing.T) {
 		t.Fatalf("balances = %+v; want AED 0, USD 70", got)
 	}
 	flags := tb.AccountFilterFlags{Debits: true, Credits: true, Reversed: true}.ToUint32()
+	if len(filters) != 2 || filters[0].AccountID == filters[1].AccountID {
+		t.Fatalf("filters = %+v; want one per wallet", filters)
+	}
 	for i, f := range filters {
-		if f.AccountID != []tb.Uint128{aed, usd}[i] || f.TimestampMax != 100_000_000_005 || f.TimestampMin != 0 || f.Limit != 1 || f.Flags != flags {
+		if (f.AccountID != aed && f.AccountID != usd) || f.TimestampMax != 100_000_000_005 || f.TimestampMin != 0 || f.Limit != 1 || f.Flags != flags {
 			t.Fatalf("filter %d = %+v", i, f)
 		}
 	}
 
 	for _, bad := range []time.Time{time.Unix(0, 0), time.Unix(-5, 0), time.Date(2262, 1, 1, 0, 0, 0, 0, time.UTC)} {
-		if _, err := New(store, tbc).Balances(context.Background(), "rider:1:wallet", "", bad); !errors.Is(err, ErrInvalid) {
+		if _, err := New(store, tbc, tbc).Balances(context.Background(), "rider:1:wallet", "", bad); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("at %v err = %v, want ErrInvalid", bad, err)
 		}
 	}

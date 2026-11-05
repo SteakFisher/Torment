@@ -88,7 +88,7 @@ func TestRegisterAccount(t *testing.T) {
 				}
 				return Account{Address: address, Type: typ, AllowNegative: allowNegative}, true, nil
 			}}
-			acct, created, err := New(store, nil).RegisterAccount(context.Background(), tt.params)
+			acct, created, err := New(store, nil, nil).RegisterAccount(context.Background(), tt.params)
 			if inserted != tt.wantInsert {
 				t.Fatalf("insert called = %v, want %v", inserted, tt.wantInsert)
 			}

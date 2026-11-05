@@ -49,7 +49,7 @@ func TestGroupTransfers(t *testing.T) {
 				return wallets, nil
 			}}
 
-			got, err := New(store, tbc).GroupTransfers(context.Background(), tt.groupID)
+			got, err := New(store, tbc, tbc).GroupTransfers(context.Background(), tt.groupID)
 			if tt.wantOther {
 				if err == nil {
 					t.Fatal("err = nil, want an error")

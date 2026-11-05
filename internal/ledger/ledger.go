@@ -8,13 +8,15 @@ import (
 
 // Service runs ledger operations against a Store and TigerBeetle.
 type Service struct {
-	store Store
-	tb    tbClient
+	store  Store
+	writes tbWriter
+	reads  tbReader
 }
 
-// New returns a Service that keeps wallets read from store in memory.
-func New(store Store, tb tbClient) *Service {
-	return &Service{store: newWalletCache(store), tb: tb}
+// New returns a Service that keeps wallets read from store in memory and sends TigerBeetle writes
+// through writes and reads through reads, which should be separate clients.
+func New(store Store, writes tbWriter, reads tbReader) *Service {
+	return &Service{store: newWalletCache(store), writes: writes, reads: reads}
 }
 
 // Store keeps currencies, accounts and wallets. Errors other than ErrNotFound and ErrConflict mean the

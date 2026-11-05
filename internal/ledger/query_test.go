@@ -70,7 +70,7 @@ func TestListAccounts(t *testing.T) {
 				gotRE, gotAfter, gotLimit = re, after, limit
 				return stored[:min(len(stored), limit)], len(stored) > limit, nil
 			}}
-			accounts, more, err := New(store, nil).ListAccounts(context.Background(), "rider:*:*", "rider:0", tt.limit)
+			accounts, more, err := New(store, nil, nil).ListAccounts(context.Background(), "rider:*:*", "rider:0", tt.limit)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
@@ -113,7 +113,7 @@ func TestPatternBalances(t *testing.T) {
 	}}
 	tbc := &fakeTB{lookupAccounts: func([]tb.Uint128) ([]tb.Account, error) { return inTB, nil }}
 
-	totals, accounts, err := New(store, tbc).PatternBalances(context.Background(), "rider:1:*", "", time.Time{})
+	totals, accounts, err := New(store, tbc, tbc).PatternBalances(context.Background(), "rider:1:*", "", time.Time{})
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -147,14 +147,14 @@ func TestPatternBalances(t *testing.T) {
 	store.patternWallets = func(context.Context, string, string, int) ([]AddressWallet, bool, error) {
 		return nil, true, nil
 	}
-	if _, _, err := New(store, tbc).PatternBalances(context.Background(), "*", "", time.Time{}); !errors.Is(err, ErrInvalid) {
+	if _, _, err := New(store, tbc, tbc).PatternBalances(context.Background(), "*", "", time.Time{}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("too many wallets err = %v, want ErrInvalid", err)
 	}
 	for _, c := range []struct {
 		pattern string
 		at      time.Time
 	}{{"rider:.*", time.Time{}}, {"rider", time.Unix(-1, 0)}} {
-		if _, _, err := New(store, tbc).PatternBalances(context.Background(), c.pattern, "", c.at); !errors.Is(err, ErrInvalid) {
+		if _, _, err := New(store, tbc, tbc).PatternBalances(context.Background(), c.pattern, "", c.at); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("pattern %q at %v err = %v, want ErrInvalid", c.pattern, c.at, err)
 		}
 	}
@@ -225,7 +225,7 @@ func TestAccountTransfers(t *testing.T) {
 				}
 				return out, nil
 			}}
-			got, more, err := New(store, tbc).AccountTransfers(context.Background(), tt.p)
+			got, more, err := New(store, tbc, tbc).AccountTransfers(context.Background(), tt.p)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
@@ -291,7 +291,7 @@ func TestAccountTransfersPattern(t *testing.T) {
 				},
 			}
 			tbc := &fakeTB{accountTransfers: func(f tb.AccountFilter) ([]tb.Transfer, error) { return inTB[f.AccountID], nil }}
-			got, _, err := New(store, tbc).AccountTransfers(context.Background(), AccountTransfersParams{Address: "rider:1:*"})
+			got, _, err := New(store, tbc, tbc).AccountTransfers(context.Background(), AccountTransfersParams{Address: "rider:1:*"})
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}

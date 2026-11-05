@@ -65,5 +65,5 @@ func newIntegrationService(t *testing.T) *ledger.Service {
 	if _, err := testPool.Exec(context.Background(), "truncate wallets, accounts, currencies"); err != nil {
 		t.Fatalf("error truncating tables: %v", err)
 	}
-	return ledger.New(db.NewStore(testPool), testTB)
+	return ledger.New(db.NewStore(testPool), testTB, testTB)
 }
