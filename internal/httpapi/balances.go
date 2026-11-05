@@ -15,29 +15,6 @@ type balanceJSON struct {
 	Amount    string `json:"amount"`
 }
 
-// getBalances handles GET /accounts/{address}/balances?at=. It responds 200 with the balance of each of
-// the account's wallets, as of at when given, 400 when at is not an RFC 3339 time, or 404 when the
-// account does not exist.
-func getBalances(l Ledger) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		address := r.PathValue("address")
-		at, err := parseTime(r, "at")
-		if err != nil {
-			writeError(w, err)
-			return
-		}
-		balances, err := l.Balances(r.Context(), address, at)
-		if err != nil {
-			writeError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, struct {
-			Address  string        `json:"address"`
-			Balances []balanceJSON `json:"balances"`
-		}{address, newBalancesJSON(balances)})
-	}
-}
-
 // totalJSON is the sum of one account type's balances in one currency. Amount is a decimal string.
 type totalJSON struct {
 	Type      string `json:"type"`
@@ -53,18 +30,32 @@ type accountBalancesJSON struct {
 	Balances []balanceJSON `json:"balances"`
 }
 
-// getPatternBalances handles GET /balances?address=&currency=&at=. It responds 200 with one total per
-// account type and currency plus each matching account's balances, or 400 for a malformed query or a
-// pattern matching too many wallets.
-func getPatternBalances(l Ledger) http.HandlerFunc {
+// getBalances handles GET /accounts/{address}/balances?currency=&at=, with balances only in currency when
+// given and as of at when given. For an address it responds 200 with the balance of each of the account's
+// wallets, or 404 when the account does not exist. For an address pattern it responds 200 with one total
+// per account type and currency plus each matching account's balances, or 400 when the pattern matches
+// too many wallets. Either responds 400 for a malformed query.
+func getBalances(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		address, currency := r.PathValue("address"), r.URL.Query().Get("currency")
 		at, err := parseTime(r, "at")
 		if err != nil {
 			writeError(w, err)
 			return
 		}
-		q := r.URL.Query()
-		totals, accounts, err := l.PatternBalances(r.Context(), q.Get("address"), q.Get("currency"), at)
+		if !ledger.IsPattern(address) {
+			balances, err := l.Balances(r.Context(), address, currency, at)
+			if err != nil {
+				writeError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, struct {
+				Address  string        `json:"address"`
+				Balances []balanceJSON `json:"balances"`
+			}{address, newBalancesJSON(balances)})
+			return
+		}
+		totals, accounts, err := l.PatternBalances(r.Context(), address, currency, at)
 		if err != nil {
 			writeError(w, err)
 			return
@@ -73,7 +64,7 @@ func getPatternBalances(l Ledger) http.HandlerFunc {
 			Address  string                `json:"address"`
 			Totals   []totalJSON           `json:"totals"`
 			Accounts []accountBalancesJSON `json:"accounts"`
-		}{q.Get("address"), make([]totalJSON, 0, len(totals)), make([]accountBalancesJSON, 0, len(accounts))}
+		}{address, make([]totalJSON, 0, len(totals)), make([]accountBalancesJSON, 0, len(accounts))}
 		for _, t := range totals {
 			out.Totals = append(out.Totals, totalJSON{Type: string(t.Type), Currency: t.Currency, Precision: t.Precision, Amount: t.Amount.String()})
 		}

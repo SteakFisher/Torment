@@ -10,8 +10,9 @@ import (
 // fakeStore implements Store with per-test funcs; calling a method whose func is nil panics.
 type fakeStore struct {
 	Store
-	insertCurrency     func(ctx context.Context, name string, precision int16) (Currency, error)
+	insertCurrency     func(ctx context.Context, name string, precision int16) (Currency, bool, error)
 	currencies         func(ctx context.Context, names []string) (map[string]Currency, error)
+	listCurrencies     func(ctx context.Context) ([]Currency, error)
 	insertAccount      func(ctx context.Context, address string, typ AccountType, allowNegative bool) (Account, bool, error)
 	accountWallets     func(ctx context.Context, address, currency string) (Account, error)
 	listAccounts       func(ctx context.Context, re, after string, limit int) ([]Account, bool, error)
@@ -24,8 +25,12 @@ type fakeStore struct {
 
 var _ Store = (*fakeStore)(nil)
 
-func (f *fakeStore) InsertCurrency(ctx context.Context, name string, precision int16) (Currency, error) {
+func (f *fakeStore) InsertCurrency(ctx context.Context, name string, precision int16) (Currency, bool, error) {
 	return f.insertCurrency(ctx, name, precision)
+}
+
+func (f *fakeStore) ListCurrencies(ctx context.Context) ([]Currency, error) {
+	return f.listCurrencies(ctx)
 }
 
 func (f *fakeStore) Currencies(ctx context.Context, names []string) (map[string]Currency, error) {

@@ -80,6 +80,12 @@ func (s *Service) RegisterAccount(ctx context.Context, p RegisterAccountParams) 
 	return acct, created, nil
 }
 
+// Account returns the account at address with its wallets in currency order. It returns ErrNotFound when
+// no account has the address.
+func (s *Service) Account(ctx context.Context, address string) (Account, error) {
+	return s.store.AccountWallets(ctx, address, "")
+}
+
 // dedupe returns ss without repeated values, keeping the first occurrence of each.
 func dedupe(ss []string) []string {
 	seen := make(map[string]bool, len(ss))

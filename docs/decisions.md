@@ -8,7 +8,9 @@ Postgres maps names to TigerBeetle ids, and TigerBeetle holds balances and trans
 | Fails at | State | Recovery |
 |---|---|---|
 | insert | nothing written | retry |
-| response lost | currency exists | a retry gets 409, which means it already exists |
+| response lost | currency exists | retry: the same code returns 200 |
+
+Registering the same name with a different precision returns 409.
 
 ## Accounts
 `POST /accounts`: the account is an address, a type and `allow_negative`. Accounts are never created implicitly.
@@ -37,7 +39,7 @@ One per (account, currency), and each is one TigerBeetle account. The type goes 
 - **Every wallet has TigerBeetle's `history` flag**, so past balances can be queried. TigerBeetle 0.17.9 already stores a balance snapshot for every transfer (for CDC); the flag indexes it by account and keeps it from future pruning, about one small index entry per transfer. Flags can't change after creation, so this was decided before any real data.
 
 ## Balances
-A read only: Postgres wallets, then TigerBeetle `lookup_accounts`. A wallet with no TigerBeetle account reads as zero. With `?at=`, each wallet takes one `get_account_balances` call for its last snapshot at or before `at`, using TigerBeetle's clock.
+`GET /accounts/{address}/balances`, optionally one `?currency=`. A read only: Postgres wallets, then TigerBeetle `lookup_accounts`. A wallet with no TigerBeetle account reads as zero. With `?at=`, each wallet takes one `get_account_balances` call for its last snapshot at or before `at`, using TigerBeetle's clock.
 
 ## Transfers
 Each posting has a client-chosen `id`, used as the TigerBeetle transfer id. A posting on its own is independent. An array of postings is an atomic chain. The response gives a status for each posting.
@@ -62,14 +64,16 @@ When TigerBeetle rejects postings, the result is reported for each one:
 - **Groups:** `group_id` is stored in `user_data_128`. It defaults to the posting's own id, which keeps retries consistent.
 
 ## Groups
-`GET /groups/{group_id}/transfers`: a read only. TigerBeetle `query_transfers` on `user_data_128`, then one Postgres query maps the account ids to addresses. Oldest first.
+`GET /groups/{group_id}/transfers`: a read only. TigerBeetle `query_transfers` on `user_data_128`, then one Postgres query maps the account ids to addresses. Newest first, like account transfers.
 
 - **An unknown group returns 200 with an empty list.** TigerBeetle keeps no list of groups, so an unused id and an empty group look the same.
-- **At most 8189 transfers**, the most one TigerBeetle query returns.
+- **At most 8189 transfers**, the newest, the most one TigerBeetle query returns.
 - **A TigerBeetle account with no wallet row returns 500.** Every TigerBeetle account is created from a Postgres row first, so this means the data is broken.
 
 ## Queries
-- **Patterns are capped at 1000 wallets**; more returns 400 asking to narrow the pattern. The ledger answers operational queries (one user's pots, a few system accounts). Totals across all users are analytics: export through TigerBeetle CDC to something like ClickHouse. That export is not built.
+- **Patterns go in the path:** `GET /accounts/{address}`, `GET /accounts/{address}/balances` and `GET /accounts/{address}/transfers` treat an address containing `*` as a pattern, since a valid address never contains `*`. An exact address returns one account, its balances or its history; a pattern returns a page of accounts, the pattern totals or the merged history. `GET /accounts` lists every account.
+- **Pattern transfers are capped at 100 wallets**, not 1000: each page costs one TigerBeetle request per wallet. The use is one user's pots in one timeline (`rider:123:*`); a feed across many users is an analytics or export query. A transfer between two matching accounts is returned once.
+- **Pattern balances are capped at 1000 wallets**; more returns 400 asking to narrow the pattern. The ledger answers operational queries (one user's pots, a few system accounts). Totals across all users are analytics: export through TigerBeetle CDC to something like ClickHouse. That export is not built.
 - **Patterns:** `*` matches exactly one segment. In Postgres, a pattern becomes an anchored regex.
 - **`at` reads a past balance**: the last TigerBeetle snapshot at or before `at`. A wallet with none (created later, or no transfers yet) reads as zero and is still listed, not hidden.
 - **Pattern balances return the totals and each account's balance**, one total per (type, currency). Different types are never summed together. Both come from the same TigerBeetle read, so they always agree.

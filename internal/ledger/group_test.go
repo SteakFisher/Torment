@@ -63,8 +63,8 @@ func TestGroupTransfers(t *testing.T) {
 			if err != nil {
 				return
 			}
-			if filter.UserData128 != tb.ToUint128(9) || filter.Limit != maxGroupTransfers {
-				t.Fatalf("filter = %+v; want user data 128 = 9, limit %d", filter, maxGroupTransfers)
+			if filter.UserData128 != tb.ToUint128(9) || filter.Limit != maxGroupTransfers || filter.Flags != (tb.QueryFilterFlags{Reversed: true}).ToUint32() {
+				t.Fatalf("filter = %+v; want user data 128 = 9, limit %d, reversed", filter, maxGroupTransfers)
 			}
 			if len(got) != len(tt.want) {
 				t.Fatalf("got %d transfers, want %d", len(got), len(tt.want))

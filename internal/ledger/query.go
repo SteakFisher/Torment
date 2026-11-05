@@ -18,10 +18,18 @@ const (
 	maxListLimit     = 1000
 	// maxPatternWallets is the most wallets a balance query may cover.
 	maxPatternWallets = 1000
+	// maxPatternTransferWallets is the most wallets a transfer history query may cover.
+	maxPatternTransferWallets = 100
 )
 
 // segmentRE matches one address segment.
 var segmentRE = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
+// IsPattern reports whether address is an address pattern rather than an address. Addresses never
+// contain "*", so any "*" makes it a pattern.
+func IsPattern(address string) bool {
+	return strings.Contains(address, "*")
+}
 
 // patternRegex returns a Postgres regex matching the addresses that pattern describes. pattern is an
 // address in which a "*" segment matches any single segment; an empty pattern matches every address.
@@ -152,11 +160,13 @@ type AccountTransfersParams struct {
 	Limit    int
 }
 
-// AccountTransfers returns the transfers of the account at p.Address committed at or after p.From and
-// before p.Before, newest first. more reports whether older transfers remain; passing the last Timestamp
-// as Before gets the next page. It makes one TigerBeetle request per wallet in scope. It returns
-// ErrNotFound when no account has the address, and ErrInvalid for a limit outside 0 to maxListLimit or a
-// time outside TigerBeetle's range.
+// AccountTransfers returns the transfers of the account at p.Address, or of every account matching it when
+// it is a pattern, committed at or after p.From and before p.Before, newest first. A transfer between two
+// matching accounts is returned once. more reports whether older transfers remain; passing the last
+// Timestamp as Before gets the next page. It makes one TigerBeetle request per wallet in scope. It returns
+// ErrNotFound when no account has the exact address, and ErrInvalid for a malformed pattern, a pattern
+// matching more than maxPatternTransferWallets wallets, a limit outside 0 to maxListLimit or a time
+// outside TigerBeetle's range.
 func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams) (transfers []TransferRecord, more bool, err error) {
 	if p.Limit < 0 || p.Limit > maxListLimit {
 		return nil, false, fmt.Errorf("%w: limit %d must be between 1 and %d", ErrInvalid, p.Limit, maxListLimit)
@@ -170,7 +180,7 @@ func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams
 	if err := validateAt(p.Before); err != nil {
 		return nil, false, err
 	}
-	acct, err := s.store.AccountWallets(ctx, p.Address, p.Currency)
+	ids, err := s.transferWalletIDs(ctx, p.Address, p.Currency)
 	if err != nil {
 		return nil, false, err
 	}
@@ -190,13 +200,19 @@ func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams
 		}
 	}
 	var found []tb.Transfer
-	for _, w := range acct.Wallets {
-		filter.AccountID = w.ID
+	seen := map[tb.Uint128]bool{}
+	for _, id := range ids {
+		filter.AccountID = id
 		got, err := s.tb.GetAccountTransfers(filter)
 		if err != nil {
 			return nil, false, fmt.Errorf("error getting tigerbeetle account transfers: %w", err)
 		}
-		found = append(found, got...)
+		for _, t := range got {
+			if !seen[t.ID] {
+				seen[t.ID] = true
+				found = append(found, t)
+			}
+		}
 	}
 	// The newest p.Limit across all wallets are among each wallet's newest p.Limit.
 	slices.SortFunc(found, func(a, b tb.Transfer) int { return cmp.Compare(b.Timestamp, a.Timestamp) })
@@ -205,4 +221,39 @@ func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams
 	}
 	transfers, err = s.transferRecords(ctx, found)
 	return transfers, more, err
+}
+
+// transferWalletIDs returns the TigerBeetle ids of the wallets in currency, or in every currency when it
+// is empty, of the account at address or of every account matching it when it is a pattern. It returns
+// ErrNotFound when no account has the exact address, and ErrInvalid for a malformed pattern or one
+// matching more than maxPatternTransferWallets wallets.
+func (s *Service) transferWalletIDs(ctx context.Context, address, currency string) ([]tb.Uint128, error) {
+	var wallets []Wallet
+	if IsPattern(address) {
+		re, err := patternRegex(address)
+		if err != nil {
+			return nil, err
+		}
+		matched, tooMany, err := s.store.PatternWallets(ctx, re, currency, maxPatternTransferWallets)
+		if err != nil {
+			return nil, err
+		}
+		if tooMany {
+			return nil, fmt.Errorf("%w: address pattern %q matches more than %d wallets; narrow it", ErrInvalid, address, maxPatternTransferWallets)
+		}
+		for _, w := range matched {
+			wallets = append(wallets, w.Wallet)
+		}
+	} else {
+		acct, err := s.store.AccountWallets(ctx, address, currency)
+		if err != nil {
+			return nil, err
+		}
+		wallets = acct.Wallets
+	}
+	ids := make([]tb.Uint128, len(wallets))
+	for i, w := range wallets {
+		ids[i] = w.ID
+	}
+	return ids, nil
 }

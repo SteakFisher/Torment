@@ -12,7 +12,7 @@ import (
 func TestIntegrationGroupTransfers(t *testing.T) {
 	s := newIntegrationService(t)
 	ctx := context.Background()
-	if _, err := s.RegisterCurrency(ctx, "USD/2"); err != nil {
+	if _, _, err := s.RegisterCurrency(ctx, "USD/2"); err != nil {
 		t.Fatalf("error registering currency: %v", err)
 	}
 	if _, _, err := s.RegisterAccount(ctx, ledger.RegisterAccountParams{Address: "world", Type: "equity", AllowNegative: true}); err != nil {
@@ -43,14 +43,14 @@ func TestIntegrationGroupTransfers(t *testing.T) {
 	if len(transfers) != 2 {
 		t.Fatalf("got %d transfers, want 2: %+v", len(transfers), transfers)
 	}
-	for i, want := range []ledger.Posting{pay, refund} {
+	for i, want := range []ledger.Posting{refund, pay} {
 		g := transfers[i]
 		if g.ID.BigInt().String() != want.ID || g.Source != want.Source || g.Destination != want.Destination || g.Currency != "USD" || g.Amount.String() != want.Amount {
 			t.Fatalf("transfer %d = %+v, want %+v", i, g, want)
 		}
 	}
-	if !transfers[0].Timestamp.Before(transfers[1].Timestamp) {
-		t.Fatalf("timestamps %v, %v; want oldest first", transfers[0].Timestamp, transfers[1].Timestamp)
+	if !transfers[0].Timestamp.After(transfers[1].Timestamp) {
+		t.Fatalf("timestamps %v, %v; want newest first", transfers[0].Timestamp, transfers[1].Timestamp)
 	}
 
 	unused, err := s.GroupTransfers(ctx, tb.ID().BigInt().String())

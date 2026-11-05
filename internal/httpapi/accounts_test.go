@@ -81,7 +81,7 @@ func TestGetAccounts(t *testing.T) {
 	}
 	tests := []struct {
 		name       string
-		query      string
+		path       string
 		more       bool
 		err        error
 		wantArgs   string
@@ -89,17 +89,18 @@ func TestGetAccounts(t *testing.T) {
 		wantBody   string
 	}{
 		{
-			name:       "page with more",
-			query:      "?address=rider:*:wallet&after=a&limit=2",
+			name:       "pattern page with more",
+			path:       "/accounts/rider:*:wallet?after=a&limit=2",
 			more:       true,
 			wantArgs:   "rider:*:wallet a 2",
 			wantStatus: http.StatusOK,
 			wantBody: `{"accounts":[{"address":"rider:1:wallet","type":"liability","allow_negative":false,"created_at":"2026-01-02T03:04:05Z","wallets":[{"currency":"USD","precision":2}]},` +
 				`{"address":"rider:2:wallet","type":"liability","allow_negative":false,"created_at":"2026-01-02T03:04:05Z","wallets":[]}],"next":"rider:2:wallet"}`,
 		},
-		{name: "last page", query: "", wantArgs: "  0", wantStatus: http.StatusOK},
-		{name: "bad limit", query: "?limit=x", wantStatus: http.StatusBadRequest},
-		{name: "invalid", query: "?address=a:.", err: ledger.ErrInvalid, wantArgs: "a:.  0", wantStatus: http.StatusBadRequest},
+		{name: "encoded star", path: "/accounts/rider:%2A:wallet", wantArgs: "rider:*:wallet  0", wantStatus: http.StatusOK},
+		{name: "all, last page", path: "/accounts?address=rider:*", wantArgs: "  0", wantStatus: http.StatusOK},
+		{name: "bad limit", path: "/accounts?limit=x", wantStatus: http.StatusBadRequest},
+		{name: "invalid", path: "/accounts/a:*:.", err: ledger.ErrInvalid, wantArgs: "a:*:.  0", wantStatus: http.StatusBadRequest},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -112,15 +113,56 @@ func TestGetAccounts(t *testing.T) {
 				return accounts, tt.more, nil
 			}}
 			rec := httptest.NewRecorder()
-			routes(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/accounts"+tt.query, nil))
+			routes(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
 			if rec.Code != tt.wantStatus || gotArgs != tt.wantArgs {
 				t.Fatalf("status = %d, args %q; want %d, %q (body %s)", rec.Code, gotArgs, tt.wantStatus, tt.wantArgs, rec.Body)
 			}
 			if tt.wantBody != "" && strings.TrimSpace(rec.Body.String()) != tt.wantBody {
 				t.Fatalf("body = %s, want %s", rec.Body, tt.wantBody)
 			}
-			if tt.name == "last page" && strings.Contains(rec.Body.String(), "next") {
+			if !tt.more && strings.Contains(rec.Body.String(), "next") {
 				t.Fatalf("body = %s, want no next", rec.Body)
+			}
+		})
+	}
+}
+
+func TestGetAccount(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:       "found",
+			wantStatus: http.StatusOK,
+			wantBody:   `{"address":"rider:1:wallet","type":"liability","allow_negative":false,"created_at":"2026-01-02T03:04:05Z","wallets":[{"currency":"USD","precision":2}]}`,
+		},
+		{name: "not found", err: ledger.ErrNotFound, wantStatus: http.StatusNotFound},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotAddress string
+			l := fakeLedger{account: func(_ context.Context, address string) (ledger.Account, error) {
+				gotAddress = address
+				if tt.err != nil {
+					return ledger.Account{}, fmt.Errorf("wrapped: %w", tt.err)
+				}
+				return ledger.Account{
+					Address:   address,
+					Type:      ledger.TypeLiability,
+					CreatedAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC),
+					Wallets:   []ledger.Wallet{{Currency: "USD", Precision: 2}},
+				}, nil
+			}}
+			rec := httptest.NewRecorder()
+			routes(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/accounts/rider:1:wallet", nil))
+			if rec.Code != tt.wantStatus || gotAddress != "rider:1:wallet" {
+				t.Fatalf("status = %d, address %q; want %d (body %s)", rec.Code, gotAddress, tt.wantStatus, rec.Body)
+			}
+			if tt.wantBody != "" && strings.TrimSpace(rec.Body.String()) != tt.wantBody {
+				t.Fatalf("body = %s, want %s", rec.Body, tt.wantBody)
 			}
 		})
 	}

@@ -16,14 +16,15 @@ import (
 
 func TestGetBalances(t *testing.T) {
 	tests := []struct {
-		name       string
-		query      string
-		wantAt     time.Time
-		noCall     bool // the ledger is not called
-		balances   []ledger.Balance
-		err        error
-		wantStatus int
-		wantBody   string
+		name         string
+		query        string
+		wantCurrency string
+		wantAt       time.Time
+		noCall       bool // the ledger is not called
+		balances     []ledger.Balance
+		err          error
+		wantStatus   int
+		wantBody     string
 	}{
 		{
 			name: "balances",
@@ -34,16 +35,17 @@ func TestGetBalances(t *testing.T) {
 		},
 		{name: "no wallets", balances: []ledger.Balance{}, wantStatus: http.StatusOK, wantBody: `{"address":"rider:1:wallet","balances":[]}`},
 		{name: "not found", err: ledger.ErrNotFound, wantStatus: http.StatusNotFound},
+		{name: "currency", query: "?currency=USD", wantCurrency: "USD", balances: []ledger.Balance{}, wantStatus: http.StatusOK},
 		{name: "at", query: "?at=2026-10-31T23:59:59.5%2B04:00", wantAt: time.Date(2026, 10, 31, 19, 59, 59, 5e8, time.UTC), balances: []ledger.Balance{}, wantStatus: http.StatusOK},
 		{name: "bad at", query: "?at=yesterday", wantStatus: http.StatusBadRequest, noCall: true},
 		{name: "unexpected", err: errors.New("boom"), wantStatus: http.StatusInternalServerError},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var gotAddress string
+			var gotAddress, gotCurrency string
 			var gotAt time.Time
-			l := fakeLedger{balances: func(_ context.Context, address string, at time.Time) ([]ledger.Balance, error) {
-				gotAddress, gotAt = address, at
+			l := fakeLedger{balances: func(_ context.Context, address, currency string, at time.Time) ([]ledger.Balance, error) {
+				gotAddress, gotCurrency, gotAt = address, currency, at
 				if tt.err != nil {
 					return nil, fmt.Errorf("wrapped: %w", tt.err)
 				}
@@ -55,8 +57,8 @@ func TestGetBalances(t *testing.T) {
 			if tt.noCall {
 				wantAddress = ""
 			}
-			if rec.Code != tt.wantStatus || gotAddress != wantAddress || !gotAt.Equal(tt.wantAt) {
-				t.Fatalf("status = %d, address %q, at %v; want %d, %q, %v (body %s)", rec.Code, gotAddress, gotAt, tt.wantStatus, wantAddress, tt.wantAt, rec.Body)
+			if rec.Code != tt.wantStatus || gotAddress != wantAddress || gotCurrency != tt.wantCurrency || !gotAt.Equal(tt.wantAt) {
+				t.Fatalf("status = %d, address %q, currency %q, at %v; want %d, %q, %q, %v (body %s)", rec.Code, gotAddress, gotCurrency, gotAt, tt.wantStatus, wantAddress, tt.wantCurrency, tt.wantAt, rec.Body)
 			}
 			if tt.wantBody != "" && strings.TrimSpace(rec.Body.String()) != tt.wantBody {
 				t.Fatalf("body = %s, want %s", rec.Body, tt.wantBody)
@@ -73,7 +75,7 @@ func TestGetPatternBalances(t *testing.T) {
 	}
 	tests := []struct {
 		name       string
-		query      string
+		path       string
 		err        error
 		empty      bool
 		wantArgs   string
@@ -82,16 +84,16 @@ func TestGetPatternBalances(t *testing.T) {
 	}{
 		{
 			name:       "balances",
-			query:      "?address=rider:1:*&currency=USD&at=2026-10-31T00:00:00Z",
+			path:       "/accounts/rider:1:*/balances?currency=USD&at=2026-10-31T00:00:00Z",
 			wantArgs:   "rider:1:* USD 2026-10-31T00:00:00Z",
 			wantStatus: http.StatusOK,
 			wantBody: `{"address":"rider:1:*","totals":[{"type":"liability","currency":"USD","precision":2,"amount":"150"}],"accounts":[` +
 				`{"address":"rider:1:bonus","type":"liability","balances":[{"currency":"USD","precision":2,"amount":"50"}]},` +
 				`{"address":"rider:1:wallet","type":"liability","balances":[{"currency":"USD","precision":2,"amount":"100"}]}]}`,
 		},
-		{name: "none", query: "?address=nobody", empty: true, wantArgs: "nobody  0001-01-01T00:00:00Z", wantStatus: http.StatusOK, wantBody: `{"address":"nobody","totals":[],"accounts":[]}`},
-		{name: "bad at", query: "?at=x", wantStatus: http.StatusBadRequest},
-		{name: "invalid", query: "?address=*", err: ledger.ErrInvalid, wantArgs: "*  0001-01-01T00:00:00Z", wantStatus: http.StatusBadRequest},
+		{name: "none", path: "/accounts/nobody:*/balances", empty: true, wantArgs: "nobody:*  0001-01-01T00:00:00Z", wantStatus: http.StatusOK, wantBody: `{"address":"nobody:*","totals":[],"accounts":[]}`},
+		{name: "bad at", path: "/accounts/*/balances?at=x", wantStatus: http.StatusBadRequest},
+		{name: "too many wallets", path: "/accounts/*/balances", err: ledger.ErrInvalid, wantArgs: "*  0001-01-01T00:00:00Z", wantStatus: http.StatusBadRequest},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -107,7 +109,7 @@ func TestGetPatternBalances(t *testing.T) {
 				return totals, accounts, nil
 			}}
 			rec := httptest.NewRecorder()
-			routes(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/balances"+tt.query, nil))
+			routes(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
 			if rec.Code != tt.wantStatus || gotArgs != tt.wantArgs {
 				t.Fatalf("status = %d, args %q; want %d, %q (body %s)", rec.Code, gotArgs, tt.wantStatus, tt.wantArgs, rec.Body)
 			}

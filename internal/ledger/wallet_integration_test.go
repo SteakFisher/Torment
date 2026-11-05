@@ -32,7 +32,7 @@ func TestIntegrationRegisterAccountWallets(t *testing.T) {
 	ctx := context.Background()
 	ledgers := map[string]uint32{}
 	for _, code := range []string{"USD/2", "AED/2"} {
-		c, err := s.RegisterCurrency(ctx, code)
+		c, _, err := s.RegisterCurrency(ctx, code)
 		if err != nil {
 			t.Fatalf("error registering currency %s: %v", code, err)
 		}
@@ -108,7 +108,7 @@ func tbCreated(t *testing.T, address, currency string) bool {
 func TestIntegrationTransferCreatesWallets(t *testing.T) {
 	s := newIntegrationService(t)
 	ctx := context.Background()
-	if _, err := s.RegisterCurrency(ctx, "USD/2"); err != nil {
+	if _, _, err := s.RegisterCurrency(ctx, "USD/2"); err != nil {
 		t.Fatalf("error registering currency: %v", err)
 	}
 	if _, _, err := s.RegisterAccount(ctx, ledger.RegisterAccountParams{Address: "world", Type: "equity", AllowNegative: true, Currencies: []string{"USD"}}); err != nil {
@@ -129,7 +129,7 @@ func TestIntegrationTransferCreatesWallets(t *testing.T) {
 	}
 	checkUSD := func(address string, amount int64) {
 		t.Helper()
-		got, err := s.Balances(ctx, address, time.Time{})
+		got, err := s.Balances(ctx, address, "", time.Time{})
 		if err != nil || len(got) != 1 || got[0].Currency != "USD" || got[0].Amount.Int64() != amount {
 			t.Fatalf("%s balances = %+v, err %v; want USD %d", address, got, err, amount)
 		}

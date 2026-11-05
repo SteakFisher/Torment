@@ -15,7 +15,7 @@ func TestIntegrationBalances(t *testing.T) {
 	s := newIntegrationService(t)
 	ctx := context.Background()
 	for _, code := range []string{"USD/2", "AED/2"} {
-		if _, err := s.RegisterCurrency(ctx, code); err != nil {
+		if _, _, err := s.RegisterCurrency(ctx, code); err != nil {
 			t.Fatalf("error registering currency %s: %v", code, err)
 		}
 	}
@@ -46,7 +46,7 @@ func TestIntegrationBalances(t *testing.T) {
 		"rider:1:wallet": {"AED": 0, "USD": 100},
 	}
 	for address, amounts := range want {
-		got, err := s.Balances(ctx, address, time.Time{})
+		got, err := s.Balances(ctx, address, "", time.Time{})
 		if err != nil || len(got) != len(amounts) {
 			t.Fatalf("%s balances: %+v, err %v", address, got, err)
 		}
@@ -61,7 +61,7 @@ func TestIntegrationBalances(t *testing.T) {
 	// riderUSD returns the rider's USD balance at at
 	riderUSD := func(at time.Time) int64 {
 		t.Helper()
-		got, err := s.Balances(ctx, "rider:1:wallet", at)
+		got, err := s.Balances(ctx, "rider:1:wallet", "", at)
 		if err != nil || len(got) != 2 || got[0].Amount.Sign() != 0 {
 			t.Fatalf("balances at %v: %+v, err %v; want AED 0", at, got, err)
 		}
@@ -82,7 +82,7 @@ func TestIntegrationBalances(t *testing.T) {
 		}
 	}
 
-	if _, err := s.Balances(ctx, "nobody", time.Time{}); !errors.Is(err, ledger.ErrNotFound) {
+	if _, err := s.Balances(ctx, "nobody", "", time.Time{}); !errors.Is(err, ledger.ErrNotFound) {
 		t.Fatalf("unknown address err = %v, want ErrNotFound", err)
 	}
 }

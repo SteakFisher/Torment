@@ -3,37 +3,39 @@ package ledger_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
+
 	"torment/internal/ledger"
 )
 
 func TestIntegrationRegisterCurrency(t *testing.T) {
 	s := newIntegrationService(t)
 	ctx := context.Background()
-	usd, err := s.RegisterCurrency(ctx, "USD/2")
-	if err != nil {
-		t.Fatalf("first register: %v", err)
+	usd, created, err := s.RegisterCurrency(ctx, "USD/2")
+	if err != nil || !created {
+		t.Fatalf("first register: created %v, err %v; want created", created, err)
 	}
-	eur, err := s.RegisterCurrency(ctx, "EUR/2")
-	if err != nil {
-		t.Fatalf("second register: %v", err)
+	eur, created, err := s.RegisterCurrency(ctx, "EUR/2")
+	if err != nil || !created {
+		t.Fatalf("second register: created %v, err %v; want created", created, err)
 	}
 	if usd.Ledger <= 0 || eur.Ledger == usd.Ledger {
 		t.Fatalf("ledgers USD %d, EUR %d; want positive and distinct", usd.Ledger, eur.Ledger)
 	}
-
-	tests := []struct {
-		name string
-		code string
-	}{
-		{name: "duplicate code", code: "USD/2"},
-		{name: "same name different precision", code: "USD/4"},
+	all, err := s.Currencies(ctx)
+	if err != nil {
+		t.Fatalf("list: %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if _, err := s.RegisterCurrency(ctx, tt.code); !errors.Is(err, ledger.ErrConflict) {
-				t.Fatalf("err = %v, want ErrConflict", err)
-			}
-		})
+	if want := []ledger.Currency{eur, usd}; !slices.Equal(all, want) {
+		t.Fatalf("currencies = %v, want %v", all, want)
+	}
+
+	again, created, err := s.RegisterCurrency(ctx, "USD/2")
+	if err != nil || created || again != usd {
+		t.Fatalf("duplicate code = %+v, created %v, err %v; want %+v, not created", again, created, err, usd)
+	}
+	if _, _, err := s.RegisterCurrency(ctx, "USD/4"); !errors.Is(err, ledger.ErrConflict) {
+		t.Fatalf("same name different precision err = %v, want ErrConflict", err)
 	}
 }

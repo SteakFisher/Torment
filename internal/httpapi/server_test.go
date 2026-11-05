@@ -12,9 +12,11 @@ import (
 
 // fakeLedger implements Ledger with per-test funcs; calling a method whose func is nil panics.
 type fakeLedger struct {
-	registerCurrency func(ctx context.Context, code string) (ledger.Currency, error)
+	registerCurrency func(ctx context.Context, code string) (ledger.Currency, bool, error)
+	currencies       func(ctx context.Context) ([]ledger.Currency, error)
 	registerAccount  func(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error)
-	balances         func(ctx context.Context, address string, at time.Time) ([]ledger.Balance, error)
+	account          func(ctx context.Context, address string) (ledger.Account, error)
+	balances         func(ctx context.Context, address, currency string, at time.Time) ([]ledger.Balance, error)
 	transfer         func(ctx context.Context, chains [][]ledger.Posting) ([][]ledger.Transfer, error)
 	groupTransfers   func(ctx context.Context, groupID string) ([]ledger.TransferRecord, error)
 	listAccounts     func(ctx context.Context, pattern, after string, limit int) ([]ledger.Account, bool, error)
@@ -24,16 +26,24 @@ type fakeLedger struct {
 
 var _ Ledger = fakeLedger{}
 
-func (f fakeLedger) RegisterCurrency(ctx context.Context, code string) (ledger.Currency, error) {
+func (f fakeLedger) RegisterCurrency(ctx context.Context, code string) (ledger.Currency, bool, error) {
 	return f.registerCurrency(ctx, code)
+}
+
+func (f fakeLedger) Currencies(ctx context.Context) ([]ledger.Currency, error) {
+	return f.currencies(ctx)
 }
 
 func (f fakeLedger) RegisterAccount(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error) {
 	return f.registerAccount(ctx, p)
 }
 
-func (f fakeLedger) Balances(ctx context.Context, address string, at time.Time) ([]ledger.Balance, error) {
-	return f.balances(ctx, address, at)
+func (f fakeLedger) Account(ctx context.Context, address string) (ledger.Account, error) {
+	return f.account(ctx, address)
+}
+
+func (f fakeLedger) Balances(ctx context.Context, address, currency string, at time.Time) ([]ledger.Balance, error) {
+	return f.balances(ctx, address, currency, at)
 }
 
 func (f fakeLedger) Transfer(ctx context.Context, chains [][]ledger.Posting) ([][]ledger.Transfer, error) {

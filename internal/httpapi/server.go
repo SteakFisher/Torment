@@ -12,9 +12,11 @@ import (
 
 // Ledger is the set of ledger operations the HTTP handlers call.
 type Ledger interface {
-	RegisterCurrency(ctx context.Context, code string) (ledger.Currency, error)
+	RegisterCurrency(ctx context.Context, code string) (ledger.Currency, bool, error)
+	Currencies(ctx context.Context) ([]ledger.Currency, error)
 	RegisterAccount(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error)
-	Balances(ctx context.Context, address string, at time.Time) ([]ledger.Balance, error)
+	Account(ctx context.Context, address string) (ledger.Account, error)
+	Balances(ctx context.Context, address, currency string, at time.Time) ([]ledger.Balance, error)
 	Transfer(ctx context.Context, chains [][]ledger.Posting) ([][]ledger.Transfer, error)
 	GroupTransfers(ctx context.Context, groupID string) ([]ledger.TransferRecord, error)
 	ListAccounts(ctx context.Context, pattern, after string, limit int) ([]ledger.Account, bool, error)
@@ -39,11 +41,12 @@ func New(l Ledger, apiKeys []string) http.Handler {
 func routes(l Ledger) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /currencies", postCurrency(l))
+	mux.HandleFunc("GET /currencies", getCurrencies(l))
 	mux.HandleFunc("POST /accounts", postAccount(l))
 	mux.HandleFunc("GET /accounts", getAccounts(l))
+	mux.HandleFunc("GET /accounts/{address}", getAccounts(l))
 	mux.HandleFunc("GET /accounts/{address}/balances", getBalances(l))
 	mux.HandleFunc("GET /accounts/{address}/transfers", getAccountTransfers(l))
-	mux.HandleFunc("GET /balances", getPatternBalances(l))
 	mux.HandleFunc("POST /transfers", postTransfer(l))
 	mux.HandleFunc("GET /groups/{group_id}/transfers", getGroupTransfers(l))
 	return mux

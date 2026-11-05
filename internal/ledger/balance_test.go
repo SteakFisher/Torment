@@ -20,22 +20,32 @@ func TestBalances(t *testing.T) {
 		typ        AccountType
 		missing    bool
 		wallets    []Wallet
+		currency   string
+		wantN      int
 		wantErr    error
 		wantUSD    int64
 		wantLookup bool
 	}{
 		{name: "unknown address", missing: true, wantErr: ErrNotFound},
 		{name: "no wallets", typ: TypeLiability},
-		{name: "credit-normal", typ: TypeLiability, wallets: wallets, wantUSD: 70, wantLookup: true},
-		{name: "debit-normal", typ: TypeAsset, wallets: wallets, wantUSD: -70, wantLookup: true},
+		{name: "credit-normal", typ: TypeLiability, wallets: wallets, wantN: 2, wantUSD: 70, wantLookup: true},
+		{name: "debit-normal", typ: TypeAsset, wallets: wallets, wantN: 2, wantUSD: -70, wantLookup: true},
+		{name: "one currency", typ: TypeLiability, wallets: wallets, currency: "USD", wantN: 1, wantUSD: 70, wantLookup: true},
+		{name: "no wallet in currency", typ: TypeLiability, wallets: wallets, currency: "EUR"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store := &fakeStore{accountWallets: func(_ context.Context, address, _ string) (Account, error) {
+			store := &fakeStore{accountWallets: func(_ context.Context, address, currency string) (Account, error) {
 				if tt.missing {
 					return Account{}, ErrNotFound
 				}
-				return Account{Address: address, Type: tt.typ, Wallets: tt.wallets}, nil
+				acct := Account{Address: address, Type: tt.typ}
+				for _, w := range tt.wallets {
+					if currency == "" || w.Currency == currency {
+						acct.Wallets = append(acct.Wallets, w)
+					}
+				}
+				return acct, nil
 			}}
 			looked := false
 			tbc := &fakeTB{lookupAccounts: func([]tb.Uint128) ([]tb.Account, error) {
@@ -43,7 +53,7 @@ func TestBalances(t *testing.T) {
 				return inTB, nil
 			}}
 
-			got, err := New(store, tbc).Balances(context.Background(), "rider:1:wallet", time.Time{})
+			got, err := New(store, tbc).Balances(context.Background(), "rider:1:wallet", tt.currency, time.Time{})
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
@@ -53,8 +63,8 @@ func TestBalances(t *testing.T) {
 			if tt.wantErr != nil {
 				return
 			}
-			if len(got) != len(tt.wallets) {
-				t.Fatalf("got %d balances, want %d", len(got), len(tt.wallets))
+			if len(got) != tt.wantN {
+				t.Fatalf("got %d balances, want %d", len(got), tt.wantN)
 			}
 			for _, b := range got {
 				want := int64(0)
@@ -84,7 +94,7 @@ func TestBalancesAt(t *testing.T) {
 		return nil, nil
 	}}
 
-	got, err := New(store, tbc).Balances(context.Background(), "rider:1:wallet", at)
+	got, err := New(store, tbc).Balances(context.Background(), "rider:1:wallet", "", at)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -99,7 +109,7 @@ func TestBalancesAt(t *testing.T) {
 	}
 
 	for _, bad := range []time.Time{time.Unix(0, 0), time.Unix(-5, 0), time.Date(2262, 1, 1, 0, 0, 0, 0, time.UTC)} {
-		if _, err := New(store, tbc).Balances(context.Background(), "rider:1:wallet", bad); !errors.Is(err, ErrInvalid) {
+		if _, err := New(store, tbc).Balances(context.Background(), "rider:1:wallet", "", bad); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("at %v err = %v, want ErrInvalid", bad, err)
 		}
 	}

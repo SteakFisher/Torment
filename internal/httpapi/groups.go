@@ -35,7 +35,7 @@ func newTransferRecordsJSON(transfers []ledger.TransferRecord) []transferRecordJ
 }
 
 // getGroupTransfers handles GET /groups/{group_id}/transfers. It responds 200 with the group's transfers,
-// oldest first, or 400 when the group id is malformed.
+// newest first, or 400 when the group id is malformed.
 func getGroupTransfers(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		groupID := r.PathValue("group_id")
@@ -53,7 +53,7 @@ func getGroupTransfers(l Ledger) http.HandlerFunc {
 
 // getAccountTransfers handles GET /accounts/{address}/transfers?currency=&from=&before=&limit=. It responds
 // 200 with the account's transfers, newest first, and next set to the last timestamp when older ones
-// remain; 400 for a malformed query; or 404 when the account does not exist.
+// remain; 400 for a malformed query or a pattern matching too many wallets; or 404 when the account does not exist.
 func getAccountTransfers(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		p := ledger.AccountTransfersParams{Address: r.PathValue("address"), Currency: r.URL.Query().Get("currency")}

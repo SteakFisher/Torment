@@ -21,15 +21,16 @@ type Balance struct {
 // posted is a TigerBeetle account's posted totals.
 type posted struct{ debits, credits tb.Uint128 }
 
-// Balances returns the balance of each wallet of the account at address, ordered by currency. A zero at
+// Balances returns the balance of each wallet of the account at address, ordered by currency, only the
+// wallet in currency unless it is empty; an account with no wallet in currency has no balances. A zero at
 // means now; otherwise each balance is as it was after the last transfer at or before at. A wallet with no
 // TigerBeetle account, or no transfer by at, has a zero balance. It returns ErrNotFound when no account
 // has the address, and ErrInvalid when at is not between 1970 and 2262.
-func (s *Service) Balances(ctx context.Context, address string, at time.Time) ([]Balance, error) {
+func (s *Service) Balances(ctx context.Context, address, currency string, at time.Time) ([]Balance, error) {
 	if err := validateAt(at); err != nil {
 		return nil, err
 	}
-	acct, err := s.store.AccountWallets(ctx, address, "")
+	acct, err := s.store.AccountWallets(ctx, address, currency)
 	if err != nil {
 		return nil, err
 	}

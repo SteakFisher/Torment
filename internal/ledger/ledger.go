@@ -19,12 +19,14 @@ func New(store Store, tb tbClient) *Service {
 // Store keeps currencies, accounts and wallets. Errors other than ErrNotFound and ErrConflict mean the
 // store failed.
 type Store interface {
-	// InsertCurrency stores a new currency and returns it with its assigned ledger. It returns ErrConflict
-	// when the name is already registered.
-	InsertCurrency(ctx context.Context, name string, precision int16) (Currency, error)
+	// InsertCurrency stores a new currency and returns it with its assigned ledger and created true. When a
+	// currency already has the name, it stores nothing and returns that currency with created false.
+	InsertCurrency(ctx context.Context, name string, precision int16) (c Currency, created bool, err error)
 
 	// Currencies returns the registered currencies among names, keyed by name.
 	Currencies(ctx context.Context, names []string) (map[string]Currency, error)
+	// ListCurrencies returns every registered currency, ordered by name.
+	ListCurrencies(ctx context.Context) ([]Currency, error)
 
 	// InsertAccount stores a new account and returns it with created true. When an account already has
 	// the address, it stores nothing and returns that account with created false. The account has no

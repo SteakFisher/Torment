@@ -253,3 +253,61 @@ func TestAccountTransfers(t *testing.T) {
 		})
 	}
 }
+
+func TestAccountTransfersPattern(t *testing.T) {
+	wallet, bonus, world := tb.ID(), tb.ID(), tb.ID()
+	// The move from wallet to bonus at 30 is in both wallets' histories.
+	pay := tb.Transfer{ID: tb.ToUint128(1), DebitAccountID: world, CreditAccountID: wallet, Amount: tb.ToUint128(5), Timestamp: 10}
+	move := tb.Transfer{ID: tb.ToUint128(2), DebitAccountID: wallet, CreditAccountID: bonus, Amount: tb.ToUint128(1), Timestamp: 30}
+	inTB := map[tb.Uint128][]tb.Transfer{wallet: {move, pay}, bonus: {move}}
+
+	tests := []struct {
+		name      string
+		tooMany   bool
+		wantIDs   []string
+		wantLimit int
+		wantErr   error
+	}{
+		{name: "merged once", wantIDs: []string{"2", "1"}, wantLimit: maxPatternTransferWallets},
+		{name: "too many wallets", tooMany: true, wantErr: ErrInvalid},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotRe string
+			var gotLimit int
+			store := &fakeStore{
+				patternWallets: func(_ context.Context, re, _ string, limit int) ([]AddressWallet, bool, error) {
+					gotRe, gotLimit = re, limit
+					if tt.tooMany {
+						return nil, true, nil
+					}
+					return []AddressWallet{
+						{Address: "rider:1:bonus", Type: TypeLiability, Wallet: Wallet{Currency: "USD", ID: bonus}},
+						{Address: "rider:1:wallet", Type: TypeLiability, Wallet: Wallet{Currency: "USD", ID: wallet}},
+					}, false, nil
+				},
+				walletsByTBIDs: func(context.Context, []tb.Uint128) (map[tb.Uint128]WalletKey, error) {
+					return map[tb.Uint128]WalletKey{wallet: {"rider:1:wallet", "USD"}, bonus: {"rider:1:bonus", "USD"}, world: {"world", "USD"}}, nil
+				},
+			}
+			tbc := &fakeTB{accountTransfers: func(f tb.AccountFilter) ([]tb.Transfer, error) { return inTB[f.AccountID], nil }}
+			got, _, err := New(store, tbc).AccountTransfers(context.Background(), AccountTransfersParams{Address: "rider:1:*"})
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			if gotRe != "^rider:1:[^:]+$" {
+				t.Fatalf("regex = %q", gotRe)
+			}
+			if err != nil {
+				return
+			}
+			var ids []string
+			for _, g := range got {
+				ids = append(ids, g.ID.BigInt().String())
+			}
+			if fmt.Sprint(ids) != fmt.Sprint(tt.wantIDs) || gotLimit != tt.wantLimit {
+				t.Fatalf("ids = %v, wallet limit %d; want %v, %d", ids, gotLimit, tt.wantIDs, tt.wantLimit)
+			}
+		})
+	}
+}

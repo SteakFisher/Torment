@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 
 	"torment/internal/db/sqlc"
@@ -17,6 +16,7 @@ import (
 type fakeQuerier struct {
 	sqlc.Querier
 	insertCurrency       func(ctx context.Context, arg sqlc.InsertCurrencyParams) (sqlc.Currency, error)
+	getCurrency          func(ctx context.Context, name string) (sqlc.Currency, error)
 	insertAccount        func(ctx context.Context, arg sqlc.InsertAccountParams) (sqlc.Account, error)
 	getAccount           func(ctx context.Context, address string) (sqlc.Account, error)
 	listWallets          func(ctx context.Context, accountID int64) ([]sqlc.ListWalletsRow, error)
@@ -27,6 +27,10 @@ type fakeQuerier struct {
 
 func (f *fakeQuerier) InsertCurrency(ctx context.Context, arg sqlc.InsertCurrencyParams) (sqlc.Currency, error) {
 	return f.insertCurrency(ctx, arg)
+}
+
+func (f *fakeQuerier) GetCurrency(ctx context.Context, name string) (sqlc.Currency, error) {
+	return f.getCurrency(ctx, name)
 }
 
 func (f *fakeQuerier) InsertAccount(ctx context.Context, arg sqlc.InsertAccountParams) (sqlc.Account, error) {
@@ -67,33 +71,45 @@ func TestIDBytes(t *testing.T) {
 }
 
 func TestInsertCurrency(t *testing.T) {
+	stored := sqlc.Currency{Name: "USD", Precision: 4, Ledger: 3}
 	tests := []struct {
-		name      string
-		insertErr error
-		wantErr   error
-		wantOther bool // any error other than ErrConflict
+		name        string
+		insertErr   error
+		getErr      error
+		want        ledger.Currency
+		wantCreated bool
+		wantGet     bool
+		wantErr     bool
 	}{
-		{name: "success"},
-		{name: "unique violation", insertErr: &pgconn.PgError{Code: "23505"}, wantErr: ledger.ErrConflict},
-		{name: "other failure", insertErr: errors.New("boom"), wantOther: true},
+		{name: "created", want: ledger.Currency{Name: "USD", Precision: 2, Ledger: 7}, wantCreated: true},
+		{name: "exists", insertErr: pgx.ErrNoRows, want: ledger.Currency{Name: "USD", Precision: 4, Ledger: 3}, wantGet: true},
+		{name: "get fails", insertErr: pgx.ErrNoRows, getErr: errors.New("boom"), wantGet: true, wantErr: true},
+		{name: "insert fails", insertErr: errors.New("boom"), wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &Store{q: &fakeQuerier{insertCurrency: func(_ context.Context, arg sqlc.InsertCurrencyParams) (sqlc.Currency, error) {
-				return sqlc.Currency{Name: arg.Name, Precision: arg.Precision, Ledger: 7}, tt.insertErr
-			}}}
-			got, err := s.InsertCurrency(context.Background(), "USD", 2)
-			if tt.wantOther {
-				if err == nil || errors.Is(err, ledger.ErrConflict) {
-					t.Fatalf("err = %v, want a wrapped unexpected error", err)
-				}
-				return
+			got := false
+			s := &Store{q: &fakeQuerier{
+				insertCurrency: func(_ context.Context, arg sqlc.InsertCurrencyParams) (sqlc.Currency, error) {
+					if tt.insertErr != nil {
+						return sqlc.Currency{}, tt.insertErr
+					}
+					return sqlc.Currency{Name: arg.Name, Precision: arg.Precision, Ledger: 7}, nil
+				},
+				getCurrency: func(context.Context, string) (sqlc.Currency, error) {
+					got = true
+					return stored, tt.getErr
+				},
+			}}
+			c, created, err := s.InsertCurrency(context.Background(), "USD", 2)
+			if got != tt.wantGet {
+				t.Fatalf("get called = %v, want %v", got, tt.wantGet)
 			}
-			if !errors.Is(err, tt.wantErr) {
-				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
 			}
-			if err == nil && got != (ledger.Currency{Name: "USD", Precision: 2, Ledger: 7}) {
-				t.Fatalf("got %+v", got)
+			if err == nil && (c != tt.want || created != tt.wantCreated) {
+				t.Fatalf("got %+v, created %v; want %+v, %v", c, created, tt.want, tt.wantCreated)
 			}
 		})
 	}

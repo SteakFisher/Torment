@@ -56,17 +56,28 @@ func postAccount(l Ledger) http.HandlerFunc {
 	}
 }
 
-// getAccounts handles GET /accounts?address=&after=&limit=. It responds 200 with the matching accounts
-// ordered by address, and next set to the last address when more match, or 400 for a malformed query.
+// getAccounts handles GET /accounts?after=&limit= and GET /accounts/{address}. For an address it responds
+// 200 with that account or 404 when it does not exist. Otherwise it responds 200 with the accounts
+// matching the address pattern, or every account when there is none, ordered by address, and next set to
+// the last address when more match; or 400 for a malformed query.
 func getAccounts(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
+		address := r.PathValue("address")
+		if address != "" && !ledger.IsPattern(address) {
+			acct, err := l.Account(r.Context(), address)
+			if err != nil {
+				writeError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, newAccountJSON(acct))
+			return
+		}
 		limit, err := parseLimit(r)
 		if err != nil {
 			writeError(w, err)
 			return
 		}
-		accounts, more, err := l.ListAccounts(r.Context(), q.Get("address"), q.Get("after"), limit)
+		accounts, more, err := l.ListAccounts(r.Context(), address, r.URL.Query().Get("after"), limit)
 		if err != nil {
 			writeError(w, err)
 			return

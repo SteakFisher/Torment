@@ -14,7 +14,7 @@ import (
 func TestIntegrationTransfer(t *testing.T) {
 	s := newIntegrationService(t)
 	ctx := context.Background()
-	if _, err := s.RegisterCurrency(ctx, "USD/2"); err != nil {
+	if _, _, err := s.RegisterCurrency(ctx, "USD/2"); err != nil {
 		t.Fatalf("error registering currency: %v", err)
 	}
 	if _, _, err := s.RegisterAccount(ctx, ledger.RegisterAccountParams{Address: "world", Type: "equity", AllowNegative: true, Currencies: []string{"USD"}}); err != nil {
@@ -28,7 +28,7 @@ func TestIntegrationTransfer(t *testing.T) {
 	checkUSD := func(want map[string]int64) {
 		t.Helper()
 		for address, amount := range want {
-			got, err := s.Balances(ctx, address, time.Time{})
+			got, err := s.Balances(ctx, address, "", time.Time{})
 			if err != nil || len(got) != 1 || got[0].Amount.Int64() != amount {
 				t.Fatalf("%s balances = %+v, err %v; want USD %d", address, got, err, amount)
 			}

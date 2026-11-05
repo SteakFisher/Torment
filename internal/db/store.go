@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 
@@ -50,16 +49,32 @@ func idsToBytes(ids []tb.Uint128) [][]byte {
 	return out
 }
 
-func (s *Store) InsertCurrency(ctx context.Context, name string, precision int16) (ledger.Currency, error) {
+func (s *Store) InsertCurrency(ctx context.Context, name string, precision int16) (c ledger.Currency, created bool, err error) {
 	row, err := s.q.InsertCurrency(ctx, sqlc.InsertCurrencyParams{Name: name, Precision: precision})
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
-			return ledger.Currency{}, fmt.Errorf("%w: currency %q already exists", ledger.ErrConflict, name)
+	switch {
+	case err == nil:
+		created = true
+	case errors.Is(err, pgx.ErrNoRows):
+		if row, err = s.q.GetCurrency(ctx, name); err != nil {
+			return ledger.Currency{}, false, fmt.Errorf("error getting currency: %w", err)
 		}
-		return ledger.Currency{}, fmt.Errorf("error inserting currency: %w", err)
+	default:
+		return ledger.Currency{}, false, fmt.Errorf("error inserting currency: %w", err)
 	}
-	return ledger.Currency{Name: row.Name, Precision: row.Precision, Ledger: row.Ledger}, nil
+	return ledger.Currency{Name: row.Name, Precision: row.Precision, Ledger: row.Ledger}, created, nil
+}
+
+func (s *Store) ListCurrencies(ctx context.Context) ([]ledger.Currency, error) {
+	// ponytail: no paging, every currency in one response.
+	rows, err := s.q.ListCurrencies(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error listing currencies: %w", err)
+	}
+	currencies := make([]ledger.Currency, len(rows))
+	for i, r := range rows {
+		currencies[i] = ledger.Currency{Name: r.Name, Precision: r.Precision, Ledger: r.Ledger}
+	}
+	return currencies, nil
 }
 
 func (s *Store) Currencies(ctx context.Context, names []string) (map[string]ledger.Currency, error) {

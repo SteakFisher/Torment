@@ -15,7 +15,7 @@ func TestIntegrationListAccounts(t *testing.T) {
 	s := newIntegrationService(t)
 	ctx := context.Background()
 	for _, code := range []string{"USD/2", "AED/2"} {
-		if _, err := s.RegisterCurrency(ctx, code); err != nil {
+		if _, _, err := s.RegisterCurrency(ctx, code); err != nil {
 			t.Fatalf("error registering currency %s: %v", code, err)
 		}
 	}
@@ -77,7 +77,7 @@ func TestIntegrationPatternBalances(t *testing.T) {
 	s := newIntegrationService(t)
 	ctx := context.Background()
 	for _, code := range []string{"USD/2", "AED/2"} {
-		if _, err := s.RegisterCurrency(ctx, code); err != nil {
+		if _, _, err := s.RegisterCurrency(ctx, code); err != nil {
 			t.Fatalf("error registering currency %s: %v", code, err)
 		}
 	}
@@ -149,7 +149,7 @@ func TestIntegrationAccountTransfers(t *testing.T) {
 	s := newIntegrationService(t)
 	ctx := context.Background()
 	for _, code := range []string{"USD/2", "AED/2"} {
-		if _, err := s.RegisterCurrency(ctx, code); err != nil {
+		if _, _, err := s.RegisterCurrency(ctx, code); err != nil {
 			t.Fatalf("error registering currency %s: %v", code, err)
 		}
 	}

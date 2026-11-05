@@ -3,7 +3,6 @@ package ledger
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 )
 
@@ -51,25 +50,30 @@ func TestParseCurrencyCode(t *testing.T) {
 
 func TestRegisterCurrency(t *testing.T) {
 	tests := []struct {
-		name      string
-		code      string
-		insertErr error
-		wantErr   error
-		wantCall  bool
+		name        string
+		code        string
+		stored      *Currency // the currency already stored under the name, if any
+		wantErr     error
+		wantCall    bool
+		wantCreated bool
 	}{
 		{name: "invalid code", code: "usd", wantErr: ErrInvalid},
-		{name: "conflict", code: "USD/2", insertErr: fmt.Errorf("%w: currency exists", ErrConflict), wantErr: ErrConflict, wantCall: true},
-		{name: "success", code: "USD/2", wantCall: true},
-		{name: "success without precision", code: "JPY", wantCall: true},
+		{name: "created", code: "USD/2", wantCall: true, wantCreated: true},
+		{name: "created without precision", code: "JPY", wantCall: true, wantCreated: true},
+		{name: "replay", code: "USD/2", stored: &Currency{Name: "USD", Precision: 2, Ledger: 7}, wantCall: true},
+		{name: "different precision", code: "USD/4", stored: &Currency{Name: "USD", Precision: 2, Ledger: 7}, wantErr: ErrConflict, wantCall: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			called := false
-			store := &fakeStore{insertCurrency: func(_ context.Context, name string, precision int16) (Currency, error) {
+			store := &fakeStore{insertCurrency: func(_ context.Context, name string, precision int16) (Currency, bool, error) {
 				called = true
-				return Currency{Name: name, Precision: precision, Ledger: 7}, tt.insertErr
+				if tt.stored != nil {
+					return *tt.stored, false, nil
+				}
+				return Currency{Name: name, Precision: precision, Ledger: 7}, true, nil
 			}}
-			got, err := New(store, nil).RegisterCurrency(context.Background(), tt.code)
+			got, created, err := New(store, nil).RegisterCurrency(context.Background(), tt.code)
 			if called != tt.wantCall {
 				t.Fatalf("InsertCurrency called = %v, want %v", called, tt.wantCall)
 			}
@@ -83,8 +87,8 @@ func TestRegisterCurrency(t *testing.T) {
 				t.Fatalf("unexpected err: %v", err)
 			}
 			name, precision, _ := ParseCurrencyCode(tt.code)
-			if want := (Currency{Name: name, Precision: precision, Ledger: 7}); got != want {
-				t.Fatalf("got %+v, want %+v", got, want)
+			if want := (Currency{Name: name, Precision: precision, Ledger: 7}); got != want || created != tt.wantCreated {
+				t.Fatalf("got %+v, created %v; want %+v, %v", got, created, want, tt.wantCreated)
 			}
 		})
 	}

@@ -37,14 +37,27 @@ func ParseCurrencyCode(code string) (name string, precision int16, err error) {
 }
 
 // RegisterCurrency parses code with ParseCurrencyCode and stores it as a new currency on a newly
-// assigned TigerBeetle ledger. It returns ErrInvalid for a malformed code and ErrConflict when the
-// name is already registered.
-func (s *Service) RegisterCurrency(ctx context.Context, code string) (Currency, error) {
+// assigned TigerBeetle ledger. It is idempotent: when the name is already registered with the same
+// precision, it returns the stored currency with created false. It returns ErrInvalid for a malformed
+// code and ErrConflict when the name is registered with a different precision.
+func (s *Service) RegisterCurrency(ctx context.Context, code string) (c Currency, created bool, err error) {
 	name, precision, err := ParseCurrencyCode(code)
 	if err != nil {
-		return Currency{}, err
+		return Currency{}, false, err
 	}
-	return s.store.InsertCurrency(ctx, name, precision)
+	c, created, err = s.store.InsertCurrency(ctx, name, precision)
+	if err != nil {
+		return Currency{}, false, err
+	}
+	if !created && c.Precision != precision {
+		return Currency{}, false, fmt.Errorf("%w: currency %q already exists with precision %d", ErrConflict, name, c.Precision)
+	}
+	return c, created, nil
+}
+
+// Currencies returns every registered currency, ordered by name.
+func (s *Service) Currencies(ctx context.Context) ([]Currency, error) {
+	return s.store.ListCurrencies(ctx)
 }
 
 // lookupCurrencies returns each named currency, keyed by name. It returns

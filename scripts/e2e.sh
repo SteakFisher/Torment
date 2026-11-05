@@ -9,7 +9,8 @@ BASE_URL=${BASE_URL:-http://localhost:8080}
 API_KEY=${API_KEY:?API_KEY is not set}
 run=$(date +%s)
 rider="rider:$run:wallet"
-pay=${run}1 overspend=${run}2 refund=${run}3 eur=${run}4
+bonus="rider:$run:bonus"
+pay=${run}1 overspend=${run}2 refund=${run}3 eur=${run}4 move=${run}5
 
 # post PATH BODY and get PATH print the response body, a space and the status code, on one line.
 post() { curl -sS -H "Authorization: Bearer $API_KEY" -X POST -H 'Content-Type: application/json' -d "$2" -w ' %{http_code}' "$BASE_URL$1" | tr -d '\n'; }
@@ -31,8 +32,9 @@ posting() {
 }
 
 expect "no key is rejected" "$(curl -sS -w ' %{http_code}' "$BASE_URL/accounts")" ' 401$'
-expect "register USD" "$(post /currencies '{"code":"USD/2"}')" ' (201|409)$'
-expect "register EUR" "$(post /currencies '{"code":"EUR/2"}')" ' (201|409)$'
+expect "register USD" "$(post /currencies '{"code":"USD/2"}')" ' (200|201)$'
+expect "register EUR" "$(post /currencies '{"code":"EUR/2"}')" ' (200|201)$'
+expect "list currencies" "$(get /currencies)" '"name":"EUR","precision":2\}.*"name":"USD","precision":2\}.* 200$'
 expect "register world" "$(post /accounts '{"address":"world","type":"equity","allow_negative":true}')" ' (200|201)$'
 expect "register rider" "$(post /accounts "$(printf '{"address":"%s","type":"liability"}' "$rider")")" ' 201$'
 
@@ -45,19 +47,27 @@ expect "rider still has 100 USD" "$(get "/accounts/$rider/balances")" '"amount":
 expect "overspend" "$(post /transfers "$(posting "$overspend" "$rider" world USD 20000)")" '"error":"insufficient_funds".* 200$'
 
 expect "refund 30 USD in the pay group" "$(post /transfers "$(posting "$refund" "$rider" world USD 3000 "$pay")")" '"status":"created".* 200$'
-expect "group has pay then refund" "$(get "/groups/$pay/transfers")" "\"id\":\"$pay\".*\"id\":\"$refund\".* 200\$"
+expect "group has refund then pay" "$(get "/groups/$pay/transfers")" "\"id\":\"$refund\".*\"id\":\"$pay\".* 200\$"
 
 expect "pay 5 EUR" "$(post /transfers "$(posting "$eur" world "$rider" EUR 500)")" '"status":"created".* 200$'
 expect "rider has EUR and USD" "$(get "/accounts/$rider/balances")" '"currency":"EUR","precision":2,"amount":"500".*"currency":"USD","precision":2,"amount":"7000".* 200$'
+expect "rider EUR balance only" "$(get "/accounts/$rider/balances?currency=EUR")" '"balances":\[\{"currency":"EUR","precision":2,"amount":"500"\}\]\} 200$'
 
 # at_pay is the time TB committed the pay transfer.
 at_pay=$(get "/groups/$pay/transfers" | sed -E "s/.*\"id\":\"$pay\"[^}]*\"timestamp\":\"([^\"]+)\".*/\1/")
 expect "rider had 100 USD at pay" "$(get "/accounts/$rider/balances?at=$at_pay")" '"currency":"USD","precision":2,"amount":"10000".* 200$'
 
-expect "list rider accounts" "$(get "/accounts?address=rider:$run:*")" "\"address\":\"$rider\".*\"currency\":\"EUR\".*\"currency\":\"USD\".* 200\$"
-expect "rider totals" "$(get "/balances?address=rider:$run:*")" '"totals":\[\{"type":"liability","currency":"EUR","precision":2,"amount":"500"\},\{"type":"liability","currency":"USD","precision":2,"amount":"7000"\}\].* 200$'
+expect "get rider" "$(get "/accounts/$rider")" "^\\{\"address\":\"$rider\",\"type\":\"liability\",.*\"wallets\":\\[\\{\"currency\":\"EUR\",\"precision\":2\\},\\{\"currency\":\"USD\",\"precision\":2\\}\\]\\} 200\$"
+expect "list rider accounts" "$(get "/accounts/rider:$run:*")" "\"address\":\"$rider\".*\"currency\":\"EUR\".*\"currency\":\"USD\".* 200\$"
+expect "rider totals" "$(get "/accounts/rider:$run:*/balances")" '"totals":\[\{"type":"liability","currency":"EUR","precision":2,"amount":"500"\},\{"type":"liability","currency":"USD","precision":2,"amount":"7000"\}\].* 200$'
 
 page=$(get "/accounts/$rider/transfers?currency=USD&limit=1")
 expect "newest USD transfer is the refund" "$page" "\"id\":\"$refund\".*\"next\":.* 200\$"
 before=$(printf '%s' "$page" | sed -E 's/.*"next":"([^"]+)".*/\1/')
 expect "next page is the pay" "$(get "/accounts/$rider/transfers?currency=USD&limit=1&before=$before")" "\"id\":\"$pay\".* 200\$"
+
+expect "register bonus" "$(post /accounts "$(printf '{"address":"%s","type":"liability"}' "$bonus")")" ' 201$'
+expect "move 10 USD to bonus" "$(post /transfers "$(posting "$move" "$rider" "$bonus" USD 1000)")" '"status":"created".* 200$'
+pots=$(get "/accounts/rider:$run:*/transfers")
+expect "pattern transfers merge the rider's pots" "$pots" "\"id\":\"$move\".*\"id\":\"$eur\".*\"id\":\"$refund\".*\"id\":\"$pay\".* 200\$"
+expect "move between pots appears once" "$(printf '%s' "$pots" | grep -o "\"id\":\"$move\"" | wc -l | tr -d ' ')" '^1$'
