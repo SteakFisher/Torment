@@ -65,6 +65,23 @@ When TigerBeetle rejects postings, the result is reported for each one:
 - **Other chains:** each one is applied separately, so failures are reported per posting and never fail the whole request.
 - **Groups:** `group_id` is stored in `user_data_128`. It defaults to the posting's own id, which keeps retries consistent.
 
+## Batching
+Most of a write's cost is the HTTP request around it, not TigerBeetle. Benchmarked on 8 cores with the wallet cache: about 7,700 applied writes/s with one write per request, and about 45,000 with 100 per request. One request can carry many independent postings and chains, each with its own result, so callers with volume should batch.
+
+- **Torment already batches toward TigerBeetle.** Concurrent `create_transfers` calls on the write client merge into one TigerBeetle request, so Torment has no batcher of its own. What callers save by batching is the per-request work: HTTP, JSON, auth and building results.
+- **Which writes to batch:**
+
+  | Writer | Batch? |
+  |---|---|
+  | Order fills | yes, whatever has queued since the last send |
+  | Deposits and withdrawals a user is waiting on | not needed: one request each, merged toward TigerBeetle anyway |
+  | Dividends, fees, interest, end-of-day jobs | yes, thousands of chains per request |
+  | Imports, replays, reconciliation | yes, as large as the limits allow |
+
+- **Batch whatever is waiting; never wait for more.** When a request returns, send everything that queued while it was in flight as the next request. Never hold writes on a timer to fill a batch. A quiet caller then sends batches of one with the lowest latency, and under load batches grow on their own. A timer adds latency when traffic is quiet and does nothing under load.
+- **Limits:** at most 8189 postings per request, which is TigerBeetle's batch size, and a 1 MiB body, roughly 5,000 postings of JSON. The body cap is the tighter one and can be raised when a caller needs it.
+- **A failed request fails every chain in it:** a 500, a timeout or a lost connection. The outcome is unknown, so resend the same chains with the same ids: each posting comes back `created` or `exists`, never applied twice. Per-posting failures such as `insufficient_funds` affect only that posting's chain.
+
 ## Groups
 `GET /groups/{group_id}/transfers`: a read only. TigerBeetle `query_transfers` on `user_data_128`, then one Postgres query maps the account ids to addresses. Newest first, like account transfers.
 
