@@ -12,8 +12,9 @@ type Service struct {
 	tb    tbClient
 }
 
+// New returns a Service that keeps wallets read from store in memory.
 func New(store Store, tb tbClient) *Service {
-	return &Service{store: store, tb: tb}
+	return &Service{store: newWalletCache(store), tb: tb}
 }
 
 // Store keeps currencies, accounts and wallets. Errors other than ErrNotFound and ErrConflict mean the

@@ -35,7 +35,9 @@ One per (account, currency), and each is one TigerBeetle account. The type goes 
 
 - **Why the flag exists:** a transfer to a wallet with no TigerBeetle account fails with `account_not_found`, and TigerBeetle then permanently rejects that transfer id. So step 3 must succeed before any transfer is sent.
 - **Two requests creating the same wallet:** `unique(account_id, currency)` means the first insert wins, and both requests read back its id.
-- **Costs nothing when wallets are already confirmed:** one query, no TigerBeetle call.
+- **Costs nothing when wallets are already confirmed:** no query, no TigerBeetle call. Confirmed wallets are kept in memory (`cache.go`); an unconfirmed one is read from Postgres every time until it is confirmed.
+- **Why the cache is safe:** a confirmed wallet never changes, and neither does the address and currency behind a TigerBeetle id. So nothing goes stale, nothing needs invalidating, and each instance fills its own. Benchmarked on 8 cores, the wallet lookup was half of all CPU at about 7k requests/s.
+- **Not cached:** "which wallets does this address or pattern have" (balances, history, account lists). New wallets appear, so only a complete copy of the table could answer it, and none has been needed yet.
 - **Every wallet has TigerBeetle's `history` flag**, so past balances can be queried. TigerBeetle 0.17.9 already stores a balance snapshot for every transfer (for CDC); the flag indexes it by account and keeps it from future pruning, about one small index entry per transfer. Flags can't change after creation, so this was decided before any real data.
 
 ## Balances
