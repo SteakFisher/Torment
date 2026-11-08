@@ -1,0 +1,88 @@
+---
+// Benchmark highlights for the landing page. Numbers are applied writes per second from
+// TorBench's closed-loop AWS runs, each system at its best; see internals/performance.md.
+const levels = [
+  { name: 'Hot', detail: 'every trade hits the same few accounts', torment: 35995, formance: 3 },
+  { name: 'Medium', detail: 'trades spread over 16 sets of accounts', torment: 47022, formance: 39, typical: true },
+  { name: 'Spread', detail: '256 sets, users picked at random', torment: 45074, formance: 1053 },
+];
+
+// The bar chart shows medium contention, split by how many postings each request carries.
+const rows = [
+  { label: '100 postings per request', torment: 47022, formance: 16 },
+  { label: '1 posting per request', torment: 6610, formance: 39 },
+];
+const max = 47022;
+const fmt = (n: number) => n.toLocaleString('en-US');
+const times = (l: { torment: number; formance: number }) => fmt(Math.round(l.torment / l.formance));
+---
+
+<section class="bench" aria-labelledby="bench-title">
+  <h2 id="bench-title">Writes per second against Formance</h2>
+
+  <div class="multipliers">
+    {levels.map((l) => (
+      <div class:list={['multiplier', { typical: l.typical }]}>
+        <span class="level">{l.name} contention{l.typical && <em> · typical</em>}</span>
+        <span class="times">{times(l)}×</span>
+        <span class="detail">{fmt(l.torment)} vs {fmt(l.formance)} writes/s</span>
+        <span class="detail">{l.detail}</span>
+      </div>
+    ))}
+  </div>
+
+  <div class="chart" role="group" aria-label="Medium contention, applied writes per second">
+    <div class="legend">
+      <span><i class="swatch torment"></i>Torment</span>
+      <span><i class="swatch formance"></i>Formance v2.4.17</span>
+      <span class="muted">Medium contention, applied writes/s</span>
+    </div>
+    {rows.map((r) => (
+      <div class="row">
+        <span class="row-label">{r.label}</span>
+        {[['torment', 'Torment', r.torment], ['formance', 'Formance', r.formance]].map(([key, name, v]) => (
+          <div class="bar-line" title={`${name}, ${r.label}: ${fmt(v as number)} writes/s`}>
+            <div class:list={['bar', key]} style={`width: max(4px, calc((100% - 4.5rem) * ${(v as number) / max}))`}></div>
+            <span class="value">{fmt(v as number)}</span>
+          </div>
+        ))}
+      </div>
+    ))}
+  </div>
+
+  <p class="note">
+    One 8-core AWS machine, a simulated brokerage, each system at its best. Closed loop: clients
+    send requests back to back, so this is the most each system can do. We wrote the benchmark,
+    so read the <a href="/internals/performance/">full results and caveats</a>.
+  </p>
+</section>
+
+<style>
+  .bench { margin-block: -2rem 2.5rem; --torment: #34d399; --torment-low: rgb(52 211 153 / 0.1); }
+  :global(:root[data-theme='light']) .bench { --torment: #047857; --torment-low: rgb(4 120 87 / 0.08); }
+  .bench h2 { text-align: center; margin-bottom: 1.5rem; }
+  .multipliers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 0; }
+  .multiplier {
+    display: flex; flex-direction: column; gap: 0.15rem; margin: 0;
+    padding: 1.25rem; border: 1px solid var(--sl-color-gray-5); border-radius: 0.75rem;
+  }
+  .multiplier.typical { border-color: var(--torment); background: var(--torment-low); }
+  .level { font-size: var(--sl-text-sm); color: var(--sl-color-gray-3); margin: 0; }
+  .level em { font-style: normal; color: var(--sl-color-white); }
+  .times { font-size: 2.75rem; font-weight: 700; line-height: 1.1; color: var(--torment); margin: 0; }
+  .detail { font-size: var(--sl-text-xs); color: var(--sl-color-gray-3); margin: 0; }
+  @media (max-width: 50rem) { .multipliers { grid-template-columns: 1fr; } }
+  .chart { margin-top: 2rem; display: flex; flex-direction: column; gap: 1.25rem; }
+  .legend { display: flex; flex-wrap: wrap; gap: 1.25rem; font-size: var(--sl-text-sm); margin: 0; }
+  .legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .muted { color: var(--sl-color-gray-3); }
+  .swatch { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 2px; }
+  .row { display: flex; flex-direction: column; gap: 0.35rem; margin: 0; }
+  .row-label { font-size: var(--sl-text-sm); color: var(--sl-color-gray-2); margin: 0; }
+  .bar-line { display: flex; align-items: center; gap: 0.6rem; margin: 0; }
+  .bar { flex: none; height: 1.4rem; border-radius: 0 4px 4px 0; margin: 0; }
+  .torment { background: var(--torment); }
+  .formance { background: var(--sl-color-gray-3); }
+  .value { font-size: var(--sl-text-sm); font-variant-numeric: tabular-nums; color: var(--sl-color-white); white-space: nowrap; margin: 0; }
+  .note { margin-top: 1.5rem; font-size: var(--sl-text-sm); color: var(--sl-color-gray-3); text-align: center; }
+</style>

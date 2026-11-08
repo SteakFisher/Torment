@@ -4,19 +4,20 @@ description: A ledger service on top of TigerBeetle, with readable account names
 template: splash
 hero:
   tagline: A ledger for money that moves fast. Name accounts like rider:123:wallet, move money with retry-safe postings, and keep TigerBeetle's speed.
-  actions:
-    - text: Quickstart
-      link: /getting-started/quickstart/
-      icon: right-arrow
-    - text: Read the introduction
-      link: /getting-started/introduction/
-      variant: secondary
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { Card, CardGrid, LinkButton } from '@astrojs/starlight/components';
+import Benchmarks from '../../components/Benchmarks.astro';
 import { ContainerSection } from 'lucode-starlight/components';
 
 <ContainerSection>
+
+<Benchmarks />
+
+<div class="actions">
+  <LinkButton href="/getting-started/quickstart/" icon="right-arrow">Quickstart</LinkButton>
+  <LinkButton href="/getting-started/introduction/" variant="secondary">Read the introduction</LinkButton>
+</div>
 
 <CardGrid>
   <Card title="Readable accounts" icon="pencil">
@@ -35,3 +36,5 @@ import { ContainerSection } from 'lucode-starlight/components';
 </CardGrid>
 
 </ContainerSection>
+
+<style>{`body .hero.hero { padding-block-end: 0; } .actions { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; margin-block: 0 2.5rem; }`}</style>

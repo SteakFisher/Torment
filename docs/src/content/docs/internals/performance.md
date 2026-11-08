@@ -23,5 +23,6 @@ The big gap under contention is a design difference. Formance locks each account
 ## Be fair about the numbers
 - **We wrote the benchmark,** and we know Torment far better than Formance. Formance ran with the settings from its example compose file, and someone who knows it well could probably tune it further.
 - **One run each, not medians.**
+- **These are closed-loop numbers:** each client sends its next request as soon as the last one returns, which measures the most a system can do. That doesn't show latency under a steady load. For that, TorBench also ran each system on a fixed schedule (open loop) at 25 to 90% of its best rate. Those results are in the [TorBench repo](https://github.com/SteakFisher/TorBench).
 - **The spread result depends on the data.** After about 16 minutes of earlier runs, Torment dropped from about 7,900 to 1,759 writes/s. Our best explanation, from the numbers rather than a direct measurement, is that statement reads for random users miss TigerBeetle's cache and go to disk, and because TigerBeetle handles one request at a time, writes wait behind them.
 - **With everything on one machine, latency is low for both.** Across a real network, every request pays the round trip as well.
