@@ -1,4 +1,6 @@
-# API
+---
+title: API
+---
 
 JSON over HTTP. The server listens on `ADDR` (default `:8080`).
 
@@ -184,7 +186,7 @@ The whole request fails, and nothing is applied, only for:
 
 **Retries are safe.** Resending a posting with the same id and fields never applies it twice; it returns `exists`.
 
-**Batch when you have volume.** One request can carry thousands of independent postings and chains, and that is much faster than one request per posting. Send whatever has queued since your last request returned, and never wait to fill a batch. See [decisions.md](decisions.md#batching).
+**Batch when you have volume.** One request can carry thousands of independent postings and chains, and that is much faster than one request per posting. Send whatever has queued since your last request returned, and never wait to fill a batch. See [Batching](/internals/decisions/#batching).
 
 ### `GET /groups/{group_id}/transfers`
 Returns 200 with the group's transfers, newest first, up to 8189. An unknown group returns an empty list. A malformed id returns 400.

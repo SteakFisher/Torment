@@ -1,0 +1,37 @@
+---
+title: Torment
+description: A ledger service on top of TigerBeetle, with readable account names and real accounting types.
+template: splash
+hero:
+  tagline: A ledger for money that moves fast. Name accounts like rider:123:wallet, move money with retry-safe postings, and keep TigerBeetle's speed.
+  actions:
+    - text: Quickstart
+      link: /getting-started/quickstart/
+      icon: right-arrow
+    - text: Read the introduction
+      link: /getting-started/introduction/
+      variant: secondary
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+import { ContainerSection } from 'lucode-starlight/components';
+
+<ContainerSection>
+
+<CardGrid>
+  <Card title="Readable accounts" icon="pencil">
+    Name accounts after what they are, like `rider:123:wallet` or `platform:fees`, and read many at
+    once with patterns like `rider:123:*`.
+  </Card>
+  <Card title="Safe to retry" icon="approve-check">
+    Every posting carries your own id. Send it twice and it is applied once.
+  </Card>
+  <Card title="All or nothing" icon="puzzle">
+    Group postings into a chain, and either every one of them happens or none do.
+  </Card>
+  <Card title="Fast under contention" icon="rocket">
+    Balances live in TigerBeetle, so busy accounts don't make writes queue behind locks.
+  </Card>
+</CardGrid>
+
+</ContainerSection>

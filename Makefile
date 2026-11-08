@@ -6,7 +6,7 @@ export TEST_TB_ADDRESS ?= 3000
 export API_KEYS ?= dev-key
 export API_KEY ?= dev-key
 
-.PHONY: up down run test e2e generate
+.PHONY: up down run test e2e generate docs brokerage
 
 up:
 	docker compose up -d --wait
@@ -24,5 +24,13 @@ test: generate
 e2e:
 	./scripts/e2e.sh
 
+# brokerage runs the tutorial's requests; it also needs the server running.
+brokerage:
+	./scripts/brokerage.sh
+
 generate:
 	go tool sqlc generate
+
+# Serves the docs site with live reload at http://localhost:4321.
+docs:
+	cd docs && bun install && bun run dev

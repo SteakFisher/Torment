@@ -1,4 +1,6 @@
-# Decisions
+---
+title: Decisions
+---
 
 Postgres maps names to TigerBeetle ids, and TigerBeetle holds balances and transfers. Postgres is always written first. Every write is safe to retry.
 

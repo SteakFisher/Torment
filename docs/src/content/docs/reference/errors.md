@@ -1,0 +1,46 @@
+---
+title: Errors and retries
+description: Every way a request can fail, and what to do about each.
+---
+
+There are two kinds of failure. A **request** fails when the whole thing is rejected or its outcome is unknown. A **posting** fails when the request worked but the ledger refused that posting.
+
+## Request failures
+
+The response is `{"error": "<message>"}` with one of these statuses:
+
+| Status | Meaning | What to do |
+|---|---|---|
+| 400 | malformed JSON, an unknown field or an invalid value | fix the request. Retrying won't help |
+| 401 | missing or wrong API key | fix the `Authorization` header |
+| 404 | an account, currency or wallet doesn't exist | register it, or fix the name |
+| 409 | the input clashes with something already stored, such as an account registered with a different type | use the stored values, or a new name |
+| 500 | something failed inside Torment, and it was logged | retry the same request |
+
+For `POST /transfers`, a 400 or 404 means nothing was applied. A 500, a timeout or a lost connection means you don't know: some postings may have been applied. Resend the **same request with the same ids**. Each posting then comes back `created` or `exists`, so nothing is applied twice.
+
+## Posting failures
+
+`POST /transfers` returns 200 with a result for every posting, even when some fail:
+
+| `error` | Meaning | What to do |
+|---|---|---|
+| `insufficient_funds` | the posting would take an account below zero. Nothing in its chain was applied | top up first, then resend this posting **with a new id** |
+| `chain_failed` | another posting in the same chain failed, so this one wasn't applied | fix the other posting. This id can be reused |
+| `conflict` | the id was already used for a posting with different fields | use a new id. If you meant to correct a posting, see [Mistakes](/brokerage/mistakes/) |
+| `id_already_failed` | the id belongs to a posting that failed before | use a new id |
+| `internal` | an unexpected error, which was logged | resend with the same id |
+
+## Retrying safely
+
+Every write in Torment is safe to retry when it's identical:
+
+- **Currencies:** the same code returns 200 instead of 201.
+- **Accounts:** the same fields return 200 instead of 201, and finish creating any missing wallets.
+- **Postings:** the same id and fields return `exists`.
+
+So the rule for clients is: on any failure where you don't know the outcome, send exactly the same request again. Never change the ids of a retry, and never reuse an id for a different posting.
+
+## Why a failed id can't be reused
+
+TigerBeetle remembers every id that failed with `insufficient_funds`, and rejects it forever after. Without that, a posting that failed for lack of money could suddenly succeed on a retry hours later, after a deposit, which is rarely what anyone intended. A new attempt gets a new id.

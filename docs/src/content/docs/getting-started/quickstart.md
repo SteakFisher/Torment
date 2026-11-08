@@ -1,0 +1,127 @@
+---
+title: Quickstart
+description: Run Torment locally and move your first money in five minutes.
+---
+
+You need Go 1.26 and Docker.
+
+## Start it
+
+```sh
+make up    # Postgres 17 and a single-replica TigerBeetle
+make run   # migrates the database and serves on :8080
+```
+
+Every example below is one HTTP request with a JSON body. To send one with curl:
+
+```sh
+curl -H 'Authorization: Bearer dev-key' -d '<body>' localhost:8080/<path>
+```
+
+`dev-key` is the development API key. Every route except `/healthz` needs it.
+
+## 1. Register a currency
+
+Currencies are registered once. `USD/2` means amounts are in cents.
+
+```json title="POST /currencies"
+{ "code": "USD/2" }
+```
+
+```json title="201 Created"
+{ "name": "USD", "precision": 2 }
+```
+
+## 2. Register two accounts
+
+Money has to come from somewhere. Here it comes from your bank account, which is an `asset` because it's money you own.
+
+```json title="POST /accounts"
+{ "address": "bank:settlement", "type": "asset" }
+```
+
+The rider's wallet is a `liability`, because it's money you hold for the rider.
+
+```json title="POST /accounts"
+{ "address": "rider:1:wallet", "type": "liability" }
+```
+
+## 3. Move money
+
+The rider tops up $100. The money arrives in your bank, and you now owe it to the rider.
+
+```json title="POST /transfers"
+{
+  "postings": [
+    {
+      "id": "1",
+      "source": "bank:settlement",
+      "destination": "rider:1:wallet",
+      "currency": "USD",
+      "amount": "10000"
+    }
+  ]
+}
+```
+
+```json title="200 OK"
+{ "transfers": [{ "id": "1", "group_id": "1", "status": "created" }] }
+```
+
+## 4. Read the balance
+
+```http
+GET /accounts/rider:1:wallet/balances
+```
+
+```json title="200 OK"
+{
+  "address": "rider:1:wallet",
+  "balances": [{ "currency": "USD", "precision": 2, "amount": "10000" }]
+}
+```
+
+Both balances are positive: the bank holds $100, and you owe the rider $100. That's double-entry: every posting changes two accounts by the same amount.
+
+## 5. Send it again
+
+Send the same transfer from step 3 again. It isn't applied twice:
+
+```json title="200 OK"
+{ "transfers": [{ "id": "1", "group_id": "1", "status": "exists" }] }
+```
+
+That's what makes retries safe: if a request times out, send it again with the same ids.
+
+## 6. Try to overspend
+
+The rider tries to withdraw $200 they don't have.
+
+```json title="POST /transfers"
+{
+  "postings": [
+    {
+      "id": "2",
+      "source": "rider:1:wallet",
+      "destination": "bank:settlement",
+      "currency": "USD",
+      "amount": "20000"
+    }
+  ]
+}
+```
+
+```json title="200 OK"
+{
+  "transfers": [
+    { "id": "2", "group_id": "2", "status": "failed", "error": "insufficient_funds", "message": "..." }
+  ]
+}
+```
+
+Nothing moved. To try again after a top-up, use a new id: a failed id can't be reused.
+
+## Next
+
+- [Concepts](/getting-started/concepts/) explains accounts, wallets, postings and chains properly.
+- [API](/reference/api/) lists every route.
