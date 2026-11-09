@@ -44,7 +44,7 @@ func (s *Service) Balances(ctx context.Context, address, currency string, at tim
 	for i, w := range acct.Wallets {
 		ids[i] = w.ID
 	}
-	totals, err := s.postedTotals(ids, at)
+	totals, err := s.postedTotals(ctx, ids, at)
 	if err != nil {
 		return nil, err
 	}
@@ -68,11 +68,11 @@ func netAmount(typ AccountType, p posted) *big.Int {
 
 // postedTotals returns the posted totals of the TigerBeetle accounts ids, now when at is zero and as of at
 // otherwise. Accounts with nothing to report are left out.
-func (s *Service) postedTotals(ids []tb.Uint128, at time.Time) (map[tb.Uint128]posted, error) {
+func (s *Service) postedTotals(ctx context.Context, ids []tb.Uint128, at time.Time) (map[tb.Uint128]posted, error) {
 	if at.IsZero() {
-		return s.postedNow(ids)
+		return s.postedNow(ctx, ids)
 	}
-	return s.postedAt(ids, at)
+	return s.postedAt(ctx, ids, at)
 }
 
 // validateAt returns ErrInvalid unless at is zero or between 1970 and 2262, the range of TigerBeetle
@@ -86,9 +86,9 @@ func validateAt(at time.Time) error {
 
 // postedNow returns the current posted totals of the TigerBeetle accounts ids, in one request. Accounts
 // missing from TigerBeetle are left out.
-func (s *Service) postedNow(ids []tb.Uint128) (map[tb.Uint128]posted, error) {
+func (s *Service) postedNow(ctx context.Context, ids []tb.Uint128) (map[tb.Uint128]posted, error) {
 	// ponytail: one request, so more than 8189 ids fails.
-	found, err := s.reads.LookupAccounts(ids)
+	found, err := tbCall(ctx, func() ([]tb.Account, error) { return s.reads.LookupAccounts(ids) })
 	if err != nil {
 		return nil, fmt.Errorf("error looking up tigerbeetle accounts: %w", err)
 	}
@@ -102,18 +102,19 @@ func (s *Service) postedNow(ids []tb.Uint128) (map[tb.Uint128]posted, error) {
 // postedAt returns the posted totals of the TigerBeetle accounts ids after their last transfer at or
 // before at, with one query per account. The queries run at once so the client sends them together in
 // one request. Accounts with no such transfer are left out.
-func (s *Service) postedAt(ids []tb.Uint128, at time.Time) (map[tb.Uint128]posted, error) {
+func (s *Service) postedAt(ctx context.Context, ids []tb.Uint128, at time.Time) (map[tb.Uint128]posted, error) {
 	perAccount := make([][]tb.AccountBalance, len(ids))
 	errs := make([]error, len(ids))
 	var wg sync.WaitGroup
 	for i, id := range ids {
 		wg.Go(func() {
-			perAccount[i], errs[i] = s.reads.GetAccountBalances(tb.AccountFilter{
+			filter := tb.AccountFilter{
 				AccountID:    id,
 				TimestampMax: uint64(at.UnixNano()),
 				Limit:        1,
 				Flags:        tb.AccountFilterFlags{Debits: true, Credits: true, Reversed: true}.ToUint32(),
-			})
+			}
+			perAccount[i], errs[i] = tbCall(ctx, func() ([]tb.AccountBalance, error) { return s.reads.GetAccountBalances(filter) })
 		})
 	}
 	wg.Wait()

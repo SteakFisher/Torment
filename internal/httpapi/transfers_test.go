@@ -25,13 +25,14 @@ func TestPostTransfer(t *testing.T) {
 		`{"id":"18446744073709551617","source":"world","destination":"rider:1:wallet","currency":"USD","amount":"100","group_id":"9"},` +
 		`[` + posting("2") + `,` + posting("3") + `],` +
 		posting("4") + `,` +
-		` [` + posting("5") + `,` + posting("6") + `,` + posting("7") + `]]}`
+		` [` + posting("5") + `,` + posting("6") + `,` + posting("7") + `],` +
+		posting("8") + `]}`
 	p := func(id string) ledger.Posting {
 		return ledger.Posting{ID: id, Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: "100"}
 	}
 	first := p("18446744073709551617")
 	first.GroupID = "9"
-	wantChains := [][]ledger.Posting{{first}, {p("2"), p("3")}, {p("4")}, {p("5"), p("6"), p("7")}}
+	wantChains := [][]ledger.Posting{{first}, {p("2"), p("3")}, {p("4")}, {p("5"), p("6"), p("7")}, {p("8")}}
 	// 2^64 + 1 does not fit in a uint64
 	bigID := tb.BigIntToUint128(new(big.Int).SetBit(big.NewInt(1), 64, 1))
 	tr := func(id uint64, created bool, err error) ledger.Transfer {
@@ -46,6 +47,7 @@ func TestPostTransfer(t *testing.T) {
 			{tr(2, false, fmt.Errorf("%w: detail", ledger.ErrChainFailed)), tr(3, false, ledger.ErrInsufficientFunds)},
 			{tr(4, false, nil)},
 			{tr(5, false, ledger.ErrConflict), tr(6, false, ledger.ErrIDAlreadyFailed), tr(7, false, errors.New("boom"))},
+			{tr(8, false, ledger.ErrOverflow)},
 		}, nil
 	}}
 	rec := httptest.NewRecorder()
@@ -63,7 +65,8 @@ func TestPostTransfer(t *testing.T) {
 		`{"id":"4","group_id":"4","status":"exists"},` +
 		`[{"id":"5","group_id":"5","status":"failed","error":"conflict","message":"conflict"},` +
 		`{"id":"6","group_id":"6","status":"failed","error":"id_already_failed","message":"id already failed"},` +
-		`{"id":"7","group_id":"7","status":"failed","error":"internal","message":"internal error"}]]}`
+		`{"id":"7","group_id":"7","status":"failed","error":"internal","message":"internal error"}],` +
+		`{"id":"8","group_id":"8","status":"failed","error":"overflow","message":"overflow"}]}`
 	if strings.TrimSpace(rec.Body.String()) != wantBody {
 		t.Fatalf("body = %s\nwant %s", rec.Body, wantBody)
 	}

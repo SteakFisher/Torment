@@ -46,14 +46,14 @@ func (s *Service) Transfer(ctx context.Context, chains [][]Posting) ([][]Transfe
 	if err := s.resolveWallets(ctx, chains, batch); err != nil {
 		return nil, err
 	}
-	results, err := s.writes.CreateTransfers(batch)
+	results, err := tbCall(ctx, func() ([]tb.CreateTransferResult, error) { return s.writes.CreateTransfers(batch) })
 	if err != nil {
 		return nil, fmt.Errorf("error creating tigerbeetle transfers: %w", err)
 	}
 	if len(results) != len(batch) {
 		return nil, fmt.Errorf("error creating tigerbeetle transfers: got %d results for %d transfers", len(results), len(batch))
 	}
-	return s.transferResults(chains, batch, results), nil
+	return s.transferResults(ctx, chains, batch, results), nil
 }
 
 // validateChains returns the TigerBeetle transfers for chains in order, with every field set except the
@@ -166,7 +166,7 @@ type existingChain struct {
 // transferResults returns the outcome of each posting in the shape of chains, where batch and results
 // hold the transfer and status for each posting in order. The ids of chains whose first failure is
 // TransferExists are looked up in one call to tell an identical chain from a different one.
-func (s *Service) transferResults(chains [][]Posting, batch []tb.Transfer, results []tb.CreateTransferResult) [][]Transfer {
+func (s *Service) transferResults(ctx context.Context, chains [][]Posting, batch []tb.Transfer, results []tb.CreateTransferResult) [][]Transfer {
 	out := make([][]Transfer, len(chains))
 	var existing []existingChain
 	start := 0
@@ -196,7 +196,7 @@ func (s *Service) transferResults(chains [][]Posting, batch []tb.Transfer, resul
 		}
 	}
 	if len(existing) > 0 {
-		s.checkExistingChains(existing)
+		s.checkExistingChains(ctx, existing)
 	}
 	return out
 }
@@ -204,14 +204,14 @@ func (s *Service) transferResults(chains [][]Posting, batch []tb.Transfer, resul
 // checkExistingChains looks up the ids of every chain in one call. A chain whose transfers were all
 // found with the fields that were sent is left as existing; any other chain fails with ErrConflict on
 // its failed posting.
-func (s *Service) checkExistingChains(chains []existingChain) {
+func (s *Service) checkExistingChains(ctx context.Context, chains []existingChain) {
 	var ids []tb.Uint128
 	for _, c := range chains {
 		for _, t := range c.sent {
 			ids = append(ids, t.ID)
 		}
 	}
-	found, err := s.writes.LookupTransfers(ids)
+	found, err := tbCall(ctx, func() ([]tb.Transfer, error) { return s.writes.LookupTransfers(ids) })
 	if err != nil {
 		err = fmt.Errorf("error looking up tigerbeetle transfers: %w", err)
 		for _, c := range chains {
@@ -266,6 +266,10 @@ func statusError(p Posting, status tb.CreateTransferStatus) error {
 		tb.TransferExistsWithDifferentLedger,
 		tb.TransferExistsWithDifferentCode:
 		return fmt.Errorf("%w: transfer %s exists with different fields: %s", ErrConflict, p.ID, status)
+	case tb.TransferOverflowsDebits, tb.TransferOverflowsCredits,
+		tb.TransferOverflowsDebitsPosted, tb.TransferOverflowsCreditsPosted,
+		tb.TransferOverflowsDebitsPending, tb.TransferOverflowsCreditsPending:
+		return fmt.Errorf("%w: %s %s from %q to %q: %s", ErrOverflow, p.Amount, p.Currency, p.Source, p.Destination, status)
 	case tb.TransferIDAlreadyFailed:
 		return fmt.Errorf("%w: id %s belongs to a transfer that failed; use a new id", ErrIDAlreadyFailed, p.ID)
 	default:

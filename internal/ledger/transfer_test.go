@@ -191,9 +191,15 @@ func TestTransferResults(t *testing.T) {
 			want:     [][]any{{ErrChainFailed, ErrIDAlreadyFailed}},
 		},
 		{
+			name:     "overflow",
+			lengths:  []int{1},
+			statuses: []tb.CreateTransferStatus{tb.TransferOverflowsCreditsPosted},
+			want:     [][]any{{ErrOverflow}},
+		},
+		{
 			name:     "unknown status",
 			lengths:  []int{1, 1},
-			statuses: []tb.CreateTransferStatus{tb.TransferOverflowsDebits, tb.TransferCreated},
+			statuses: []tb.CreateTransferStatus{tb.TransferDebitAccountAlreadyClosed, tb.TransferCreated},
 			want:     [][]any{{other}, {created}},
 		},
 		{

@@ -29,6 +29,7 @@ For `POST /transfers`, a 400 or 404 means nothing was applied. A 500, a timeout 
 | `chain_failed` | another posting in the same chain failed, so this one wasn't applied | fix the other posting. This id can be reused |
 | `conflict` | the id was already used for a posting with different fields | use a new id. If you meant to correct a posting, see [Mistakes](/brokerage/mistakes/) |
 | `id_already_failed` | the id belongs to a posting that failed before | use a new id |
+| `overflow` | an account's total debits or credits would pass 2¹²⁸−1 minor units, the most TigerBeetle stores. Nothing in its chain was applied | use a smaller amount and a new id. Real amounts never get near this; it means the amount is wrong |
 | `internal` | an unexpected error, which was logged | resend with the same id |
 
 ## Retrying safely

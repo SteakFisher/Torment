@@ -73,3 +73,14 @@ func TestHealthz(t *testing.T) {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
 }
+
+func TestWithTimeout(t *testing.T) {
+	var deadline time.Time
+	h := withTimeout(time.Minute, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		deadline, _ = r.Context().Deadline()
+	}))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+	if left := time.Until(deadline); left <= 0 || left > time.Minute {
+		t.Fatalf("deadline in %v, want within a minute", left)
+	}
+}

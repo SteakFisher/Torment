@@ -35,7 +35,7 @@ func TestEnsureTBAccounts(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := New(nil, &fakeTB{createAccounts: tt.create}, nil).ensureTBAccounts(accounts)
+			err := New(nil, &fakeTB{createAccounts: tt.create}, nil).ensureTBAccounts(context.Background(), accounts)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
 			}

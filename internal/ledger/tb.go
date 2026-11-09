@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
@@ -29,6 +30,28 @@ var (
 	_ tbReader = tb.Client(nil)
 )
 
+// tbCall runs f, a TigerBeetle client call, and returns its result, or ctx's error when ctx ends
+// first. The client can't cancel a call, so f keeps running until TigerBeetle answers and its result
+// is dropped.
+func tbCall[T any](ctx context.Context, f func() (T, error)) (T, error) {
+	type result struct {
+		v   T
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		v, err := f()
+		done <- result{v, err}
+	}()
+	select {
+	case r := <-done:
+		return r.v, r.err
+	case <-ctx.Done():
+		var zero T
+		return zero, ctx.Err()
+	}
+}
+
 // newTBAccount returns the TigerBeetle account for a wallet with the given id on ledger, owned by an
 // account of type typ.
 func newTBAccount(id tb.Uint128, ledger int32, typ AccountType, allowNegative bool) tb.Account {
@@ -38,11 +61,11 @@ func newTBAccount(id tb.Uint128, ledger int32, typ AccountType, allowNegative bo
 // ensureTBAccounts creates accounts in TigerBeetle in one request. An account that already exists
 // with the same fields counts as created. It returns an error when the client fails or any account
 // is rejected; an account that exists with different fields is also logged as an error.
-func (s *Service) ensureTBAccounts(accounts []tb.Account) error {
+func (s *Service) ensureTBAccounts(ctx context.Context, accounts []tb.Account) error {
 	if len(accounts) == 0 {
 		return nil
 	}
-	results, err := s.writes.CreateAccounts(accounts)
+	results, err := tbCall(ctx, func() ([]tb.CreateAccountResult, error) { return s.writes.CreateAccounts(accounts) })
 	if err != nil {
 		return fmt.Errorf("error creating tigerbeetle accounts: %w", err)
 	}

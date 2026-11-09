@@ -8,6 +8,7 @@ description: Every size limit in Torment, and why each exists.
 | Postings per request | 8,189 | 400 | TigerBeetle's largest batch |
 | Request body | 1 MiB (about 5,000 postings) | 400 | protects the server from huge bodies. Can be raised if a caller needs it |
 | Request time | 5 s to send headers, 30 s to send the whole request, 30 s to receive the response | the connection is closed | protects the server from slow clients. A cut-off `POST /transfers` is a request with an unknown outcome: resend it with the same ids |
+| Waiting on Postgres and TigerBeetle | 10 s per request | 500 | a stalled database doesn't hold requests open forever. For `POST /transfers` the outcome is unknown: resend with the same ids |
 | Address length | 255 bytes | 400 | |
 | Currency precision | 0 to 18 decimal places | 400 | |
 | Ids, group ids | 1 to 2¹²⁸−2 | 400 | TigerBeetle ids are 128-bit, and 0 and 2¹²⁸−1 are reserved |

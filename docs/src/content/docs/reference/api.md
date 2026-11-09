@@ -174,6 +174,7 @@ Returns 200 with one result per posting, in the same shape as the request:
 | `failed` | `chain_failed` | another posting in the chain failed | fix that one; this id can be reused |
 | `failed` | `conflict` | the id was already used with different fields | use a new id |
 | `failed` | `id_already_failed` | the id belongs to a posting that failed before | use a new id |
+| `failed` | `overflow` | an account's total debits or credits would pass 2¹²⁸−1 minor units. Nothing in the chain was applied | use a smaller amount and a new id |
 | `failed` | `internal` | unexpected error, logged on the server | resend with the same id |
 
 The whole request fails, and nothing is applied, only for:

@@ -85,7 +85,7 @@ func (s *Service) ensureWallets(ctx context.Context, keys []WalletKey) (map[Wall
 		}
 	}
 	if len(uncreated) > 0 {
-		if err := s.ensureTBAccounts(tbAccounts); err != nil {
+		if err := s.ensureTBAccounts(ctx, tbAccounts); err != nil {
 			return nil, err
 		}
 		if err := s.store.MarkWalletsCreated(ctx, uncreated); err != nil {

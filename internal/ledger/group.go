@@ -33,7 +33,8 @@ func (s *Service) GroupTransfers(ctx context.Context, groupID string) ([]Transfe
 		return nil, fmt.Errorf("%w: group_id %q must be a base-10 integer greater than zero that fits in 128 bits", ErrInvalid, groupID)
 	}
 	// ponytail: returns only the newest maxGroupTransfers transfers of a group.
-	found, err := s.reads.QueryTransfers(tb.QueryFilter{UserData128: group, Limit: maxGroupTransfers, Flags: tb.QueryFilterFlags{Reversed: true}.ToUint32()})
+	filter := tb.QueryFilter{UserData128: group, Limit: maxGroupTransfers, Flags: tb.QueryFilterFlags{Reversed: true}.ToUint32()}
+	found, err := tbCall(ctx, func() ([]tb.Transfer, error) { return s.reads.QueryTransfers(filter) })
 	if err != nil {
 		return nil, fmt.Errorf("error querying tigerbeetle transfers: %w", err)
 	}

@@ -33,8 +33,21 @@ func New(l Ledger, apiKeys []string) http.Handler {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok\n"))
 	})
-	mux.Handle("/", requireAPIKey(apiKeys, routes(l)))
+	mux.Handle("/", requireAPIKey(apiKeys, withTimeout(requestTimeout, routes(l))))
 	return mux
+}
+
+// requestTimeout is how long a request may wait on Postgres and TigerBeetle. It is shorter than the
+// server's 30s WriteTimeout, so the client gets an error response before the connection is closed.
+const requestTimeout = 10 * time.Second
+
+// withTimeout gives every request to h a context that ends after d.
+func withTimeout(d time.Duration, h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), d)
+		defer cancel()
+		h.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // routes returns the API routes without authentication.

@@ -117,7 +117,7 @@ func (s *Service) PatternBalances(ctx context.Context, pattern, currency string,
 	for i, w := range wallets {
 		ids[i] = w.ID
 	}
-	byID, err := s.postedTotals(ids, at)
+	byID, err := s.postedTotals(ctx, ids, at)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -209,7 +209,7 @@ func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams
 		wg.Go(func() {
 			f := filter
 			f.AccountID = id
-			perWallet[i], errs[i] = s.reads.GetAccountTransfers(f)
+			perWallet[i], errs[i] = tbCall(ctx, func() ([]tb.Transfer, error) { return s.reads.GetAccountTransfers(f) })
 		})
 	}
 	wg.Wait()

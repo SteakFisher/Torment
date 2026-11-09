@@ -17,4 +17,6 @@ var (
 	ErrIDAlreadyFailed = errors.New("id already failed")
 	// ErrChainFailed means another posting in the same chain failed.
 	ErrChainFailed = errors.New("chain failed")
+	// ErrOverflow means a posting would push an account's total debits or credits past what 128 bits hold.
+	ErrOverflow = errors.New("overflow")
 )

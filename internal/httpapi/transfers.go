@@ -67,6 +67,8 @@ func newTransferJSON(t ledger.Transfer) transferJSON {
 			out.Error = "id_already_failed"
 		case errors.Is(t.Err, ledger.ErrChainFailed):
 			out.Error = "chain_failed"
+		case errors.Is(t.Err, ledger.ErrOverflow):
+			out.Error = "overflow"
 		default:
 			out.Error, out.Message = "internal", "internal error"
 			slog.Error("transfer failed", "id", out.ID, "err", t.Err)
