@@ -156,21 +156,23 @@ func (s *Service) Balances(ctx context.Context, address, currency string, at tim
 }
 
 // AccountTransfersParams is the input to AccountTransfers. A zero From or Cursor leaves that side of the
-// time range open, and a zero Limit means defaultListLimit.
+// time range open, a zero Limit means defaultListLimit, and an empty Kind means every kind.
 type AccountTransfersParams struct {
 	Address  string
 	Currency string
+	Kind     string
 	From     time.Time
 	Cursor   time.Time
 	Limit    int
 }
 
 // AccountTransfers returns the transfers of the account at p.Address, or of every account matching it when
-// it is a pattern, committed at or after p.From and before p.Cursor, newest first. A transfer between two
+// it is a pattern, of kind p.Kind unless it is empty, committed at or after p.From and before p.Cursor, newest first. A transfer between two
 // matching accounts is returned once. more reports whether older transfers remain; passing the last
 // Timestamp as Cursor gets the next page. It makes one TigerBeetle request per wallet in scope. It returns
-// ErrAccountNotFound when no account has the exact address, ErrPatternTooBroad for a pattern matching
-// more than maxPatternTransferWallets wallets, and ErrInvalid for a malformed pattern, a limit outside 0
+// ErrAccountNotFound when no account has the exact address, ErrKindNotFound when p.Kind is not
+// registered, ErrPatternTooBroad for a pattern matching more than maxPatternTransferWallets wallets, and
+// ErrInvalid for a malformed pattern, a limit outside 0
 // to maxListLimit or a time outside TigerBeetle's range.
 func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams) (transfers []TransferRecord, more bool, err error) {
 	if p.Limit < 0 || p.Limit > maxListLimit {
@@ -185,12 +187,17 @@ func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams
 	if err := validateAt(p.Cursor); err != nil {
 		return nil, false, err
 	}
+	code, err := s.filterCode(ctx, p.Kind)
+	if err != nil {
+		return nil, false, err
+	}
 	ids, err := s.transferWalletIDs(ctx, p.Address, p.Currency)
 	if err != nil {
 		return nil, false, err
 	}
 
 	filter := tb.AccountFilter{
+		Code: code,
 		// One extra transfer tells whether another page exists.
 		Limit: uint32(p.Limit + 1),
 		Flags: tb.AccountFilterFlags{Debits: true, Credits: true, Reversed: true}.ToUint32(),

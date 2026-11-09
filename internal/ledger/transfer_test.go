@@ -30,9 +30,9 @@ func testStore(missing string) *walletStore {
 	return w
 }
 
-// testPosting returns a world → rider:1:wallet posting of 100 USD with the given id.
+// testPosting returns a world → rider:1:wallet deposit of 100 USD with the given id.
 func testPosting(id int) Posting {
-	return Posting{ID: fmt.Sprintf("00000000-0000-0000-0000-%012x", id), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "100"}
+	return Posting{ID: fmt.Sprintf("00000000-0000-0000-0000-%012x", id), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "100", Kind: "deposit"}
 }
 
 // testChains returns chains of the given lengths whose postings have ids 1, 2, 3 and so on in order.
@@ -81,6 +81,9 @@ func TestTransferRejects(t *testing.T) {
 		{name: "non-numeric amount", chains: edited(func(p *Posting) { p.Amount = "ten" }), wantErr: ErrInvalid},
 		{name: "amount over 128 bits", chains: edited(func(p *Posting) { p.Amount = "340282366920938463463374607431768211456" }), wantErr: ErrInvalid},
 		{name: "decimal id", chains: edited(func(p *Posting) { p.ID = "5" }), wantErr: ErrInvalid},
+		{name: "missing kind", chains: edited(func(p *Posting) { p.Kind = "" }), wantErr: ErrInvalid},
+		{name: "malformed kind", chains: edited(func(p *Posting) { p.Kind = "Deposit" }), wantErr: ErrInvalid},
+		{name: "unknown kind", chains: edited(func(p *Posting) { p.Kind = "payout" }), wantErr: ErrKindNotFound},
 		{name: "bad group id", chains: edited(func(p *Posting) { p.GroupID = "00000000-0000-0000-0000-000000000000" }), wantErr: ErrInvalid},
 		{name: "unknown debit account", chains: testChains(2, 1), missing: "world", wantErr: ErrAccountNotFound},
 		{name: "unknown credit account", chains: testChains(2, 1), missing: "rider:1:wallet", wantErr: ErrAccountNotFound},
@@ -102,7 +105,7 @@ func TestTransferRejects(t *testing.T) {
 
 func TestTransferBatch(t *testing.T) {
 	chains := [][]Posting{
-		{testPosting(1), testPosting(2), {ID: "00000000-0000-0000-0000-000000000003", Debit: "rider:1:wallet", Credit: "rider:2:wallet", Currency: "USD", Amount: "30", GroupID: "00000000-0000-0001-0000-000000000000"}},
+		{testPosting(1), testPosting(2), {ID: "00000000-0000-0000-0000-000000000003", Debit: "rider:1:wallet", Credit: "rider:2:wallet", Currency: "USD", Amount: "30", GroupID: "00000000-0000-0001-0000-000000000000", Kind: "refund"}},
 		{testPosting(4)},
 		{testPosting(5), testPosting(6)},
 	}
@@ -125,13 +128,13 @@ func TestTransferBatch(t *testing.T) {
 	bigGroup := tb.BigIntToUint128(new(big.Int).Lsh(big.NewInt(1), 64))
 	transfer := func(id uint64, flags uint16) tb.Transfer {
 		return tb.Transfer{ID: tb.ToUint128(id), DebitAccountID: testWalletIDs["world"], CreditAccountID: testWalletIDs["rider:1:wallet"],
-			Amount: tb.ToUint128(100), UserData128: tb.ToUint128(id), Ledger: 7, Code: 1, Flags: flags}
+			Amount: tb.ToUint128(100), UserData128: tb.ToUint128(id), Ledger: 7, Code: 5, Flags: flags}
 	}
 	want := []tb.Transfer{
 		transfer(1, linked),
 		transfer(2, linked),
 		{ID: tb.ToUint128(3), DebitAccountID: testWalletIDs["rider:1:wallet"], CreditAccountID: testWalletIDs["rider:2:wallet"],
-			Amount: tb.ToUint128(30), UserData128: bigGroup, Ledger: 7, Code: 1},
+			Amount: tb.ToUint128(30), UserData128: bigGroup, Ledger: 7, Code: 6},
 		transfer(4, 0),
 		transfer(5, linked),
 		transfer(6, 0),

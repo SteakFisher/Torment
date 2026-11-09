@@ -14,10 +14,10 @@ type Service struct {
 	reads  tbReader
 }
 
-// New returns a Service that keeps wallets read from store in memory and sends TigerBeetle writes
+// New returns a Service that keeps wallets and kinds read from store in memory and sends TigerBeetle writes
 // through writes and reads through reads, which should be separate clients.
 func New(store Store, writes tbWriter, reads tbReader) *Service {
-	return &Service{store: newWalletCache(store), writes: writes, reads: reads}
+	return &Service{store: newKindCache(newWalletCache(store)), writes: writes, reads: reads}
 }
 
 // Ready returns an error when Postgres or TigerBeetle can't be reached.
@@ -32,7 +32,7 @@ func (s *Service) Ready(ctx context.Context) error {
 	return nil
 }
 
-// Store keeps currencies, accounts and wallets. Errors other than ErrNotFound and ErrConflict mean the
+// Store keeps currencies, kinds, accounts and wallets. Errors other than ErrNotFound and ErrConflict mean the
 // store failed.
 type Store interface {
 	// InsertCurrency stores a new currency and returns it with its assigned ledger and created true. When a
@@ -43,6 +43,16 @@ type Store interface {
 	Currencies(ctx context.Context, names []string) (map[string]Currency, error)
 	// ListCurrencies returns every registered currency, ordered by name.
 	ListCurrencies(ctx context.Context) ([]Currency, error)
+
+	// InsertKind stores a new kind and returns it with its assigned code and created true. When a kind
+	// already has the name, it stores nothing and returns that kind with created false.
+	InsertKind(ctx context.Context, name string) (k Kind, created bool, err error)
+	// Kinds returns the registered kinds among names, keyed by name.
+	Kinds(ctx context.Context, names []string) (map[string]Kind, error)
+	// KindsByCodes returns the registered kinds among codes, keyed by code.
+	KindsByCodes(ctx context.Context, codes []uint16) (map[uint16]Kind, error)
+	// ListKinds returns every registered kind, ordered by name.
+	ListKinds(ctx context.Context) ([]Kind, error)
 
 	// InsertAccount stores a new account and returns it with created true. When an account already has
 	// the address, it stores nothing and returns that account with created false. The account has no

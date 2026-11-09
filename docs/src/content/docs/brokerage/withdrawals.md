@@ -15,6 +15,12 @@ Register an account for withdrawals that have been requested but not paid out:
 
 It's a liability because the brokerage still owes this money to someone: the user, until the bank pays them.
 
+Every posting in this chapter has the kind `withdrawal`, including the one that returns money the bank rejected. That way all of a withdrawal's steps show up together when you filter by kind:
+
+```json title="POST /kinds"
+{ "name": "withdrawal" }
+```
+
 ## Step 1: the user asks
 
 Move the money out of the user's cash straight away, so they can't spend it twice. Debit `user:42:cash`, so the brokerage owes the user $100 less, and credit `transit:withdrawals`, so it owes $100 more in transit:
@@ -22,7 +28,7 @@ Move the money out of the user's cash straight away, so they can't spend it twic
 ```json title="POST /transfers"
 {
   "chains": [
-    [{ "id": "00000000-0000-0000-0000-000000007001", "debit": "user:42:cash", "credit": "transit:withdrawals", "currency": "USD", "amount": "10000", "group_id": "00000000-0000-0000-0000-000000007000" }]
+    [{ "id": "00000000-0000-0000-0000-000000007001", "debit": "user:42:cash", "credit": "transit:withdrawals", "currency": "USD", "amount": "10000", "kind": "withdrawal", "group_id": "00000000-0000-0000-0000-000000007000" }]
   ]
 }
 ```
@@ -36,7 +42,7 @@ When the bank confirms the payout, the money leaves the brokerage. Debit `transi
 ```json title="POST /transfers"
 {
   "chains": [
-    [{ "id": "00000000-0000-0000-0000-000000007002", "debit": "transit:withdrawals", "credit": "bank:client-money", "currency": "USD", "amount": "10000", "group_id": "00000000-0000-0000-0000-000000007000" }]
+    [{ "id": "00000000-0000-0000-0000-000000007002", "debit": "transit:withdrawals", "credit": "bank:client-money", "currency": "USD", "amount": "10000", "kind": "withdrawal", "group_id": "00000000-0000-0000-0000-000000007000" }]
   ]
 }
 ```
@@ -50,7 +56,7 @@ Say the user also asked to withdraw $50, posted as `00000000-0000-0000-0000-0000
 ```json title="POST /transfers"
 {
   "chains": [
-    [{ "id": "00000000-0000-0000-0000-000000007012", "debit": "transit:withdrawals", "credit": "user:42:cash", "currency": "USD", "amount": "5000", "group_id": "00000000-0000-0000-0000-000000007010" }]
+    [{ "id": "00000000-0000-0000-0000-000000007012", "debit": "transit:withdrawals", "credit": "user:42:cash", "currency": "USD", "amount": "5000", "kind": "withdrawal", "group_id": "00000000-0000-0000-0000-000000007010" }]
   ]
 }
 ```

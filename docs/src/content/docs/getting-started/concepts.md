@@ -1,6 +1,6 @@
 ---
 title: Concepts
-description: Currencies, accounts, wallets, postings, debits and credits, chains, groups and patterns.
+description: Currencies, accounts, wallets, postings, kinds, debits and credits, chains, groups and patterns.
 ---
 
 ## Currency
@@ -26,6 +26,11 @@ One account can hold several currencies, and each currency gets its own wallet. 
 
 ## Posting
 One movement of money between two accounts. A posting names a `debit` account, a `credit` account and an amount. It debits the first and credits the second by that same amount, so money is never created or lost.
+
+## Kind
+What a posting is: `deposit`, `trade`, `commission`, `dividend`. Every posting has one. You register kinds up front, like currencies, and a kind never changes once registered.
+
+Kinds let you filter history: `?kind=dividend` on an account's transfers shows only its dividends. Totals and reports by kind belong in an analytics tool fed from TigerBeetle's change data capture, not in Torment.
 
 ## Debits and credits
 A debit and a credit are the two sides of every posting. Neither one means "add" or "take away" on its own. What it does to a balance depends on the account's type:

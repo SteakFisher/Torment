@@ -11,6 +11,18 @@ User 42 buys 1.5 shares of Apple at $150, so $225.00, and the brokerage charges 
 
 They have to happen together. If the user could pay without getting the shares, or get the shares without paying, the books would be wrong. A **chain** guarantees it: either every posting in it happens, or none do.
 
+## Kinds for trades and fees
+
+The payment and the shares are both part of the trade, so they get the kind `trade`. The fee is the brokerage's income, not part of the price, so it gets its own kind, `commission`. That keeps fees easy to pick out of a user's history.
+
+```json title="POST /kinds"
+{ "name": "trade" }
+```
+
+```json title="POST /kinds"
+{ "name": "commission" }
+```
+
 ## The chain
 
 A chain is one array of postings inside `chains`. All three postings go in the same array. They share a `group_id`: the brokerage's order id, so the order's postings can be found later.
@@ -19,9 +31,9 @@ A chain is one array of postings inside `chains`. All three postings go in the s
 {
   "chains": [
     [
-      { "id": "00000000-0000-0000-0000-000000002001", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "22500", "group_id": "00000000-0000-0000-0000-000000002000" },
-      { "id": "00000000-0000-0000-0000-000000002002", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "AAPL", "amount": "1500000", "group_id": "00000000-0000-0000-0000-000000002000" },
-      { "id": "00000000-0000-0000-0000-000000002003", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "00000000-0000-0000-0000-000000002000" }
+      { "id": "00000000-0000-0000-0000-000000002001", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "22500", "kind": "trade", "group_id": "00000000-0000-0000-0000-000000002000" },
+      { "id": "00000000-0000-0000-0000-000000002002", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "AAPL", "amount": "1500000", "kind": "trade", "group_id": "00000000-0000-0000-0000-000000002000" },
+      { "id": "00000000-0000-0000-0000-000000002003", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "kind": "commission", "group_id": "00000000-0000-0000-0000-000000002000" }
     ]
   ]
 }
@@ -64,9 +76,9 @@ Now the user tries to buy 10 Tesla shares at $200, for $2,000. They have $774.
 {
   "chains": [
     [
-      { "id": "00000000-0000-0000-0000-000000002011", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "200000", "group_id": "00000000-0000-0000-0000-000000002010" },
-      { "id": "00000000-0000-0000-0000-000000002012", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "10000000", "group_id": "00000000-0000-0000-0000-000000002010" },
-      { "id": "00000000-0000-0000-0000-000000002013", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "00000000-0000-0000-0000-000000002010" }
+      { "id": "00000000-0000-0000-0000-000000002011", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "200000", "kind": "trade", "group_id": "00000000-0000-0000-0000-000000002010" },
+      { "id": "00000000-0000-0000-0000-000000002012", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "10000000", "kind": "trade", "group_id": "00000000-0000-0000-0000-000000002010" },
+      { "id": "00000000-0000-0000-0000-000000002013", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "kind": "commission", "group_id": "00000000-0000-0000-0000-000000002010" }
     ]
   ]
 }
@@ -96,9 +108,9 @@ Selling is the same chain the other way round: each account that was debited is 
 {
   "chains": [
     [
-      { "id": "00000000-0000-0000-0000-000000002021", "debit": "user:42:holdings", "credit": "custodian:positions", "currency": "AAPL", "amount": "500000", "group_id": "00000000-0000-0000-0000-000000002020" },
-      { "id": "00000000-0000-0000-0000-000000002022", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "amount": "8000", "group_id": "00000000-0000-0000-0000-000000002020" },
-      { "id": "00000000-0000-0000-0000-000000002023", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "00000000-0000-0000-0000-000000002020" }
+      { "id": "00000000-0000-0000-0000-000000002021", "debit": "user:42:holdings", "credit": "custodian:positions", "currency": "AAPL", "amount": "500000", "kind": "trade", "group_id": "00000000-0000-0000-0000-000000002020" },
+      { "id": "00000000-0000-0000-0000-000000002022", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "amount": "8000", "kind": "trade", "group_id": "00000000-0000-0000-0000-000000002020" },
+      { "id": "00000000-0000-0000-0000-000000002023", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "kind": "commission", "group_id": "00000000-0000-0000-0000-000000002020" }
     ]
   ]
 }

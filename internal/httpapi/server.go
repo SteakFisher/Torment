@@ -15,6 +15,8 @@ import (
 type Ledger interface {
 	RegisterCurrency(ctx context.Context, code string) (ledger.Currency, bool, error)
 	Currencies(ctx context.Context) ([]ledger.Currency, error)
+	RegisterKind(ctx context.Context, name string) (ledger.Kind, bool, error)
+	Kinds(ctx context.Context) ([]ledger.Kind, error)
 	RegisterAccount(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error)
 	Account(ctx context.Context, address string) (ledger.Account, error)
 	Transfer(ctx context.Context, chains [][]ledger.Posting) ([][]ledger.Transfer, error)
@@ -65,6 +67,8 @@ func routes(l Ledger) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /currencies", postCurrency(l))
 	mux.HandleFunc("GET /currencies", getCurrencies(l))
+	mux.HandleFunc("POST /kinds", postKind(l))
+	mux.HandleFunc("GET /kinds", getKinds(l))
 	mux.HandleFunc("POST /accounts", postAccount(l))
 	mux.HandleFunc("GET /accounts", getAccounts(l))
 	mux.HandleFunc("GET /accounts/{address}", getAccounts(l))

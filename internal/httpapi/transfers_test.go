@@ -19,16 +19,16 @@ import (
 func TestPostTransfer(t *testing.T) {
 	// posting returns the JSON for a world → rider:1:wallet posting with the given id
 	posting := func(id string) string {
-		return `{"id":"` + id + `","debit":"world","credit":"rider:1:wallet","currency":"USD","amount":"100"}`
+		return `{"id":"` + id + `","debit":"world","credit":"rider:1:wallet","currency":"USD","amount":"100","kind":"deposit"}`
 	}
 	body := `{"chains":[` +
-		`[{"id":"00000000-0000-0001-0000-000000000001","debit":"world","credit":"rider:1:wallet","currency":"USD","amount":"100","group_id":"00000000-0000-0000-0000-000000000009"}],` +
+		`[{"id":"00000000-0000-0001-0000-000000000001","debit":"world","credit":"rider:1:wallet","currency":"USD","amount":"100","group_id":"00000000-0000-0000-0000-000000000009","kind":"deposit"}],` +
 		`[` + posting("00000000-0000-0000-0000-000000000002") + `,` + posting("00000000-0000-0000-0000-000000000003") + `],` +
 		`[` + posting("00000000-0000-0000-0000-000000000004") + `],` +
 		` [` + posting("00000000-0000-0000-0000-000000000005") + `,` + posting("00000000-0000-0000-0000-000000000006") + `,` + posting("00000000-0000-0000-0000-000000000007") + `],` +
 		`[` + posting("00000000-0000-0000-0000-000000000008") + `]]}`
 	p := func(id string) ledger.Posting {
-		return ledger.Posting{ID: id, Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "100"}
+		return ledger.Posting{ID: id, Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "100", Kind: "deposit"}
 	}
 	first := p("00000000-0000-0001-0000-000000000001")
 	first.GroupID = "00000000-0000-0000-0000-000000000009"
@@ -88,6 +88,7 @@ func TestPostTransferErrors(t *testing.T) {
 		{name: "invalid", body: body, err: ledger.ErrInvalid, wantStatus: http.StatusBadRequest},
 		{name: "account not found", body: body, err: ledger.ErrAccountNotFound, wantStatus: http.StatusNotFound},
 		{name: "currency not found", body: body, err: ledger.ErrCurrencyNotFound, wantStatus: http.StatusNotFound},
+		{name: "kind not found", body: body, err: ledger.ErrKindNotFound, wantStatus: http.StatusNotFound},
 		{name: "unexpected", body: body, err: errors.New("boom"), wantStatus: http.StatusInternalServerError},
 	}
 	for _, tt := range tests {

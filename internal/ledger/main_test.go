@@ -56,17 +56,21 @@ func run(m *testing.M) int {
 	return m.Run()
 }
 
-// newIntegrationService returns a Service on an emptied test database and the test TigerBeetle cluster,
-// skipping unless TEST_DATABASE_URL and TEST_TB_ADDRESS are both set.
+// newIntegrationService returns a Service on an emptied test database, with the kind "test" registered,
+// and the test TigerBeetle cluster, skipping unless TEST_DATABASE_URL and TEST_TB_ADDRESS are both set.
 func newIntegrationService(t *testing.T) *ledger.Service {
 	t.Helper()
 	if testPool == nil || testTB == nil {
 		t.Skip("TEST_DATABASE_URL or TEST_TB_ADDRESS is not set")
 	}
-	if _, err := testPool.Exec(context.Background(), "truncate wallets, accounts, currencies"); err != nil {
+	if _, err := testPool.Exec(context.Background(), "truncate wallets, accounts, currencies, kinds"); err != nil {
 		t.Fatalf("error truncating tables: %v", err)
 	}
-	return ledger.New(db.NewStore(testPool), testTB, testTB)
+	s := ledger.New(db.NewStore(testPool), testTB, testTB)
+	if _, _, err := s.RegisterKind(context.Background(), "test"); err != nil {
+		t.Fatalf("error registering kind: %v", err)
+	}
+	return s
 }
 
 // accountBalances returns the balances of the exact address as of at (now when zero), or the error of

@@ -16,6 +16,7 @@ type transferRecordJSON struct {
 	Credit    string    `json:"credit"`
 	Currency  string    `json:"currency"`
 	Amount    string    `json:"amount"`
+	Kind      string    `json:"kind"`
 	Timestamp time.Time `json:"timestamp"`
 }
 
@@ -29,18 +30,19 @@ func newTransferRecordsJSON(transfers []ledger.TransferRecord) []transferRecordJ
 			Credit:    t.Credit,
 			Currency:  t.Currency,
 			Amount:    t.Amount.String(),
+			Kind:      t.Kind,
 			Timestamp: t.Timestamp,
 		})
 	}
 	return out
 }
 
-// getGroupTransfers handles GET /groups/{group_id}/transfers?cursor=&limit=. It responds 200 with the
-// group's transfers, newest first, and next set to the last timestamp when older ones remain; or 400 for
-// a malformed group id or query.
+// getGroupTransfers handles GET /groups/{group_id}/transfers?kind=&cursor=&limit=. It responds 200 with
+// the group's transfers, newest first, and next set to the last timestamp when older ones remain; 400 for
+// a malformed group id or query; or 404 for an unregistered kind.
 func getGroupTransfers(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		p := ledger.GroupTransfersParams{GroupID: r.PathValue("group_id")}
+		p := ledger.GroupTransfersParams{GroupID: r.PathValue("group_id"), Kind: r.URL.Query().Get("kind")}
 		var err error
 		if p.Cursor, err = parseTime(r, "cursor"); err != nil {
 			writeError(w, r, err)
@@ -67,12 +69,13 @@ func getGroupTransfers(l Ledger) http.HandlerFunc {
 	}
 }
 
-// getAccountTransfers handles GET /accounts/{address}/transfers?currency=&from=&cursor=&limit=. It responds
-// 200 with the account's transfers, newest first, and next set to the last timestamp when older ones
-// remain; 400 for a malformed query or a pattern matching too many wallets; or 404 when the account does not exist.
+// getAccountTransfers handles GET /accounts/{address}/transfers?currency=&kind=&from=&cursor=&limit=. It
+// responds 200 with the account's transfers, newest first, and next set to the last timestamp when older
+// ones remain; 400 for a malformed query or a pattern matching too many wallets; or 404 when the account
+// does not exist or the kind is not registered.
 func getAccountTransfers(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		p := ledger.AccountTransfersParams{Address: r.PathValue("address"), Currency: r.URL.Query().Get("currency")}
+		p := ledger.AccountTransfersParams{Address: r.PathValue("address"), Currency: r.URL.Query().Get("currency"), Kind: r.URL.Query().Get("kind")}
 		var err error
 		if p.From, err = parseTime(r, "from"); err != nil {
 			writeError(w, r, err)

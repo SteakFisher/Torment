@@ -16,9 +16,15 @@ var (
 	// ErrCurrencyNotFound means the currency is not registered. It matches ErrNotFound and reads "not
 	// found".
 	ErrCurrencyNotFound = fmt.Errorf("%w", ErrNotFound)
+	// ErrKindNotFound means the transfer kind is not registered. It matches ErrNotFound and reads "not
+	// found".
+	ErrKindNotFound = fmt.Errorf("%w", ErrNotFound)
 	// ErrPatternTooBroad means an address pattern matches more wallets than allowed. It matches ErrInvalid
 	// and reads "invalid".
 	ErrPatternTooBroad = fmt.Errorf("%w", ErrInvalid)
+	// ErrBatchTooLarge means a request holds more than the TigerBeetle cluster accepts in one batch. It
+	// matches ErrInvalid and reads "invalid".
+	ErrBatchTooLarge = fmt.Errorf("%w", ErrInvalid)
 	// ErrConflict means the input clashes with data that already exists.
 	ErrConflict = errors.New("conflict")
 	// ErrInsufficientFunds means a posting would take an account below zero when the account does not

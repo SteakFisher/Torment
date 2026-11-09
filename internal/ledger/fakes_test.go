@@ -14,6 +14,10 @@ type fakeStore struct {
 	insertCurrency     func(ctx context.Context, name string, precision int16) (Currency, bool, error)
 	currencies         func(ctx context.Context, names []string) (map[string]Currency, error)
 	listCurrencies     func(ctx context.Context) ([]Currency, error)
+	insertKind         func(ctx context.Context, name string) (Kind, bool, error)
+	kinds              func(ctx context.Context, names []string) (map[string]Kind, error)
+	kindsByCodes       func(ctx context.Context, codes []uint16) (map[uint16]Kind, error)
+	listKinds          func(ctx context.Context) ([]Kind, error)
 	insertAccount      func(ctx context.Context, address string, typ AccountType, allowNegative bool) (Account, bool, error)
 	accountWallets     func(ctx context.Context, address, currency string) (Account, error)
 	listAccounts       func(ctx context.Context, re, after string, limit int) ([]Account, bool, error)
@@ -37,6 +41,48 @@ func (f *fakeStore) ListCurrencies(ctx context.Context) ([]Currency, error) {
 
 func (f *fakeStore) Currencies(ctx context.Context, names []string) (map[string]Currency, error) {
 	return f.currencies(ctx, names)
+}
+
+func (f *fakeStore) InsertKind(ctx context.Context, name string) (Kind, bool, error) {
+	return f.insertKind(ctx, name)
+}
+
+func (f *fakeStore) Kinds(ctx context.Context, names []string) (map[string]Kind, error) {
+	return f.kinds(ctx, names)
+}
+
+func (f *fakeStore) KindsByCodes(ctx context.Context, codes []uint16) (map[uint16]Kind, error) {
+	return f.kindsByCodes(ctx, codes)
+}
+
+func (f *fakeStore) ListKinds(ctx context.Context) ([]Kind, error) {
+	return f.listKinds(ctx)
+}
+
+// testKinds are the kinds registered in a store returned by withKinds.
+var testKinds = []Kind{{Name: "deposit", Code: 5}, {Name: "refund", Code: 6}}
+
+// withKinds sets the kinds and kindsByCodes funcs of f to look up testKinds, and returns f.
+func withKinds(f *fakeStore) *fakeStore {
+	f.kinds = func(_ context.Context, names []string) (map[string]Kind, error) {
+		out := map[string]Kind{}
+		for _, k := range testKinds {
+			if slices.Contains(names, k.Name) {
+				out[k.Name] = k
+			}
+		}
+		return out, nil
+	}
+	f.kindsByCodes = func(_ context.Context, codes []uint16) (map[uint16]Kind, error) {
+		out := map[uint16]Kind{}
+		for _, k := range testKinds {
+			if slices.Contains(codes, k.Code) {
+				out[k.Code] = k
+			}
+		}
+		return out, nil
+	}
+	return f
 }
 
 func (f *fakeStore) InsertAccount(ctx context.Context, address string, typ AccountType, allowNegative bool) (Account, bool, error) {
@@ -104,7 +150,7 @@ func newWalletStore() *walletStore {
 
 // store returns a fakeStore whose wallet methods run against w.
 func (w *walletStore) store() *fakeStore {
-	return &fakeStore{
+	return withKinds(&fakeStore{
 		currencies: func(_ context.Context, names []string) (map[string]Currency, error) {
 			out := make(map[string]Currency)
 			for _, n := range names {
@@ -152,7 +198,7 @@ func (w *walletStore) store() *fakeStore {
 			}
 			return nil
 		},
-	}
+	})
 }
 
 // fakeTB implements tbWriter and tbReader with per-test funcs, one call at a time; calling a method

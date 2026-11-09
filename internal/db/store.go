@@ -90,6 +90,68 @@ func (s *Store) Currencies(ctx context.Context, names []string) (map[string]ledg
 	return currencies, nil
 }
 
+func (s *Store) InsertKind(ctx context.Context, name string) (k ledger.Kind, created bool, err error) {
+	row, err := s.q.InsertKind(ctx, name)
+	switch {
+	case err == nil:
+		created = true
+	case errors.Is(err, pgx.ErrNoRows):
+		if row, err = s.q.GetKind(ctx, name); err != nil {
+			return ledger.Kind{}, false, fmt.Errorf("error getting kind: %w", err)
+		}
+	default:
+		return ledger.Kind{}, false, fmt.Errorf("error inserting kind: %w", err)
+	}
+	return toKind(row), created, nil
+}
+
+func (s *Store) Kinds(ctx context.Context, names []string) (map[string]ledger.Kind, error) {
+	rows, err := s.q.GetKinds(ctx, names)
+	if err != nil {
+		return nil, fmt.Errorf("error getting kinds: %w", err)
+	}
+	kinds := make(map[string]ledger.Kind, len(rows))
+	for _, r := range rows {
+		kinds[r.Name] = toKind(r)
+	}
+	return kinds, nil
+}
+
+func (s *Store) KindsByCodes(ctx context.Context, codes []uint16) (map[uint16]ledger.Kind, error) {
+	params := make([]int32, len(codes))
+	for i, c := range codes {
+		params[i] = int32(c)
+	}
+	rows, err := s.q.GetKindsByCodes(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("error getting kinds: %w", err)
+	}
+	kinds := make(map[uint16]ledger.Kind, len(rows))
+	for _, r := range rows {
+		k := toKind(r)
+		kinds[k.Code] = k
+	}
+	return kinds, nil
+}
+
+func (s *Store) ListKinds(ctx context.Context) ([]ledger.Kind, error) {
+	// ponytail: no paging, every kind in one response.
+	rows, err := s.q.ListKinds(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error listing kinds: %w", err)
+	}
+	kinds := make([]ledger.Kind, len(rows))
+	for i, r := range rows {
+		kinds[i] = toKind(r)
+	}
+	return kinds, nil
+}
+
+// toKind returns row as a ledger.Kind. The kinds table holds codes 1 to 65535.
+func toKind(row sqlc.Kind) ledger.Kind {
+	return ledger.Kind{Name: row.Name, Code: uint16(row.Code)}
+}
+
 func (s *Store) InsertAccount(ctx context.Context, address string, typ ledger.AccountType, allowNegative bool) (acct ledger.Account, created bool, err error) {
 	row, err := s.q.InsertAccount(ctx, sqlc.InsertAccountParams{
 		Address:       address,

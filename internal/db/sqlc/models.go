@@ -70,6 +70,11 @@ type Currency struct {
 	Ledger    int32
 }
 
+type Kind struct {
+	Name string
+	Code int32
+}
+
 type Wallet struct {
 	TbID      []byte
 	AccountID int64

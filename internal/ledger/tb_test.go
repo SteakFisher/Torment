@@ -23,6 +23,11 @@ func TestTBCall(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
+
+	_, err = tbCall(context.Background(), func() (int, error) { return 0, tb.ErrTooMuchData })
+	if !errors.Is(err, ErrBatchTooLarge) {
+		t.Fatalf("err = %v, want ErrBatchTooLarge", err)
+	}
 }
 
 func TestReady(t *testing.T) {

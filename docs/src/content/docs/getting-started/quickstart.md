@@ -20,7 +20,7 @@ curl -H 'Authorization: Bearer dev-key' -d '<body>' localhost:8080/<path>
 
 `dev-key` is the development API key. Every route except `/healthz` and `/readyz` needs it.
 
-## 1. Register a currency
+## 1. Register a currency and kinds
 
 Currencies are registered once. `USD/2` means amounts are in cents.
 
@@ -30,6 +30,20 @@ Currencies are registered once. `USD/2` means amounts are in cents.
 
 ```json title="201 Created"
 { "name": "USD", "precision": 2 }
+```
+
+Every posting also has a kind, which says what it is. Register the two this guide uses, `top_up` and `withdrawal`:
+
+```json title="POST /kinds"
+{ "name": "top_up" }
+```
+
+```json title="201 Created"
+{ "name": "top_up" }
+```
+
+```json title="POST /kinds"
+{ "name": "withdrawal" }
 ```
 
 ## 2. Register two accounts
@@ -59,7 +73,8 @@ The rider tops up $100. The money arrives in your bank, and you now owe it to th
         "debit": "bank:settlement",
         "credit": "rider:1:wallet",
         "currency": "USD",
-        "amount": "10000"
+        "amount": "10000",
+        "kind": "top_up"
       }
     ]
   ]
@@ -119,7 +134,8 @@ The rider tries to withdraw $200 they don't have. Money leaving goes the other w
         "debit": "rider:1:wallet",
         "credit": "bank:settlement",
         "currency": "USD",
-        "amount": "20000"
+        "amount": "20000",
+        "kind": "withdrawal"
       }
     ]
   ]
@@ -138,5 +154,5 @@ Nothing moved. To try again after a top-up, use a new id: a failed id can't be r
 
 ## Next
 
-- [Concepts](/getting-started/concepts/) explains accounts, debits and credits, postings and chains properly.
+- [Concepts](/getting-started/concepts/) explains accounts, debits and credits, postings, kinds and chains properly.
 - [API](/reference/api/) lists every route.

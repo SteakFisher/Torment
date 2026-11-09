@@ -5,6 +5,18 @@ description: Money arriving, and making sure a payment is never counted twice.
 
 User 42 sends $1,000 by bank transfer. The money lands in the brokerage's bank account, and the brokerage now owes it to the user.
 
+## A kind for deposits
+
+Every posting has a kind, which says what it is. Kinds are registered once, like currencies. Deposits get their own kind, `deposit`, so later you can list just a user's deposits:
+
+```json title="POST /kinds"
+{ "name": "deposit" }
+```
+
+```json title="201 Created"
+{ "name": "deposit" }
+```
+
 ## The posting
 
 One posting records both sides. It debits `bank:client-money`, an asset, and credits `user:42:cash`, a liability.
@@ -18,7 +30,8 @@ One posting records both sides. It debits `bank:client-money`, an asset, and cre
         "debit": "bank:client-money",
         "credit": "user:42:cash",
         "currency": "USD",
-        "amount": "100000"
+        "amount": "100000",
+        "kind": "deposit"
       }
     ]
   ]

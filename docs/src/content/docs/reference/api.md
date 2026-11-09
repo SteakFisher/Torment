@@ -11,10 +11,12 @@ JSON over HTTP. The server listens on `ADDR` (default `:8080`).
   | Status | `code` | Meaning |
   |---|---|---|
   | 400 | `invalid_request` | malformed JSON, an unknown field or an invalid value |
+  | 400 | `batch_too_large` | more postings than the TigerBeetle cluster accepts in one request |
   | 400 | `pattern_too_broad` | an address pattern matches more wallets than allowed |
   | 401 | `unauthorized` | missing or wrong API key |
   | 404 | `account_not_found` | the account does not exist |
   | 404 | `currency_not_found` | the currency is not registered |
+  | 404 | `kind_not_found` | the kind is not registered |
   | 404 | `route_not_found` | no route has this path |
   | 405 | `method_not_allowed` | the path exists, but not with this method; `Allow` lists the methods it takes |
   | 409 | `conflict` | the input clashes with something already stored |
@@ -62,6 +64,34 @@ Returns 200 with every currency, ordered by name.
 
 ```json
 {"currencies": [{"name": "EUR", "precision": 2}, {"name": "USD", "precision": 2}]}
+```
+
+## Kinds
+
+A kind says what a transfer is, such as `deposit`, `trade` or `commission`. Every posting needs one, and you can filter transfer history by it.
+
+### `POST /kinds`
+Registers a kind. `name` is lowercase letters, digits and underscores, starting with a letter, at most 63 bytes.
+
+```json
+{"name": "deposit"}
+```
+
+Returns `{"name": "deposit"}`.
+
+| Status | When |
+|---|---|
+| 201 | registered |
+| 200 | already registered |
+| 400 | malformed name |
+
+A kind can't be changed or removed once registered.
+
+### `GET /kinds`
+Returns 200 with every kind, ordered by name.
+
+```json
+{"kinds": [{"name": "deposit"}, {"name": "trade"}]}
 ```
 
 ## Accounts
@@ -147,6 +177,7 @@ Moves money between accounts. Each posting debits the account in `debit` and cre
 | `debit`, `credit` | account addresses, which must differ |
 | `currency` | a registered currency name |
 | `amount` | greater than zero, in minor units |
+| `kind` | required. A registered kind, such as `deposit` |
 | `group_id` | optional. Links related postings, such as a payment and its refund. Defaults to `id` |
 
 `chains` is a list of chains, and each chain is a list of postings. Either all of a chain is applied, or none of it is. Separate chains are independent of each other. A posting on its own is a chain of one.
@@ -154,11 +185,11 @@ Moves money between accounts. Each posting debits the account in `debit` and cre
 ```json
 {"chains": [
   [
-    {"id": "00000000-0000-0000-0000-000000001001", "debit": "world", "credit": "rider:123:wallet", "currency": "USD", "amount": "10000"}
+    {"id": "00000000-0000-0000-0000-000000001001", "debit": "world", "credit": "rider:123:wallet", "currency": "USD", "amount": "10000", "kind": "top_up"}
   ],
   [
-    {"id": "00000000-0000-0000-0000-000000001002", "debit": "rider:123:wallet", "credit": "merchant:9", "currency": "USD", "amount": "2500"},
-    {"id": "00000000-0000-0000-0000-000000001003", "debit": "rider:123:wallet", "credit": "platform:fees", "currency": "USD", "amount": "100"}
+    {"id": "00000000-0000-0000-0000-000000001002", "debit": "rider:123:wallet", "credit": "merchant:9", "currency": "USD", "amount": "2500", "kind": "payment"},
+    {"id": "00000000-0000-0000-0000-000000001003", "debit": "rider:123:wallet", "credit": "platform:fees", "currency": "USD", "amount": "100", "kind": "fee"}
   ]
 ]}
 ```
@@ -183,7 +214,7 @@ Returns 200 with one result per posting, nested in chains the same way as the re
 | `exists` | | already applied by an earlier request | nothing |
 | `failed` | `insufficient_funds` | an account would go below zero, and it wasn't registered with `allow_negative`. Nothing in the chain was applied | top up, and resend this posting **with a new id** |
 | `failed` | `chain_failed` | another posting in the chain failed | fix that one; this id can be reused |
-| `failed` | `conflict` | the id was already used with different fields | use a new id |
+| `failed` | `conflict` | the id was already used with different fields, such as another `kind` | use a new id |
 | `failed` | `id_already_failed` | the id belongs to a posting that failed before | use a new id |
 | `failed` | `overflow` | an account's total debits or credits would pass 2¹²⁸−1 minor units. Nothing in the chain was applied | use a smaller amount and a new id |
 | `failed` | `internal` | unexpected error, logged on the server | resend with the same id |
@@ -192,8 +223,8 @@ The whole request fails, and nothing is applied, only for:
 
 | Status | When |
 |---|---|
-| 400 | invalid input, a duplicate id in the request, or more than 8189 postings (`invalid_request`) |
-| 404 | an account is not registered (`account_not_found`) or a currency is not registered (`currency_not_found`) |
+| 400 | invalid input, a missing `kind`, a duplicate id in the request, or more than 8189 postings (`invalid_request`); more postings than the cluster accepts (`batch_too_large`) |
+| 404 | a kind is not registered (`kind_not_found`), an account is not registered (`account_not_found`) or a currency is not registered (`currency_not_found`) |
 | 500 | an error before or while sending to TigerBeetle. The outcome is unknown, so resend the same request with the same ids |
 
 **Retries are safe.** Resending a posting with the same id and fields never applies it twice; it returns `exists`.
@@ -204,6 +235,7 @@ The whole request fails, and nothing is applied, only for:
 Returns 200 with the group's transfers, newest first, a page at a time. An unknown group returns an empty list. An id that isn't a UUID returns 400.
 
 Query parameters:
+- `kind`: only transfers of this kind. An unregistered kind returns 404 `kind_not_found`.
 - `limit`: page size, default 100, at most 1000.
 - `cursor`: the `next` value from the previous page.
 
@@ -213,8 +245,8 @@ When more transfers remain, the response has `next`. Pass it back as `cursor` fo
 {
   "group_id": "00000000-0000-0000-0000-000000001001",
   "transfers": [
-    {"id": "00000000-0000-0000-0000-000000001004", "group_id": "00000000-0000-0000-0000-000000001001", "debit": "rider:123:wallet", "credit": "world", "currency": "USD", "amount": "3000", "timestamp": "2026-11-06T10:05:00.123456789Z"},
-    {"id": "00000000-0000-0000-0000-000000001001", "group_id": "00000000-0000-0000-0000-000000001001", "debit": "world", "credit": "rider:123:wallet", "currency": "USD", "amount": "10000", "timestamp": "2026-11-06T10:00:00.123456789Z"}
+    {"id": "00000000-0000-0000-0000-000000001004", "group_id": "00000000-0000-0000-0000-000000001001", "debit": "rider:123:wallet", "credit": "world", "currency": "USD", "amount": "3000", "kind": "refund", "timestamp": "2026-11-06T10:05:00.123456789Z"},
+    {"id": "00000000-0000-0000-0000-000000001001", "group_id": "00000000-0000-0000-0000-000000001001", "debit": "world", "credit": "rider:123:wallet", "currency": "USD", "amount": "10000", "kind": "top_up", "timestamp": "2026-11-06T10:00:00.123456789Z"}
   ]
 }
 ```
@@ -224,11 +256,12 @@ An account's transfer history, newest first.
 
 Query parameters:
 - `currency`: only this currency.
+- `kind`: only transfers of this kind.
 - `from`: the earliest time, inclusive.
 - `cursor`: the latest time, exclusive. Pass `next` here for the next page.
 - `limit`: the page size.
 
-Returns 200, or 404 `account_not_found` for an unknown address. `next` is the last transfer's timestamp, to pass back as `cursor` for the next page.
+Returns 200, 404 `account_not_found` for an unknown address, or 404 `kind_not_found` for an unregistered kind. Each transfer has the same fields as in a group's transfers. `next` is the last transfer's timestamp, to pass back as `cursor` for the next page.
 
 ```json
 {"address": "rider:123:wallet", "transfers": [ ... ], "next": "2026-11-06T10:00:00.123456789Z"}

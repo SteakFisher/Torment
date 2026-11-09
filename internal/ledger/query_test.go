@@ -164,14 +164,14 @@ func TestAccountTransfers(t *testing.T) {
 	usd, aed, world := tb.ID(), tb.ID(), tb.ID()
 	// transfer returns a transfer between the rider's wallet and world with the given timestamp
 	transfer := func(wallet tb.Uint128, ts uint64) tb.Transfer {
-		return tb.Transfer{ID: tb.ToUint128(ts), DebitAccountID: world, CreditAccountID: wallet, Amount: tb.ToUint128(1), Timestamp: ts}
+		return tb.Transfer{ID: tb.ToUint128(ts), DebitAccountID: world, CreditAccountID: wallet, Amount: tb.ToUint128(1), Code: 5, Timestamp: ts}
 	}
 	// USD has transfers at 50, 30 and 10; AED at 40 and 20. Each wallet returns at most filter.Limit, newest first.
 	inTB := map[tb.Uint128][]tb.Transfer{
 		usd: {transfer(usd, 50), transfer(usd, 30), transfer(usd, 10)},
 		aed: {transfer(aed, 40), transfer(aed, 20)},
 	}
-	store := &fakeStore{
+	store := withKinds(&fakeStore{
 		accountWallets: func(_ context.Context, address, currency string) (Account, error) {
 			if address != "rider:1:wallet" {
 				return Account{}, ErrAccountNotFound
@@ -187,7 +187,7 @@ func TestAccountTransfers(t *testing.T) {
 		walletsByTBIDs: func(context.Context, []tb.Uint128) (map[tb.Uint128]WalletKey, error) {
 			return map[tb.Uint128]WalletKey{usd: {"rider:1:wallet", "USD"}, aed: {"rider:1:wallet", "AED"}, world: {"world", "USD"}}, nil
 		},
-	}
+	})
 
 	tests := []struct {
 		name       string
@@ -207,6 +207,8 @@ func TestAccountTransfers(t *testing.T) {
 			wantFilter: tb.AccountFilter{TimestampMin: 20, TimestampMax: 40, Limit: 6},
 		},
 		{name: "empty range", p: AccountTransfersParams{Address: "rider:1:wallet", From: time.Unix(0, 30), Cursor: time.Unix(0, 30)}, wantTimes: []int64{}},
+		{name: "one kind", p: AccountTransfersParams{Address: "rider:1:wallet", Kind: "deposit"}, wantTimes: []int64{50, 40, 30, 20, 10}, wantFilter: tb.AccountFilter{Code: 5, Limit: defaultListLimit + 1}},
+		{name: "unknown kind", p: AccountTransfersParams{Address: "rider:1:wallet", Kind: "payout"}, wantErr: ErrKindNotFound},
 		{name: "unknown account", p: AccountTransfersParams{Address: "nobody"}, wantErr: ErrAccountNotFound},
 		{name: "bad limit", p: AccountTransfersParams{Address: "rider:1:wallet", Limit: maxListLimit + 1}, wantErr: ErrInvalid},
 		{name: "bad time", p: AccountTransfersParams{Address: "rider:1:wallet", Cursor: time.Unix(-1, 0)}, wantErr: ErrInvalid},
@@ -235,8 +237,8 @@ func TestAccountTransfers(t *testing.T) {
 			var times []int64
 			for _, g := range got {
 				times = append(times, g.Timestamp.UnixNano())
-				if g.Debit != "world" || g.Credit != "rider:1:wallet" {
-					t.Fatalf("transfer = %+v; want world to rider:1:wallet", g)
+				if g.Debit != "world" || g.Credit != "rider:1:wallet" || g.Kind != "deposit" {
+					t.Fatalf("transfer = %+v; want a deposit from world to rider:1:wallet", g)
 				}
 			}
 			if fmt.Sprint(times) != fmt.Sprint(tt.wantTimes) || more != tt.wantMore {
@@ -257,8 +259,8 @@ func TestAccountTransfers(t *testing.T) {
 func TestAccountTransfersPattern(t *testing.T) {
 	wallet, bonus, world := tb.ID(), tb.ID(), tb.ID()
 	// The move from wallet to bonus at 30 is in both wallets' histories.
-	pay := tb.Transfer{ID: tb.ToUint128(1), DebitAccountID: world, CreditAccountID: wallet, Amount: tb.ToUint128(5), Timestamp: 10}
-	move := tb.Transfer{ID: tb.ToUint128(2), DebitAccountID: wallet, CreditAccountID: bonus, Amount: tb.ToUint128(1), Timestamp: 30}
+	pay := tb.Transfer{ID: tb.ToUint128(1), DebitAccountID: world, CreditAccountID: wallet, Amount: tb.ToUint128(5), Code: 5, Timestamp: 10}
+	move := tb.Transfer{ID: tb.ToUint128(2), DebitAccountID: wallet, CreditAccountID: bonus, Amount: tb.ToUint128(1), Code: 5, Timestamp: 30}
 	inTB := map[tb.Uint128][]tb.Transfer{wallet: {move, pay}, bonus: {move}}
 
 	tests := []struct {
@@ -275,7 +277,7 @@ func TestAccountTransfersPattern(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var gotRe string
 			var gotLimit int
-			store := &fakeStore{
+			store := withKinds(&fakeStore{
 				patternWallets: func(_ context.Context, re, _ string, limit int) ([]AddressWallet, bool, error) {
 					gotRe, gotLimit = re, limit
 					if tt.tooMany {
@@ -289,7 +291,7 @@ func TestAccountTransfersPattern(t *testing.T) {
 				walletsByTBIDs: func(context.Context, []tb.Uint128) (map[tb.Uint128]WalletKey, error) {
 					return map[tb.Uint128]WalletKey{wallet: {"rider:1:wallet", "USD"}, bonus: {"rider:1:bonus", "USD"}, world: {"world", "USD"}}, nil
 				},
-			}
+			})
 			tbc := &fakeTB{accountTransfers: func(f tb.AccountFilter) ([]tb.Transfer, error) { return inTB[f.AccountID], nil }}
 			got, _, err := New(store, tbc, tbc).AccountTransfers(context.Background(), AccountTransfersParams{Address: "rider:1:*"})
 			if !errors.Is(err, tt.wantErr) {

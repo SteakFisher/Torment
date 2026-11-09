@@ -17,6 +17,7 @@ type postingJSON struct {
 	Currency string `json:"currency"`
 	Amount   string `json:"amount"`
 	GroupID  string `json:"group_id"`
+	Kind     string `json:"kind"`
 }
 
 // transferJSON is the outcome of one posting. ID and GroupID are UUIDs; Error and Message are
@@ -59,7 +60,7 @@ func newTransferJSON(ctx context.Context, t ledger.Transfer) transferJSON {
 }
 
 // postTransfer handles POST /transfers. It responds 200 with a result for each posting, nested in chains as in
-// the request; 400 for invalid input; or 404 for an unregistered account or currency.
+// the request; 400 for invalid input; or 404 for an unregistered kind, account or currency.
 func postTransfer(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {

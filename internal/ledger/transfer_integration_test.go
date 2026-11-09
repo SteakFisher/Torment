@@ -45,7 +45,7 @@ func TestIntegrationTransfer(t *testing.T) {
 	}
 	// posting returns one posting with a new id
 	posting := func(debit, credit, amount, group string) ledger.Posting {
-		return ledger.Posting{ID: ledger.FormatID(tb.ID()), Debit: debit, Credit: credit, Currency: "USD", Amount: amount, GroupID: group}
+		return ledger.Posting{ID: ledger.FormatID(tb.ID()), Debit: debit, Credit: credit, Currency: "USD", Amount: amount, GroupID: group, Kind: "test"}
 	}
 
 	plain := posting("world", "rider:1:wallet", "100", "")
@@ -64,6 +64,14 @@ func TestIntegrationTransfer(t *testing.T) {
 	changed.Amount = "101"
 	if got := transfer([]ledger.Posting{changed})[0][0]; !errors.Is(got.Err, ledger.ErrConflict) {
 		t.Fatalf("same id with different amount err = %v, want ErrConflict", got.Err)
+	}
+	if _, _, err := s.RegisterKind(ctx, "other"); err != nil {
+		t.Fatalf("error registering kind: %v", err)
+	}
+	otherKind := plain
+	otherKind.Kind = "other"
+	if got := transfer([]ledger.Posting{otherKind})[0][0]; !errors.Is(got.Err, ledger.ErrConflict) {
+		t.Fatalf("same id with different kind err = %v, want ErrConflict", got.Err)
 	}
 
 	overdraw := posting("rider:1:wallet", "world", "150", "")

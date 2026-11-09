@@ -73,3 +73,56 @@ func TestWalletCache(t *testing.T) {
 		t.Fatalf("WalletsByTBIDs store calls = %d, want 2 (the missing id is read every time)", idCalls.Load())
 	}
 }
+
+func TestKindCache(t *testing.T) {
+	var calls atomic.Int32
+	f := withKinds(&fakeStore{})
+	kinds, byCodes := f.kinds, f.kindsByCodes
+	f.kinds = func(ctx context.Context, names []string) (map[string]Kind, error) {
+		calls.Add(1)
+		return kinds(ctx, names)
+	}
+	f.kindsByCodes = func(ctx context.Context, codes []uint16) (map[uint16]Kind, error) {
+		calls.Add(1)
+		return byCodes(ctx, codes)
+	}
+	f.insertKind = func(_ context.Context, name string) (Kind, bool, error) { return Kind{Name: name, Code: 7}, true, nil }
+	c := newKindCache(f)
+	ctx := context.Background()
+
+	deposit, refund := testKinds[0], testKinds[1]
+	for range 2 {
+		got, err := c.Kinds(ctx, []string{"deposit"})
+		if err != nil || !maps.Equal(got, map[string]Kind{"deposit": deposit}) {
+			t.Fatalf("Kinds = %v, %v", got, err)
+		}
+	}
+	// deposit is cached by name and by code; refund is read once
+	for range 2 {
+		got, err := c.KindsByCodes(ctx, []uint16{deposit.Code, refund.Code})
+		if err != nil || !maps.Equal(got, map[uint16]Kind{deposit.Code: deposit, refund.Code: refund}) {
+			t.Fatalf("KindsByCodes = %v, %v", got, err)
+		}
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("store calls = %d, want 2", calls.Load())
+	}
+
+	// an unregistered name is read every time
+	for range 2 {
+		if got, err := c.Kinds(ctx, []string{"payout"}); err != nil || len(got) != 0 {
+			t.Fatalf("Kinds(payout) = %v, %v; want none", got, err)
+		}
+	}
+	if calls.Load() != 4 {
+		t.Fatalf("store calls = %d, want 4", calls.Load())
+	}
+
+	// a registered kind is cached
+	if _, _, err := c.InsertKind(ctx, "fee"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := c.KindsByCodes(ctx, []uint16{7}); err != nil || got[7].Name != "fee" || calls.Load() != 4 {
+		t.Fatalf("KindsByCodes(7) = %v, %v with %d store calls; want fee from the cache", got, err, calls.Load())
+	}
+}

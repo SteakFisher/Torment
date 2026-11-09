@@ -3,7 +3,7 @@
 A ledger service on top of [TigerBeetle](https://tigerbeetle.com). Callers name accounts with readable addresses such as `rider:123:wallet` and accounting types such as `liability`. Torment maps them to TigerBeetle accounts, so a write path that needs only TigerBeetle keeps TigerBeetle's speed.
 
 - **TigerBeetle** holds balances and transfers.
-- **Postgres** holds currencies, accounts and the mapping from each wallet to its TigerBeetle account.
+- **Postgres** holds currencies, kinds, accounts and the mapping from each wallet to its TigerBeetle account.
 
 **Docs:** run `make docs` and open `localhost:4321`, or read the Markdown in [`docs/src/content/docs`](docs/src/content/docs). Start with the [introduction](docs/src/content/docs/getting-started/introduction.md), which also compares Torment with Formance, and the [quickstart](docs/src/content/docs/getting-started/quickstart.md).
 

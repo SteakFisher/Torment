@@ -12,6 +12,9 @@ type Querier interface {
 	GetAccount(ctx context.Context, address string) (Account, error)
 	GetCurrencies(ctx context.Context, names []string) ([]Currency, error)
 	GetCurrency(ctx context.Context, name string) (Currency, error)
+	GetKind(ctx context.Context, name string) (Kind, error)
+	GetKinds(ctx context.Context, names []string) ([]Kind, error)
+	GetKindsByCodes(ctx context.Context, codes []int32) ([]Kind, error)
 	// Returns one row for each (address, currency) pair whose account and currency are registered; pairs are
 	// matched by position in the two arrays. tb_id is null and tb_created false when the pair has no wallet.
 	GetWallets(ctx context.Context, arg GetWalletsParams) ([]GetWalletsRow, error)
@@ -21,12 +24,15 @@ type Querier interface {
 	InsertAccount(ctx context.Context, arg InsertAccountParams) (Account, error)
 	// Returns no rows when the currency already exists.
 	InsertCurrency(ctx context.Context, arg InsertCurrencyParams) (Currency, error)
+	// Returns no rows when the kind already exists, and then takes no code from the identity sequence.
+	InsertKind(ctx context.Context, name string) (Kind, error)
 	// Inserts one wallet per position in the three arrays, skipping any the account already has in the currency.
 	InsertWallets(ctx context.Context, arg InsertWalletsParams) error
 	// Returns up to lim accounts whose address matches the regex pattern and sorts after after, ordered by
 	// address, each with its wallets' currencies and precisions in currency order.
 	ListAccounts(ctx context.Context, arg ListAccountsParams) ([]ListAccountsRow, error)
 	ListCurrencies(ctx context.Context) ([]Currency, error)
+	ListKinds(ctx context.Context) ([]Kind, error)
 	// Ordered by currency.
 	ListWallets(ctx context.Context, accountID int64) ([]ListWalletsRow, error)
 	// Returns up to lim wallets of the accounts whose address matches the regex pattern, only in currency

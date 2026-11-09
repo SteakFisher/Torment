@@ -12,8 +12,8 @@ import (
 const maxPostings = 8189
 
 // Posting debits Amount, an integer in minor units of Currency, from the wallet of Debit and credits it
-// to the wallet of Credit. ID and GroupID are UUIDs (see parseID), and ID is the TigerBeetle transfer id;
-// an empty GroupID makes ID the group id. Amount is a base-10 string.
+// to the wallet of Credit, labelled with the registered Kind. ID and GroupID are UUIDs (see parseID), and
+// ID is the TigerBeetle transfer id; an empty GroupID makes ID the group id. Amount is a base-10 string.
 type Posting struct {
 	ID       string
 	Debit    string
@@ -21,6 +21,7 @@ type Posting struct {
 	Currency string
 	Amount   string
 	GroupID  string
+	Kind     string
 }
 
 // Transfer is the outcome of one posting. Err nil and Created true means the transfer was created; Err
@@ -35,12 +36,16 @@ type Transfer struct {
 // Transfer posts each posting as a TigerBeetle transfer that debits the wallet of Debit and credits the
 // wallet of Credit, and returns an outcome for each posting in the shape of chains. Each chain is
 // applied atomically and chains independently. It is idempotent per posting id. The returned error
-// covers only failures before anything is written: ErrInvalid for malformed input, ErrAccountNotFound
-// or ErrCurrencyNotFound when an account or currency is not registered, or another error. Each outcome's Err is ErrInsufficientFunds,
-// ErrConflict, ErrIDAlreadyFailed, ErrChainFailed or another error.
+// covers only failures before anything is written: ErrInvalid for malformed input, ErrKindNotFound,
+// ErrAccountNotFound or ErrCurrencyNotFound when a kind, account or currency is not registered, or
+// another error. Each outcome's Err is ErrInsufficientFunds, ErrConflict, ErrIDAlreadyFailed,
+// ErrChainFailed or another error.
 func (s *Service) Transfer(ctx context.Context, chains [][]Posting) ([][]Transfer, error) {
 	batch, err := validateChains(chains)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.resolveKinds(ctx, chains, batch); err != nil {
 		return nil, err
 	}
 	if err := s.resolveWallets(ctx, chains, batch); err != nil {
@@ -57,7 +62,7 @@ func (s *Service) Transfer(ctx context.Context, chains [][]Posting) ([][]Transfe
 }
 
 // validateChains returns the TigerBeetle transfers for chains in order, with every field set except the
-// accounts and ledger. Every transfer but the last of each chain is linked to the next. It returns
+// accounts, ledger and code. Every transfer but the last of each chain is linked to the next. It returns
 // ErrInvalid naming the position of the first invalid posting.
 func validateChains(chains [][]Posting) ([]tb.Transfer, error) {
 	if len(chains) == 0 {
@@ -94,7 +99,7 @@ func validateChains(chains [][]Posting) ([]tb.Transfer, error) {
 	return batch, nil
 }
 
-// parsePosting returns the TigerBeetle transfer for p without accounts, ledger or flags. It returns
+// parsePosting returns the TigerBeetle transfer for p without accounts, ledger, code or flags. It returns
 // ErrInvalid when a field is malformed.
 func parsePosting(p Posting) (tb.Transfer, error) {
 	id, ok := parseID(p.ID)
@@ -105,6 +110,12 @@ func parsePosting(p Posting) (tb.Transfer, error) {
 		return tb.Transfer{}, err
 	}
 	if err := validateAddress(p.Credit); err != nil {
+		return tb.Transfer{}, err
+	}
+	if p.Kind == "" {
+		return tb.Transfer{}, fmt.Errorf("%w: kind is required", ErrInvalid)
+	}
+	if err := validateKindName(p.Kind); err != nil {
 		return tb.Transfer{}, err
 	}
 	if p.Debit == p.Credit {
@@ -120,7 +131,34 @@ func parsePosting(p Posting) (tb.Transfer, error) {
 			return tb.Transfer{}, fmt.Errorf("%w: group_id %q must be a UUID other than the nil and max UUIDs", ErrInvalid, p.GroupID)
 		}
 	}
-	return tb.Transfer{ID: id, Amount: amount, UserData128: group, Code: 1}, nil
+	return tb.Transfer{ID: id, Amount: amount, UserData128: group}, nil
+}
+
+// resolveKinds sets the code of each transfer in batch from the kind of the posting at the same position
+// in chains. It returns ErrKindNotFound when a kind is not registered.
+func (s *Service) resolveKinds(ctx context.Context, chains [][]Posting, batch []tb.Transfer) error {
+	var names []string
+	seen := make(map[string]bool)
+	for _, chain := range chains {
+		for _, p := range chain {
+			if !seen[p.Kind] {
+				seen[p.Kind] = true
+				names = append(names, p.Kind)
+			}
+		}
+	}
+	kinds, err := s.lookupKinds(ctx, names)
+	if err != nil {
+		return err
+	}
+	k := 0
+	for _, chain := range chains {
+		for _, p := range chain {
+			batch[k].Code = kinds[p.Kind].Code
+			k++
+		}
+	}
+	return nil
 }
 
 // resolveWallets sets the accounts and ledger of each transfer in batch from the wallets of the posting

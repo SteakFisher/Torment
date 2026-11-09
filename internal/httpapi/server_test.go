@@ -15,6 +15,8 @@ import (
 type fakeLedger struct {
 	registerCurrency func(ctx context.Context, code string) (ledger.Currency, bool, error)
 	currencies       func(ctx context.Context) ([]ledger.Currency, error)
+	registerKind     func(ctx context.Context, name string) (ledger.Kind, bool, error)
+	kinds            func(ctx context.Context) ([]ledger.Kind, error)
 	registerAccount  func(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error)
 	account          func(ctx context.Context, address string) (ledger.Account, error)
 	transfer         func(ctx context.Context, chains [][]ledger.Posting) ([][]ledger.Transfer, error)
@@ -33,6 +35,14 @@ func (f fakeLedger) RegisterCurrency(ctx context.Context, code string) (ledger.C
 
 func (f fakeLedger) Currencies(ctx context.Context) ([]ledger.Currency, error) {
 	return f.currencies(ctx)
+}
+
+func (f fakeLedger) RegisterKind(ctx context.Context, name string) (ledger.Kind, bool, error) {
+	return f.registerKind(ctx, name)
+}
+
+func (f fakeLedger) Kinds(ctx context.Context) ([]ledger.Kind, error) {
+	return f.kinds(ctx)
 }
 
 func (f fakeLedger) RegisterAccount(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error) {

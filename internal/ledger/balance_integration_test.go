@@ -29,7 +29,7 @@ func TestIntegrationBalances(t *testing.T) {
 	// pay moves amount of USD from world to the rider and returns TigerBeetle's timestamp for it
 	pay := func(amount string) time.Time {
 		t.Helper()
-		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: ledger.FormatID(tb.ID()), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: amount}}})
+		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: ledger.FormatID(tb.ID()), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: amount, Kind: "test"}}})
 		if err != nil || got[0][0].Err != nil {
 			t.Fatalf("error transferring: %v, %+v", err, got)
 		}

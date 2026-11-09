@@ -10,9 +10,9 @@ import (
 )
 
 // writeError responds with a status and code chosen from err, most specific first:
-// ledger.ErrPatternTooBroad → 400 pattern_too_broad, decodeError and ledger.ErrInvalid → 400
-// invalid_request, ledger.ErrCurrencyNotFound → 404 currency_not_found, ledger.ErrNotFound → 404
-// account_not_found, ledger.ErrConflict → 409 conflict, anything else → 500 internal with a generic
+// ledger.ErrBatchTooLarge → 400 batch_too_large, ledger.ErrPatternTooBroad → 400 pattern_too_broad, decodeError and ledger.ErrInvalid → 400
+// invalid_request, ledger.ErrCurrencyNotFound → 404 currency_not_found, ledger.ErrKindNotFound → 404
+// kind_not_found, ledger.ErrNotFound → 404 account_not_found, ledger.ErrConflict → 409 conflict, anything else → 500 internal with a generic
 // message, logging the real error. The message is err's text without the "<sentinel>: " it carries.
 func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	status, code, msg := http.StatusInternalServerError, "internal", "internal error"
@@ -21,12 +21,16 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.As(err, &decodeErr):
 		status, code = http.StatusBadRequest, "invalid_request"
+	case errors.Is(err, ledger.ErrBatchTooLarge):
+		status, code, sentinel = http.StatusBadRequest, "batch_too_large", ledger.ErrInvalid
 	case errors.Is(err, ledger.ErrPatternTooBroad):
 		status, code, sentinel = http.StatusBadRequest, "pattern_too_broad", ledger.ErrInvalid
 	case errors.Is(err, ledger.ErrInvalid):
 		status, code, sentinel = http.StatusBadRequest, "invalid_request", ledger.ErrInvalid
 	case errors.Is(err, ledger.ErrCurrencyNotFound):
 		status, code, sentinel = http.StatusNotFound, "currency_not_found", ledger.ErrNotFound
+	case errors.Is(err, ledger.ErrKindNotFound):
+		status, code, sentinel = http.StatusNotFound, "kind_not_found", ledger.ErrNotFound
 	case errors.Is(err, ledger.ErrNotFound):
 		status, code, sentinel = http.StatusNotFound, "account_not_found", ledger.ErrNotFound
 	case errors.Is(err, ledger.ErrConflict):

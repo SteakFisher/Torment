@@ -95,7 +95,7 @@ func TestIntegrationPatternBalances(t *testing.T) {
 	// pay moves amount of USD and returns TigerBeetle's timestamp for it
 	pay := func(debit, credit, amount string) time.Time {
 		t.Helper()
-		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: ledger.FormatID(tb.ID()), Debit: debit, Credit: credit, Currency: "USD", Amount: amount}}})
+		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: ledger.FormatID(tb.ID()), Debit: debit, Credit: credit, Currency: "USD", Amount: amount, Kind: "test"}}})
 		if err != nil || got[0][0].Err != nil {
 			t.Fatalf("error transferring: %v, %+v", err, got)
 		}
@@ -169,7 +169,7 @@ func TestIntegrationAccountTransfers(t *testing.T) {
 	pay := func(debit, credit, currency, amount string) string {
 		t.Helper()
 		id := ledger.FormatID(tb.ID())
-		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: id, Debit: debit, Credit: credit, Currency: currency, Amount: amount}}})
+		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: id, Debit: debit, Credit: credit, Currency: currency, Amount: amount, Kind: "test"}}})
 		if err != nil || got[0][0].Err != nil {
 			t.Fatalf("error transferring: %v, %+v", err, got)
 		}

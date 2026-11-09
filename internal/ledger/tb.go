@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -32,7 +33,8 @@ var (
 
 // tbCall runs f, a TigerBeetle client call, and returns its result, or ctx's error when ctx ends
 // first. The client can't cancel a call, so f keeps running until TigerBeetle answers and its result
-// is dropped.
+// is dropped. A batch larger than the cluster accepts returns ErrBatchTooLarge; nothing in it was
+// applied.
 func tbCall[T any](ctx context.Context, f func() (T, error)) (T, error) {
 	type result struct {
 		v   T
@@ -45,6 +47,9 @@ func tbCall[T any](ctx context.Context, f func() (T, error)) (T, error) {
 	}()
 	select {
 	case r := <-done:
+		if errors.Is(r.err, tb.ErrTooMuchData) {
+			return r.v, fmt.Errorf("%w: the request holds more than the tigerbeetle cluster accepts in one batch; split it", ErrBatchTooLarge)
+		}
 		return r.v, r.err
 	case <-ctx.Done():
 		var zero T

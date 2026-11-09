@@ -17,6 +17,8 @@ type fakeQuerier struct {
 	sqlc.Querier
 	insertCurrency       func(ctx context.Context, arg sqlc.InsertCurrencyParams) (sqlc.Currency, error)
 	getCurrency          func(ctx context.Context, name string) (sqlc.Currency, error)
+	insertKind           func(ctx context.Context, name string) (sqlc.Kind, error)
+	getKind              func(ctx context.Context, name string) (sqlc.Kind, error)
 	insertAccount        func(ctx context.Context, arg sqlc.InsertAccountParams) (sqlc.Account, error)
 	getAccount           func(ctx context.Context, address string) (sqlc.Account, error)
 	listWallets          func(ctx context.Context, accountID int64) ([]sqlc.ListWalletsRow, error)
@@ -31,6 +33,14 @@ func (f *fakeQuerier) InsertCurrency(ctx context.Context, arg sqlc.InsertCurrenc
 
 func (f *fakeQuerier) GetCurrency(ctx context.Context, name string) (sqlc.Currency, error) {
 	return f.getCurrency(ctx, name)
+}
+
+func (f *fakeQuerier) InsertKind(ctx context.Context, name string) (sqlc.Kind, error) {
+	return f.insertKind(ctx, name)
+}
+
+func (f *fakeQuerier) GetKind(ctx context.Context, name string) (sqlc.Kind, error) {
+	return f.getKind(ctx, name)
 }
 
 func (f *fakeQuerier) InsertAccount(ctx context.Context, arg sqlc.InsertAccountParams) (sqlc.Account, error) {
@@ -110,6 +120,47 @@ func TestInsertCurrency(t *testing.T) {
 			}
 			if err == nil && (c != tt.want || created != tt.wantCreated) {
 				t.Fatalf("got %+v, created %v; want %+v, %v", c, created, tt.want, tt.wantCreated)
+			}
+		})
+	}
+}
+
+func TestInsertKind(t *testing.T) {
+	tests := []struct {
+		name        string
+		insertErr   error
+		getErr      error
+		want        ledger.Kind
+		wantCreated bool
+		wantGet     bool
+		wantErr     bool
+	}{
+		{name: "created", want: ledger.Kind{Name: "deposit", Code: 7}, wantCreated: true},
+		{name: "exists", insertErr: pgx.ErrNoRows, want: ledger.Kind{Name: "deposit", Code: 3}, wantGet: true},
+		{name: "get fails", insertErr: pgx.ErrNoRows, getErr: errors.New("boom"), wantGet: true, wantErr: true},
+		{name: "insert fails", insertErr: errors.New("boom"), wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := false
+			s := &Store{q: &fakeQuerier{
+				insertKind: func(_ context.Context, name string) (sqlc.Kind, error) {
+					return sqlc.Kind{Name: name, Code: 7}, tt.insertErr
+				},
+				getKind: func(_ context.Context, name string) (sqlc.Kind, error) {
+					got = true
+					return sqlc.Kind{Name: name, Code: 3}, tt.getErr
+				},
+			}}
+			k, created, err := s.InsertKind(context.Background(), "deposit")
+			if got != tt.wantGet {
+				t.Fatalf("get called = %v, want %v", got, tt.wantGet)
+			}
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err == nil && (k != tt.want || created != tt.wantCreated) {
+				t.Fatalf("got %+v, created %v; want %+v, %v", k, created, tt.want, tt.wantCreated)
 			}
 		})
 	}

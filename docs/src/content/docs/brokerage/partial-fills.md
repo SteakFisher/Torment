@@ -7,14 +7,14 @@ User 42 places an order for 3 Tesla shares. The market doesn't fill it all at on
 
 ## One chain per fill
 
-Each fill is its own chain: the user pays for one share and receives it. Paying debits `user:42:cash` and credits `bank:client-money`. Receiving debits `custodian:positions` and credits `user:42:holdings`, the same as in [chapter 3](/brokerage/buying-shares/). The fee is charged once, with the last fill. Every posting carries the order id, `00000000-0000-0000-0000-000000003000`, as its `group_id`.
+Each fill is its own chain: the user pays for one share and receives it. Paying debits `user:42:cash` and credits `bank:client-money`. Receiving debits `custodian:positions` and credits `user:42:holdings`, the same as in [chapter 3](/brokerage/buying-shares/). The fee is charged once, with the last fill. Every posting carries the order id, `00000000-0000-0000-0000-000000003000`, as its `group_id`. The kinds are the same as in chapter 3: `trade` for each fill, and `commission` for the fee.
 
 ```json title="POST /transfers (fill 1)"
 {
   "chains": [
     [
-      { "id": "00000000-0000-0000-0000-000000003001", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "20000", "group_id": "00000000-0000-0000-0000-000000003000" },
-      { "id": "00000000-0000-0000-0000-000000003002", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "1000000", "group_id": "00000000-0000-0000-0000-000000003000" }
+      { "id": "00000000-0000-0000-0000-000000003001", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "20000", "kind": "trade", "group_id": "00000000-0000-0000-0000-000000003000" },
+      { "id": "00000000-0000-0000-0000-000000003002", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "1000000", "kind": "trade", "group_id": "00000000-0000-0000-0000-000000003000" }
     ]
   ]
 }
@@ -24,8 +24,8 @@ Each fill is its own chain: the user pays for one share and receives it. Paying 
 {
   "chains": [
     [
-      { "id": "00000000-0000-0000-0000-000000003003", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "20050", "group_id": "00000000-0000-0000-0000-000000003000" },
-      { "id": "00000000-0000-0000-0000-000000003004", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "1000000", "group_id": "00000000-0000-0000-0000-000000003000" }
+      { "id": "00000000-0000-0000-0000-000000003003", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "20050", "kind": "trade", "group_id": "00000000-0000-0000-0000-000000003000" },
+      { "id": "00000000-0000-0000-0000-000000003004", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "1000000", "kind": "trade", "group_id": "00000000-0000-0000-0000-000000003000" }
     ]
   ]
 }
@@ -35,9 +35,9 @@ Each fill is its own chain: the user pays for one share and receives it. Paying 
 {
   "chains": [
     [
-      { "id": "00000000-0000-0000-0000-000000003005", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "19975", "group_id": "00000000-0000-0000-0000-000000003000" },
-      { "id": "00000000-0000-0000-0000-000000003006", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "1000000", "group_id": "00000000-0000-0000-0000-000000003000" },
-      { "id": "00000000-0000-0000-0000-000000003007", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "00000000-0000-0000-0000-000000003000" }
+      { "id": "00000000-0000-0000-0000-000000003005", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "19975", "kind": "trade", "group_id": "00000000-0000-0000-0000-000000003000" },
+      { "id": "00000000-0000-0000-0000-000000003006", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "1000000", "kind": "trade", "group_id": "00000000-0000-0000-0000-000000003000" },
+      { "id": "00000000-0000-0000-0000-000000003007", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "kind": "commission", "group_id": "00000000-0000-0000-0000-000000003000" }
     ]
   ]
 }
@@ -55,9 +55,9 @@ GET /groups/00000000-0000-0000-0000-000000003000/transfers
 {
   "group_id": "00000000-0000-0000-0000-000000003000",
   "transfers": [
-    { "id": "00000000-0000-0000-0000-000000003007", "group_id": "00000000-0000-0000-0000-000000003000", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "timestamp": "2026-11-06T12:41:09.206050152Z" },
-    { "id": "00000000-0000-0000-0000-000000003006", "group_id": "00000000-0000-0000-0000-000000003000", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "1000000", "timestamp": "2026-11-06T12:41:09.206050151Z" },
-    { "id": "00000000-0000-0000-0000-000000003005", "group_id": "00000000-0000-0000-0000-000000003000", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "19975", "timestamp": "2026-11-06T12:41:09.20605015Z" },
+    { "id": "00000000-0000-0000-0000-000000003007", "group_id": "00000000-0000-0000-0000-000000003000", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "kind": "commission", "timestamp": "2026-11-06T12:41:09.206050152Z" },
+    { "id": "00000000-0000-0000-0000-000000003006", "group_id": "00000000-0000-0000-0000-000000003000", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "1000000", "kind": "trade", "timestamp": "2026-11-06T12:41:09.206050151Z" },
+    { "id": "00000000-0000-0000-0000-000000003005", "group_id": "00000000-0000-0000-0000-000000003000", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "19975", "kind": "trade", "timestamp": "2026-11-06T12:41:09.20605015Z" },
     ...
   ]
 }

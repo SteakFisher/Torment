@@ -55,7 +55,7 @@ GET /accounts/user:42:*/transfers?from=2026-11-01T00:00:00Z&cursor=2026-12-01T00
 {
   "address": "user:42:*",
   "transfers": [
-    { "id": "00000000-0000-0000-0000-000000007012", "group_id": "00000000-0000-0000-0000-000000007010", "debit": "transit:withdrawals", "credit": "user:42:cash", "currency": "USD", "amount": "5000", "timestamp": "2026-11-06T12:41:09.6Z" },
+    { "id": "00000000-0000-0000-0000-000000007012", "group_id": "00000000-0000-0000-0000-000000007010", "debit": "transit:withdrawals", "credit": "user:42:cash", "currency": "USD", "amount": "5000", "kind": "withdrawal", "timestamp": "2026-11-06T12:41:09.6Z" },
     ...
   ],
   "next": "2026-11-06T12:41:09.21Z"
@@ -64,10 +64,30 @@ GET /accounts/user:42:*/transfers?from=2026-11-01T00:00:00Z&cursor=2026-12-01T00
 
 - **Newest first.**
 - **Every currency,** unless you add `?currency=USD`.
+- **Every kind,** unless you add `?kind=`, as below.
 - **Once each.** A transfer between two of the user's own accounts would match twice, but is listed once.
 - **Paged.** A page holds the transfers before `cursor`, so the first request sets it to the end of the month. When `next` is there, pass it as `cursor` to get the next page. When it's missing, you've reached the start of the range.
 
 A pattern can cover at most 100 wallets in a history query. Each wallet is one query to TigerBeetle, so this is meant for one user's pots, not a feed across many users.
+
+## Just the dividends
+
+For a tax statement, the user needs their dividends on their own. Filter the history by kind:
+
+```http
+GET /accounts/user:42:*/transfers?kind=dividend
+```
+
+```json title="200 OK"
+{
+  "address": "user:42:*",
+  "transfers": [
+    { "id": "00000000-0000-0000-0000-000000006001", "group_id": "00000000-0000-0000-0000-000000006000", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "amount": "150", "kind": "dividend", "timestamp": "2026-11-06T12:41:09.4Z" }
+  ]
+}
+```
+
+The filter runs inside TigerBeetle, so a rare kind is quick to find even in a long history. Paging works the same way.
 
 ## Balances on a past date
 

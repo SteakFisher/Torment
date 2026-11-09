@@ -23,9 +23,9 @@ func TestIntegrationGroupTransfers(t *testing.T) {
 	}
 
 	group := ledger.FormatID(tb.ID())
-	pay := ledger.Posting{ID: ledger.FormatID(tb.ID()), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "100", GroupID: group}
-	refund := ledger.Posting{ID: ledger.FormatID(tb.ID()), Debit: "rider:1:wallet", Credit: "world", Currency: "USD", Amount: "30", GroupID: group}
-	other := ledger.Posting{ID: ledger.FormatID(tb.ID()), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "5"}
+	pay := ledger.Posting{ID: ledger.FormatID(tb.ID()), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "100", GroupID: group, Kind: "test"}
+	refund := ledger.Posting{ID: ledger.FormatID(tb.ID()), Debit: "rider:1:wallet", Credit: "world", Currency: "USD", Amount: "30", GroupID: group, Kind: "test"}
+	other := ledger.Posting{ID: ledger.FormatID(tb.ID()), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "5", Kind: "test"}
 	got, err := s.Transfer(ctx, [][]ledger.Posting{{pay}, {refund}, {other}})
 	if err != nil {
 		t.Fatalf("error transferring: %v", err)

@@ -11,14 +11,14 @@ A posting in Torment can never be changed or removed. That's deliberate: a ledge
 
 ## Reverse it, then post it again
 
-Undo the wrong posting with one that swaps its debit and credit, and post the right one. Put both in one chain, so the user's balance is never halfway corrected. Use the order's `group_id`, so the fix shows up with the order.
+Undo the wrong posting with one that swaps its debit and credit, and post the right one. Put both in one chain, so the user's balance is never halfway corrected. Use the order's `group_id`, so the fix shows up with the order. Give both postings the kind `correction`, registered like the others with `POST /kinds {"name": "correction"}`. A correction isn't a new trade, and its own kind keeps it from looking like one.
 
 ```json title="POST /transfers"
 {
   "chains": [
     [
-      { "id": "00000000-0000-0000-0000-000000009001", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "amount": "20000", "group_id": "00000000-0000-0000-0000-000000003000" },
-      { "id": "00000000-0000-0000-0000-000000009002", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "19000", "group_id": "00000000-0000-0000-0000-000000003000" }
+      { "id": "00000000-0000-0000-0000-000000009001", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "amount": "20000", "kind": "correction", "group_id": "00000000-0000-0000-0000-000000003000" },
+      { "id": "00000000-0000-0000-0000-000000009002", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "19000", "kind": "correction", "group_id": "00000000-0000-0000-0000-000000003000" }
     ]
   ]
 }

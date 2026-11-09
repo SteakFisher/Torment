@@ -7,14 +7,20 @@ Tesla pays a dividend of $0.50 per share. The custodian pays the total into the 
 
 ## One request, many payments
 
+A dividend moves money the same way as a deposit, but it isn't money the user sent. Give it its own kind, so a user can see their dividends apart from their deposits:
+
+```json title="POST /kinds"
+{ "name": "dividend" }
+```
+
 Each payment is one posting that debits `bank:client-money` and credits the user's cash, like a deposit. Each posting is its own chain of one, so if one user's payment fails, the others still go through.
 
 ```json title="POST /transfers"
 {
   "chains": [
-    [{ "id": "00000000-0000-0000-0000-000000006001", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "amount": "150", "group_id": "00000000-0000-0000-0000-000000006000" }],
-    [{ "id": "00000000-0000-0000-0000-000000006002", "debit": "bank:client-money", "credit": "user:43:cash", "currency": "USD", "amount": "1200", "group_id": "00000000-0000-0000-0000-000000006000" }],
-    [{ "id": "00000000-0000-0000-0000-000000006003", "debit": "bank:client-money", "credit": "user:44:cash", "currency": "USD", "amount": "25", "group_id": "00000000-0000-0000-0000-000000006000" }]
+    [{ "id": "00000000-0000-0000-0000-000000006001", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "amount": "150", "kind": "dividend", "group_id": "00000000-0000-0000-0000-000000006000" }],
+    [{ "id": "00000000-0000-0000-0000-000000006002", "debit": "bank:client-money", "credit": "user:43:cash", "currency": "USD", "amount": "1200", "kind": "dividend", "group_id": "00000000-0000-0000-0000-000000006000" }],
+    [{ "id": "00000000-0000-0000-0000-000000006003", "debit": "bank:client-money", "credit": "user:44:cash", "currency": "USD", "amount": "25", "kind": "dividend", "group_id": "00000000-0000-0000-0000-000000006000" }]
   ]
 }
 ```
@@ -37,7 +43,7 @@ Most of the cost of a write is the HTTP request around it, not the ledger. In ou
 
 For a job like this:
 
-- **Put up to about 4,000 postings in a request.** The limits are 8,189 postings and a 1 MiB body, and the body is usually reached first, at about 5,000 postings.
+- **Put up to about 4,000 postings in a request.** The limits are 8,189 postings and a 1 MiB body, and the body is usually reached first, at about 5,000 postings. The local setup runs TigerBeetle in development mode, which takes only about 250 postings per request; a bigger request returns 400 `batch_too_large`.
 - **Send several requests at once.** Torment merges them on the way to TigerBeetle.
 - **Store the ids before sending.** Write each user's payment and its posting id to your own database first. If the job crashes halfway, rerun it with the same ids: payments already made come back `exists`, and the rest are made.
 
