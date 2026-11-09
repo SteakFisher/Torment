@@ -6,6 +6,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'Torment',
+      social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/SteakFisher/Torment' }],
       plugins: [lucode()],
       components: { Head: './src/components/Head.astro' },
       sidebar: [
