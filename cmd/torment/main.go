@@ -75,7 +75,14 @@ func run() error {
 	}
 	defer tbReads.Close()
 
-	srv := &http.Server{Addr: addr, Handler: httpapi.New(ledger.New(db.NewStore(pool), tbWrites, tbReads), apiKeys)}
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           httpapi.New(ledger.New(db.NewStore(pool), tbWrites, tbReads), apiKeys),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
 	slog.Info("listening", "addr", addr)
