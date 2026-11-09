@@ -14,10 +14,10 @@ up:
 down:
 	docker compose down
 
-run: generate
+run:
 	go run ./cmd/torment
 
-test: generate
+test:
 	go test ./...
 
 # e2e needs the server running (make run).
@@ -28,8 +28,9 @@ e2e:
 brokerage:
 	./scripts/brokerage.sh
 
+# generate rewrites internal/db/sqlc from the queries; commit the result.
 generate:
-	go tool sqlc generate
+	go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate
 
 # Serves the docs site with live reload at http://localhost:4321.
 docs:

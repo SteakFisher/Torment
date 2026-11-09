@@ -3,7 +3,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go tool sqlc generate && go build -o /out/torment ./cmd/torment
+RUN go build -o /out/torment ./cmd/torment
 
 # tigerbeetle-go links a native library through cgo, so the runtime image needs the same glibc as the build.
 FROM debian:trixie-slim

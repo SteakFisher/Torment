@@ -1,4 +1,3 @@
 /torment
 /bin/
 .env
-/internal/db/sqlc/
