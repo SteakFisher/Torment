@@ -24,6 +24,8 @@ func TestParseCurrencyCode(t *testing.T) {
 		{code: "_USD", wantErr: true},
 		{code: "USD/", wantErr: true},
 		{code: "USD/19", wantErr: true},
+		{code: "USD/02", wantErr: true},
+		{code: "USD/00", wantErr: true},
 		{code: "USD/-1", wantErr: true},
 		{code: "USD/2/3", wantErr: true},
 		{code: "US D", wantErr: true},

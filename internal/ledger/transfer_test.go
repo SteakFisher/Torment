@@ -79,6 +79,8 @@ func TestTransferRejects(t *testing.T) {
 		{name: "zero amount", chains: edited(func(p *Posting) { p.Amount = "0" }), wantErr: ErrInvalid},
 		{name: "negative amount", chains: edited(func(p *Posting) { p.Amount = "-1" }), wantErr: ErrInvalid},
 		{name: "non-numeric amount", chains: edited(func(p *Posting) { p.Amount = "ten" }), wantErr: ErrInvalid},
+		{name: "amount with a sign", chains: edited(func(p *Posting) { p.Amount = "+1" }), wantErr: ErrInvalid},
+		{name: "amount with a leading zero", chains: edited(func(p *Posting) { p.Amount = "010" }), wantErr: ErrInvalid},
 		{name: "amount over 128 bits", chains: edited(func(p *Posting) { p.Amount = "340282366920938463463374607431768211456" }), wantErr: ErrInvalid},
 		{name: "decimal id", chains: edited(func(p *Posting) { p.ID = "5" }), wantErr: ErrInvalid},
 		{name: "missing kind", chains: edited(func(p *Posting) { p.Kind = "" }), wantErr: ErrInvalid},

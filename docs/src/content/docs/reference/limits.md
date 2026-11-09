@@ -15,7 +15,7 @@ description: Every size limit in Torment, and why each exists.
 | Kinds | 65,535 | 500 on registering one more | each kind is a TigerBeetle transfer code, a 16-bit number |
 | Ids, group ids | any UUID except the nil and max UUIDs | 400 | TigerBeetle reserves the 128-bit ids 0 and 2¹²⁸−1 |
 | Amounts | 1 to 2¹²⁸−1 minor units | 400 | |
-| Page size (`limit`) | default 100, max 1,000 | 400 | |
+| Page size (`limit`) | default 100, from 1 to 1,000 | 400 | |
 | Wallets in a pattern balance query | 1,000 | 400, asking you to narrow the pattern | each read covers every wallet at once |
 | Wallets in a pattern history query | 100 | 400, asking you to narrow the pattern | each wallet is one query to TigerBeetle |
 

@@ -80,9 +80,12 @@ func (s *Service) RegisterAccount(ctx context.Context, p RegisterAccountParams) 
 	return acct, created, nil
 }
 
-// Account returns the account at address with its wallets in currency order. It returns ErrAccountNotFound
-// when no account has the address.
+// Account returns the account at address with its wallets in currency order. It returns ErrInvalid for a
+// malformed address and ErrAccountNotFound when no account has the address.
 func (s *Service) Account(ctx context.Context, address string) (Account, error) {
+	if err := validateAddress(address); err != nil {
+		return Account{}, err
+	}
 	return s.store.AccountWallets(ctx, address, "")
 }
 

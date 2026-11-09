@@ -3,7 +3,9 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -115,13 +117,16 @@ type decodeError struct{ err error }
 
 func (e decodeError) Error() string { return e.err.Error() }
 
-// decodeJSON reads a body of at most 1 MiB into v, rejecting unknown fields. Failures are returned
-// as decodeError.
+// decodeJSON reads a body of at most 1 MiB holding one JSON value into v, rejecting unknown fields.
+// Failures are returned as decodeError.
 func decodeJSON(w http.ResponseWriter, r *http.Request, v any) error {
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
 		return decodeError{fmt.Errorf("error decoding request body: %w", err)}
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return decodeError{errors.New("error decoding request body: data after the JSON value")}
 	}
 	return nil
 }

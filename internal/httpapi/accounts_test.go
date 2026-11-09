@@ -102,6 +102,7 @@ func TestGetAccounts(t *testing.T) {
 		{name: "all, last page", path: "/accounts?address=rider:*", wantArgs: "  0", wantStatus: http.StatusOK},
 		{name: "after is not a cursor", path: "/accounts?after=a", wantArgs: "  0", wantStatus: http.StatusOK},
 		{name: "bad limit", path: "/accounts?limit=x", wantStatus: http.StatusBadRequest},
+		{name: "zero limit", path: "/accounts?limit=0", wantStatus: http.StatusBadRequest},
 		{name: "invalid", path: "/accounts/a:*:.", err: ledger.ErrInvalid, wantArgs: "a:*:.  0", wantStatus: http.StatusBadRequest},
 	}
 	for _, tt := range tests {

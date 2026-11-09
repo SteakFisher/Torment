@@ -32,6 +32,7 @@ func TestBalances(t *testing.T) {
 		{name: "debit-normal", typ: TypeAsset, wallets: wallets, wantN: 2, wantUSD: -70, wantLookup: true},
 		{name: "one currency", typ: TypeLiability, wallets: wallets, currency: "USD", wantN: 1, wantUSD: 70, wantLookup: true},
 		{name: "no wallet in currency", typ: TypeLiability, wallets: wallets, currency: "EUR"},
+		{name: "unregistered currency", typ: TypeLiability, wallets: wallets, currency: "GBP", wantErr: ErrCurrencyNotFound},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -46,6 +47,14 @@ func TestBalances(t *testing.T) {
 					}
 				}
 				return acct, nil
+			}, currencies: func(_ context.Context, names []string) (map[string]Currency, error) {
+				registered := map[string]Currency{}
+				for _, n := range names {
+					if n == "USD" || n == "EUR" {
+						registered[n] = Currency{Name: n}
+					}
+				}
+				return registered, nil
 			}}
 			looked := false
 			tbc := &fakeTB{lookupAccounts: func([]tb.Uint128) ([]tb.Account, error) {

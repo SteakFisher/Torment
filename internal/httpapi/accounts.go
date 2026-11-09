@@ -119,8 +119,8 @@ func parseLimit(r *http.Request) (int, error) {
 		return 0, nil
 	}
 	limit, err := strconv.Atoi(s)
-	if err != nil {
-		return 0, fmt.Errorf("%w: limit %q must be an integer", ledger.ErrInvalid, s)
+	if err != nil || limit < 1 {
+		return 0, fmt.Errorf("%w: limit %q must be a whole number from 1", ledger.ErrInvalid, s)
 	}
 	return limit, nil
 }

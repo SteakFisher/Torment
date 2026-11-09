@@ -16,8 +16,8 @@ type Currency struct {
 }
 
 // currencyCodeRE matches a currency code: an uppercase name starting with a letter (group 1),
-// optionally followed by "/" and a decimal precision (group 2).
-var currencyCodeRE = regexp.MustCompile(`^([A-Z][A-Z0-9_]*)(?:/([0-9]+))?$`)
+// optionally followed by "/" and a decimal precision with no leading zeros (group 2).
+var currencyCodeRE = regexp.MustCompile(`^([A-Z][A-Z0-9_]*)(?:/(0|[1-9][0-9]*))?$`)
 
 // ParseCurrencyCode splits a code of the form NAME[/PRECISION] into its name and precision; precision
 // is 0 when omitted. It returns ErrInvalid when the code is malformed or the precision exceeds 18.

@@ -24,11 +24,11 @@ JSON over HTTP. The server listens on `ADDR` (default `:8080`).
   | 503 | `not_ready` | `GET /readyz` only: Postgres or TigerBeetle did not answer |
 
 - **Ids:** posting ids and group ids are UUIDs, such as `0190f3a2-7b1c-7def-8abc-0123456789ab`, in any case; responses use lowercase. The nil and max UUIDs are rejected. Examples write them as `00000000-0000-0000-0000-000000001001` so they're easy to read; real code should generate a UUIDv7 for each posting with any UUID library.
-- **Amounts:** base-10 strings, because they are 128-bit. Amounts are integers in minor units: `"1050"` in `USD/2` is 10.50 USD.
+- **Amounts:** base-10 strings of digits, with no sign or leading zeros, because they are 128-bit. Amounts are integers in minor units: `"1050"` in `USD/2` is 10.50 USD.
 - **Times:** RFC 3339, with optional fractional seconds and offset. Transfer timestamps are TigerBeetle's commit time in nanoseconds.
-- **Bodies:** at most 1 MiB.
-- **Addresses:** colon-separated segments of `[a-zA-Z0-9_-]`, at most 255 bytes, such as `rider:123:wallet`. An address containing `*` is a pattern: each `*` matches exactly one segment, so `rider:*:wallet` matches every rider's wallet and `rider:123:*` matches every pot of rider 123.
-- **Paging:** a list response has `next` when more results remain. Pass it back as `cursor` for the next page. `limit` defaults to 100, and the maximum is 1000.
+- **Bodies:** one JSON value, at most 1 MiB.
+- **Addresses:** colon-separated segments of `[a-zA-Z0-9_-]`, at most 255 bytes, such as `rider:123:wallet`. An address containing `*` is a pattern: each `*` matches exactly one segment, so `rider:*:wallet` matches every rider's wallet and `rider:123:*` matches every pot of rider 123. An invalid address or pattern in a path returns 400 `invalid_request`.
+- **Paging:** a list response has `next` when more results remain. Pass it back as `cursor` for the next page. `limit` defaults to 100, and goes from 1 to 1000.
 
 ## Health
 
@@ -44,7 +44,7 @@ Every response has an `X-Request-Id` header. Send your own (up to 64 bytes) to h
 ## Currencies
 
 ### `POST /currencies`
-Registers a currency. `code` is `NAME/PRECISION`: an uppercase name, and the number of decimal places in one minor unit, from 0 to 18 (0 if omitted).
+Registers a currency. `code` is `NAME/PRECISION`: an uppercase name, and the number of decimal places in one minor unit, from 0 to 18 with no leading zeros (0 if omitted).
 
 ```json
 {"code": "USD/2"}
@@ -146,7 +146,7 @@ Lists every account, the same way a pattern does.
 
 ### `GET /accounts/{address}/balances`
 Query parameters:
-- `currency`: only this currency.
+- `currency`: only this currency. An unregistered currency returns 404 `currency_not_found`.
 - `at`: the balance after the last transfer at or before this time. Without it, the balance is the current one.
 
 Returns 200 with a total for each type and currency, plus each matching account's balances, one per wallet, ordered by currency. Types are never added together. A wallet with no transfers reads as zero. A pattern leaves out accounts with no wallet in scope.
@@ -227,7 +227,7 @@ The whole request fails, and nothing is applied, only for:
 | 404 | a kind is not registered (`kind_not_found`), an account is not registered (`account_not_found`) or a currency is not registered (`currency_not_found`) |
 | 500 | an error before or while sending to TigerBeetle. The outcome is unknown, so resend the same request with the same ids |
 
-**Retries are safe.** Resending a posting with the same id and fields never applies it twice; it returns `exists`.
+**Retries are safe.** Resending a posting with the same id and fields never applies it twice; it returns `exists`. Resend each chain as it was: whether a posting is linked to the next one in its chain is one of its fields, so an id sent alone and later inside a chain, or the other way round, can return `conflict`.
 
 **Batch when you have volume.** One request can carry thousands of independent postings and chains, and that is much faster than one request per posting. Send whatever has queued since your last request returned, and never wait to fill a batch. See [Batching](/internals/decisions/#batching).
 
@@ -255,7 +255,7 @@ When more transfers remain, the response has `next`. Pass it back as `cursor` fo
 An account's transfer history, newest first.
 
 Query parameters:
-- `currency`: only this currency.
+- `currency`: only this currency. An unregistered currency returns 404 `currency_not_found`.
 - `kind`: only transfers of this kind.
 - `from`: the earliest time, inclusive.
 - `cursor`: the latest time, exclusive. Pass `next` here for the next page.

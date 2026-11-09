@@ -263,30 +263,41 @@ func (s *Service) transferWalletIDs(ctx context.Context, address, currency strin
 
 // scopeWallets returns the wallets in currency, or in every currency when it is empty, of the account at
 // address or of every account matching it when it is a pattern, ordered by address and currency. It
-// returns ErrAccountNotFound when no account has the exact address, ErrPatternTooBroad for a pattern
-// matching more than limit wallets, and ErrInvalid for a malformed pattern.
+// returns ErrAccountNotFound when no account has the exact address, ErrCurrencyNotFound when currency is
+// not registered, ErrPatternTooBroad for a pattern matching more than limit wallets, and ErrInvalid for
+// a malformed address or pattern.
 func (s *Service) scopeWallets(ctx context.Context, address, currency string, limit int) ([]AddressWallet, error) {
+	var wallets []AddressWallet
 	if !IsPattern(address) {
+		if err := validateAddress(address); err != nil {
+			return nil, err
+		}
 		acct, err := s.store.AccountWallets(ctx, address, currency)
 		if err != nil {
 			return nil, err
 		}
-		wallets := make([]AddressWallet, len(acct.Wallets))
-		for i, w := range acct.Wallets {
-			wallets[i] = AddressWallet{Address: acct.Address, Type: acct.Type, Wallet: w}
+		for _, w := range acct.Wallets {
+			wallets = append(wallets, AddressWallet{Address: acct.Address, Type: acct.Type, Wallet: w})
 		}
-		return wallets, nil
+	} else {
+		re, err := patternRegex(address)
+		if err != nil {
+			return nil, err
+		}
+		var tooMany bool
+		wallets, tooMany, err = s.store.PatternWallets(ctx, re, currency, limit)
+		if err != nil {
+			return nil, err
+		}
+		if tooMany {
+			return nil, fmt.Errorf("%w: address pattern %q matches more than %d wallets; narrow it", ErrPatternTooBroad, address, limit)
+		}
 	}
-	re, err := patternRegex(address)
-	if err != nil {
-		return nil, err
-	}
-	wallets, tooMany, err := s.store.PatternWallets(ctx, re, currency, limit)
-	if err != nil {
-		return nil, err
-	}
-	if tooMany {
-		return nil, fmt.Errorf("%w: address pattern %q matches more than %d wallets; narrow it", ErrPatternTooBroad, address, limit)
+	// A registered currency is only looked up when nothing matched, so the usual read costs no query.
+	if len(wallets) == 0 && currency != "" {
+		if _, err := s.lookupCurrencies(ctx, []string{currency}); err != nil {
+			return nil, err
+		}
 	}
 	return wallets, nil
 }
