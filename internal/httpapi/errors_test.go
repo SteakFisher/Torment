@@ -19,11 +19,12 @@ func TestWriteError(t *testing.T) {
 		wantBody   string
 	}{
 		{name: "decode", err: decodeError{errors.New("bad json")}, wantStatus: http.StatusBadRequest, wantBody: `{"error":{"code":"invalid_request","message":"bad json"}}`},
-		{name: "invalid", err: fmt.Errorf("%w: x", ledger.ErrInvalid), wantStatus: http.StatusBadRequest, wantBody: `{"error":{"code":"invalid_request","message":"invalid: x"}}`},
-		{name: "pattern too broad", err: fmt.Errorf("%w: x", ledger.ErrPatternTooBroad), wantStatus: http.StatusBadRequest, wantBody: `{"error":{"code":"pattern_too_broad","message":"invalid: x"}}`},
-		{name: "account not found", err: fmt.Errorf("%w: x", ledger.ErrAccountNotFound), wantStatus: http.StatusNotFound, wantBody: `{"error":{"code":"account_not_found","message":"not found: x"}}`},
-		{name: "currency not found", err: fmt.Errorf("%w: x", ledger.ErrCurrencyNotFound), wantStatus: http.StatusNotFound, wantBody: `{"error":{"code":"currency_not_found","message":"not found: x"}}`},
-		{name: "conflict", err: fmt.Errorf("%w: x", ledger.ErrConflict), wantStatus: http.StatusConflict, wantBody: `{"error":{"code":"conflict","message":"conflict: x"}}`},
+		{name: "invalid", err: fmt.Errorf("%w: x", ledger.ErrInvalid), wantStatus: http.StatusBadRequest, wantBody: `{"error":{"code":"invalid_request","message":"x"}}`},
+		{name: "pattern too broad", err: fmt.Errorf("%w: x", ledger.ErrPatternTooBroad), wantStatus: http.StatusBadRequest, wantBody: `{"error":{"code":"pattern_too_broad","message":"x"}}`},
+		{name: "account not found", err: fmt.Errorf("%w: x", ledger.ErrAccountNotFound), wantStatus: http.StatusNotFound, wantBody: `{"error":{"code":"account_not_found","message":"x"}}`},
+		{name: "currency not found", err: fmt.Errorf("%w: x", ledger.ErrCurrencyNotFound), wantStatus: http.StatusNotFound, wantBody: `{"error":{"code":"currency_not_found","message":"x"}}`},
+		{name: "conflict", err: fmt.Errorf("%w: x", ledger.ErrConflict), wantStatus: http.StatusConflict, wantBody: `{"error":{"code":"conflict","message":"x"}}`},
+		{name: "invalid inside a wrap", err: fmt.Errorf("chain 0: %w", fmt.Errorf("%w: x", ledger.ErrInvalid)), wantStatus: http.StatusBadRequest, wantBody: `{"error":{"code":"invalid_request","message":"chain 0: x"}}`},
 		{name: "unexpected", err: errors.New("boom"), wantStatus: http.StatusInternalServerError, wantBody: `{"error":{"code":"internal","message":"internal error"}}`},
 	}
 	for _, tt := range tests {

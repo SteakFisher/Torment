@@ -91,7 +91,7 @@ func TestGetAccounts(t *testing.T) {
 	}{
 		{
 			name:       "pattern page with more",
-			path:       "/accounts/rider:*:wallet?after=a&limit=2",
+			path:       "/accounts/rider:*:wallet?cursor=a&limit=2",
 			more:       true,
 			wantArgs:   "rider:*:wallet a 2",
 			wantStatus: http.StatusOK,
@@ -100,14 +100,15 @@ func TestGetAccounts(t *testing.T) {
 		},
 		{name: "encoded star", path: "/accounts/rider:%2A:wallet", wantArgs: "rider:*:wallet  0", wantStatus: http.StatusOK},
 		{name: "all, last page", path: "/accounts?address=rider:*", wantArgs: "  0", wantStatus: http.StatusOK},
+		{name: "after is not a cursor", path: "/accounts?after=a", wantArgs: "  0", wantStatus: http.StatusOK},
 		{name: "bad limit", path: "/accounts?limit=x", wantStatus: http.StatusBadRequest},
 		{name: "invalid", path: "/accounts/a:*:.", err: ledger.ErrInvalid, wantArgs: "a:*:.  0", wantStatus: http.StatusBadRequest},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var gotArgs string
-			l := fakeLedger{listAccounts: func(_ context.Context, pattern, after string, limit int) ([]ledger.Account, bool, error) {
-				gotArgs = fmt.Sprintf("%s %s %d", pattern, after, limit)
+			l := fakeLedger{listAccounts: func(_ context.Context, pattern, cursor string, limit int) ([]ledger.Account, bool, error) {
+				gotArgs = fmt.Sprintf("%s %s %d", pattern, cursor, limit)
 				if tt.err != nil {
 					return nil, false, fmt.Errorf("wrapped: %w", tt.err)
 				}
@@ -138,7 +139,7 @@ func TestGetAccount(t *testing.T) {
 		{
 			name:       "found",
 			wantStatus: http.StatusOK,
-			wantBody:   `{"address":"rider:1:wallet","type":"liability","allow_negative":false,"created_at":"2026-01-02T03:04:05Z","wallets":[{"currency":"USD","precision":2}]}`,
+			wantBody:   `{"accounts":[{"address":"rider:1:wallet","type":"liability","allow_negative":false,"created_at":"2026-01-02T03:04:05Z","wallets":[{"currency":"USD","precision":2}]}]}`,
 		},
 		{name: "not found", err: ledger.ErrAccountNotFound, wantStatus: http.StatusNotFound},
 	}

@@ -113,7 +113,7 @@ func TestPatternBalances(t *testing.T) {
 	}}
 	tbc := &fakeTB{lookupAccounts: func([]tb.Uint128) ([]tb.Account, error) { return inTB, nil }}
 
-	totals, accounts, err := New(store, tbc, tbc).PatternBalances(context.Background(), "rider:1:*", "", time.Time{})
+	totals, accounts, err := New(store, tbc, tbc).Balances(context.Background(), "rider:1:*", "", time.Time{})
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -147,14 +147,14 @@ func TestPatternBalances(t *testing.T) {
 	store.patternWallets = func(context.Context, string, string, int) ([]AddressWallet, bool, error) {
 		return nil, true, nil
 	}
-	if _, _, err := New(store, tbc, tbc).PatternBalances(context.Background(), "*", "", time.Time{}); !errors.Is(err, ErrPatternTooBroad) {
+	if _, _, err := New(store, tbc, tbc).Balances(context.Background(), "*", "", time.Time{}); !errors.Is(err, ErrPatternTooBroad) {
 		t.Fatalf("too many wallets err = %v, want ErrPatternTooBroad", err)
 	}
 	for _, c := range []struct {
 		pattern string
 		at      time.Time
 	}{{"rider:.*", time.Time{}}, {"rider", time.Unix(-1, 0)}} {
-		if _, _, err := New(store, tbc, tbc).PatternBalances(context.Background(), c.pattern, "", c.at); !errors.Is(err, ErrInvalid) {
+		if _, _, err := New(store, tbc, tbc).Balances(context.Background(), c.pattern, "", c.at); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("pattern %q at %v err = %v, want ErrInvalid", c.pattern, c.at, err)
 		}
 	}
@@ -202,14 +202,14 @@ func TestAccountTransfers(t *testing.T) {
 		{name: "one currency", p: AccountTransfersParams{Address: "rider:1:wallet", Currency: "AED"}, wantTimes: []int64{40, 20}, wantFilter: tb.AccountFilter{Limit: defaultListLimit + 1}},
 		{
 			name:       "range",
-			p:          AccountTransfersParams{Address: "rider:1:wallet", From: time.Unix(0, 20), Before: time.Unix(0, 41), Limit: 5},
+			p:          AccountTransfersParams{Address: "rider:1:wallet", From: time.Unix(0, 20), Cursor: time.Unix(0, 41), Limit: 5},
 			wantTimes:  []int64{40, 30, 20},
 			wantFilter: tb.AccountFilter{TimestampMin: 20, TimestampMax: 40, Limit: 6},
 		},
-		{name: "empty range", p: AccountTransfersParams{Address: "rider:1:wallet", From: time.Unix(0, 30), Before: time.Unix(0, 30)}, wantTimes: []int64{}},
+		{name: "empty range", p: AccountTransfersParams{Address: "rider:1:wallet", From: time.Unix(0, 30), Cursor: time.Unix(0, 30)}, wantTimes: []int64{}},
 		{name: "unknown account", p: AccountTransfersParams{Address: "nobody"}, wantErr: ErrAccountNotFound},
 		{name: "bad limit", p: AccountTransfersParams{Address: "rider:1:wallet", Limit: maxListLimit + 1}, wantErr: ErrInvalid},
-		{name: "bad time", p: AccountTransfersParams{Address: "rider:1:wallet", Before: time.Unix(-1, 0)}, wantErr: ErrInvalid},
+		{name: "bad time", p: AccountTransfersParams{Address: "rider:1:wallet", Cursor: time.Unix(-1, 0)}, wantErr: ErrInvalid},
 	}
 	flags := tb.AccountFilterFlags{Debits: true, Credits: true, Reversed: true}.ToUint32()
 	for _, tt := range tests {

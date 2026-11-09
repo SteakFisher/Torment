@@ -53,7 +53,7 @@ func TestBalances(t *testing.T) {
 				return inTB, nil
 			}}
 
-			got, err := New(store, tbc, tbc).Balances(context.Background(), "rider:1:wallet", tt.currency, time.Time{})
+			totals, accounts, err := New(store, tbc, tbc).Balances(context.Background(), "rider:1:wallet", tt.currency, time.Time{})
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
@@ -63,16 +63,25 @@ func TestBalances(t *testing.T) {
 			if tt.wantErr != nil {
 				return
 			}
-			if len(got) != tt.wantN {
-				t.Fatalf("got %d balances, want %d", len(got), tt.wantN)
+			var got []Balance
+			if len(accounts) > 0 {
+				got = accounts[0].Balances
 			}
-			for _, b := range got {
+			// the exact account is listed even with no wallet in scope
+			if len(accounts) != 1 || accounts[0].Address != "rider:1:wallet" || len(got) != tt.wantN || len(totals) != tt.wantN {
+				t.Fatalf("got accounts %+v, totals %+v; want %d balances", accounts, totals, tt.wantN)
+			}
+			for i, b := range got {
 				want := int64(0)
 				if b.Currency == "USD" {
 					want = tt.wantUSD
 				}
 				if b.Amount.Int64() != want || b.Precision != 2 {
 					t.Fatalf("%s balance = %s (precision %d), want %d", b.Currency, b.Amount, b.Precision, want)
+				}
+				// one account, so each total is its balance
+				if tot := totals[i]; tot.Type != tt.typ || tot.Currency != b.Currency || tot.Amount.Cmp(b.Amount) != 0 {
+					t.Fatalf("total %d = %+v, want %s %s %s", i, tot, tt.typ, b.Currency, b.Amount)
 				}
 			}
 		})
@@ -94,10 +103,11 @@ func TestBalancesAt(t *testing.T) {
 		return nil, nil
 	}}
 
-	got, err := New(store, tbc, tbc).Balances(context.Background(), "rider:1:wallet", "", at)
-	if err != nil {
-		t.Fatalf("err = %v", err)
+	_, accounts, err := New(store, tbc, tbc).Balances(context.Background(), "rider:1:wallet", "", at)
+	if err != nil || len(accounts) != 1 {
+		t.Fatalf("accounts = %+v, err = %v", accounts, err)
 	}
+	got := accounts[0].Balances
 	if len(got) != 2 || got[0].Amount.Int64() != 0 || got[1].Amount.Int64() != 70 {
 		t.Fatalf("balances = %+v; want AED 0, USD 70", got)
 	}
@@ -112,7 +122,7 @@ func TestBalancesAt(t *testing.T) {
 	}
 
 	for _, bad := range []time.Time{time.Unix(0, 0), time.Unix(-5, 0), time.Date(2262, 1, 1, 0, 0, 0, 0, time.UTC)} {
-		if _, err := New(store, tbc, tbc).Balances(context.Background(), "rider:1:wallet", "", bad); !errors.Is(err, ErrInvalid) {
+		if _, _, err := New(store, tbc, tbc).Balances(context.Background(), "rider:1:wallet", "", bad); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("at %v err = %v, want ErrInvalid", bad, err)
 		}
 	}

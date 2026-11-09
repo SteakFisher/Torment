@@ -10,7 +10,7 @@ There are two kinds of failure. A **request** fails when the whole thing is reje
 The response has this shape:
 
 ```json
-{"error": {"code": "currency_not_found", "message": "not found: currency \"EUR\" is not registered"}}
+{"error": {"code": "currency_not_found", "message": "currency \"EUR\" is not registered"}}
 ```
 
 Match on `code`, which is stable. `message` explains the problem to a person and may change.
@@ -20,6 +20,8 @@ Match on `code`, which is stable. `message` explains the problem to a person and
 | 400 | `invalid_request` | malformed JSON, an unknown field or an invalid value | fix the request. Retrying won't help |
 | 400 | `pattern_too_broad` | an address pattern matches more wallets than allowed (1000 for balances, 100 for transfers) | narrow the pattern |
 | 401 | `unauthorized` | missing or wrong API key | fix the `Authorization` header |
+| 404 | `route_not_found` | no route has this path | fix the method and path |
+| 405 | `method_not_allowed` | the path exists, but not with this method. The `Allow` header lists the methods it takes | use one of those methods |
 | 404 | `account_not_found` | no account has the address | register the account, or fix the address |
 | 404 | `currency_not_found` | the currency is not registered | register the currency, or fix the name |
 | 409 | `conflict` | the input clashes with something already stored, such as an account registered with a different type | use the stored values, or a new name |

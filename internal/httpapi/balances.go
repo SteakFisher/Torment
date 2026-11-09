@@ -31,10 +31,9 @@ type accountBalancesJSON struct {
 }
 
 // getBalances handles GET /accounts/{address}/balances?currency=&at=, with balances only in currency when
-// given and as of at when given. For an address it responds 200 with the balance of each of the account's
-// wallets, or 404 when the account does not exist. For an address pattern it responds 200 with one total
-// per account type and currency plus each matching account's balances, or 400 when the pattern matches
-// too many wallets. Either responds 400 for a malformed query.
+// given and as of at when given. It responds 200 with one total per account type and currency plus the
+// balances of the account, or of each account matching an address pattern; 400 for a malformed query or
+// a pattern matching too many wallets; or 404 when the exact account does not exist.
 func getBalances(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		address, currency := r.PathValue("address"), r.URL.Query().Get("currency")
@@ -43,19 +42,7 @@ func getBalances(l Ledger) http.HandlerFunc {
 			writeError(w, r, err)
 			return
 		}
-		if !ledger.IsPattern(address) {
-			balances, err := l.Balances(r.Context(), address, currency, at)
-			if err != nil {
-				writeError(w, r, err)
-				return
-			}
-			writeJSON(w, http.StatusOK, struct {
-				Address  string        `json:"address"`
-				Balances []balanceJSON `json:"balances"`
-			}{address, newBalancesJSON(balances)})
-			return
-		}
-		totals, accounts, err := l.PatternBalances(r.Context(), address, currency, at)
+		totals, accounts, err := l.Balances(r.Context(), address, currency, at)
 		if err != nil {
 			writeError(w, r, err)
 			return

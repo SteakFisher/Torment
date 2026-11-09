@@ -95,7 +95,7 @@ func TestIntegrationPatternBalances(t *testing.T) {
 	// pay moves amount of USD and returns TigerBeetle's timestamp for it
 	pay := func(debit, credit, amount string) time.Time {
 		t.Helper()
-		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: tb.ID().BigInt().String(), Debit: debit, Credit: credit, Currency: "USD", Amount: amount}}})
+		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: ledger.FormatID(tb.ID()), Debit: debit, Credit: credit, Currency: "USD", Amount: amount}}})
 		if err != nil || got[0][0].Err != nil {
 			t.Fatalf("error transferring: %v, %+v", err, got)
 		}
@@ -113,7 +113,7 @@ func TestIntegrationPatternBalances(t *testing.T) {
 	// summary prints totals and accounts as text
 	summary := func(pattern, currency string, at time.Time) string {
 		t.Helper()
-		totals, accounts, err := s.PatternBalances(ctx, pattern, currency, at)
+		totals, accounts, err := s.Balances(ctx, pattern, currency, at)
 		if err != nil {
 			t.Fatalf("error getting balances for %q: %v", pattern, err)
 		}
@@ -140,6 +140,9 @@ func TestIntegrationPatternBalances(t *testing.T) {
 		"asset USD 0; liability USD 100; rider:1:bonus USD 0; rider:1:card USD 0; rider:1:wallet USD 100; "; got != want {
 		t.Fatalf("rider:1:* USD at first =\n%s\nwant\n%s", got, want)
 	}
+	if got, want := summary("rider:1:wallet", "", time.Time{}), "liability AED 0; liability USD 105; rider:1:wallet AED 0 USD 105; "; got != want {
+		t.Fatalf("rider:1:wallet = %q, want %q", got, want)
+	}
 	if got, want := summary("nobody:*", "", time.Time{}), ""; got != want {
 		t.Fatalf("nobody:* = %q, want nothing", got)
 	}
@@ -165,7 +168,7 @@ func TestIntegrationAccountTransfers(t *testing.T) {
 	// pay sends one posting and returns its id
 	pay := func(debit, credit, currency, amount string) string {
 		t.Helper()
-		id := tb.ID().BigInt().String()
+		id := ledger.FormatID(tb.ID())
 		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: id, Debit: debit, Credit: credit, Currency: currency, Amount: amount}}})
 		if err != nil || got[0][0].Err != nil {
 			t.Fatalf("error transferring: %v, %+v", err, got)
@@ -187,7 +190,7 @@ func TestIntegrationAccountTransfers(t *testing.T) {
 		}
 		var out []string
 		for _, g := range got {
-			out = append(out, g.ID.BigInt().String())
+			out = append(out, ledger.FormatID(g.ID))
 		}
 		return out, got, more
 	}
@@ -196,7 +199,7 @@ func TestIntegrationAccountTransfers(t *testing.T) {
 	if fmt.Sprint(all) != fmt.Sprint([]string{c, b, a}) || more {
 		t.Fatalf("all = %v, more %v; want %v", all, more, []string{c, b, a})
 	}
-	if r := records[0]; r.Debit != "rider:1:wallet" || r.Credit != "rider:2:wallet" || r.Currency != "USD" || r.Amount.Int64() != 30 || r.GroupID.BigInt().String() != c {
+	if r := records[0]; r.Debit != "rider:1:wallet" || r.Credit != "rider:2:wallet" || r.Currency != "USD" || r.Amount.Int64() != 30 || ledger.FormatID(r.GroupID) != c {
 		t.Fatalf("newest = %+v", r)
 	}
 
@@ -204,7 +207,7 @@ func TestIntegrationAccountTransfers(t *testing.T) {
 	if fmt.Sprint(page1) != fmt.Sprint([]string{c, b}) || !more {
 		t.Fatalf("page 1 = %v, more %v", page1, more)
 	}
-	page2, _, more := ids(ledger.AccountTransfersParams{Limit: 2, Before: records[1].Timestamp})
+	page2, _, more := ids(ledger.AccountTransfersParams{Limit: 2, Cursor: records[1].Timestamp})
 	if fmt.Sprint(page2) != fmt.Sprint([]string{a}) || more {
 		t.Fatalf("page 2 = %v, more %v", page2, more)
 	}

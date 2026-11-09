@@ -29,24 +29,24 @@ func TestGroupTransfers(t *testing.T) {
 		wantMax   uint64
 	}{
 		{name: "malformed", params: GroupTransfersParams{GroupID: "x"}, wantErr: ErrInvalid},
-		{name: "zero", params: GroupTransfersParams{GroupID: "0"}, wantErr: ErrInvalid},
-		{name: "limit too big", params: GroupTransfersParams{GroupID: "9", Limit: maxListLimit + 1}, wantErr: ErrInvalid},
-		{name: "no transfers", params: GroupTransfersParams{GroupID: "9"}, want: []TransferRecord{}, wantLimit: defaultListLimit + 1},
+		{name: "zero", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000000"}, wantErr: ErrInvalid},
+		{name: "limit too big", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009", Limit: maxListLimit + 1}, wantErr: ErrInvalid},
+		{name: "no transfers", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009"}, want: []TransferRecord{}, wantLimit: defaultListLimit + 1},
 		{
-			name: "page with more", params: GroupTransfersParams{GroupID: "9", Cursor: time.Unix(3, 0), Limit: 1},
+			name: "page with more", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009", Cursor: time.Unix(3, 0), Limit: 1},
 			found: []tb.Transfer{refund, pay}, wantQuery: true, wantMore: true, wantLimit: 2, wantMax: 3_000_000_000 - 1,
 			want: []TransferRecord{
 				{ID: refund.ID, Debit: "rider:1:wallet", Credit: "world", Currency: "USD", Amount: refund.Amount.BigInt(), Timestamp: time.Unix(2, 0).UTC()},
 			},
 		},
 		{
-			name: "transfers", params: GroupTransfersParams{GroupID: "9"}, found: []tb.Transfer{pay, refund}, wantQuery: true, wantLimit: defaultListLimit + 1,
+			name: "transfers", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009"}, found: []tb.Transfer{pay, refund}, wantQuery: true, wantLimit: defaultListLimit + 1,
 			want: []TransferRecord{
 				{ID: pay.ID, Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: pay.Amount.BigInt(), Timestamp: time.Unix(1, 0).UTC()},
 				{ID: refund.ID, Debit: "rider:1:wallet", Credit: "world", Currency: "USD", Amount: refund.Amount.BigInt(), Timestamp: time.Unix(2, 0).UTC()},
 			},
 		},
-		{name: "account with no wallet", params: GroupTransfersParams{GroupID: "9"}, found: []tb.Transfer{{ID: tb.ID(), DebitAccountID: orphan, CreditAccountID: rider}}, wantQuery: true, wantOther: true},
+		{name: "account with no wallet", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009"}, found: []tb.Transfer{{ID: tb.ID(), DebitAccountID: orphan, CreditAccountID: rider}}, wantQuery: true, wantOther: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -12,8 +12,8 @@ import (
 const maxPostings = 8189
 
 // Posting debits Amount, an integer in minor units of Currency, from the wallet of Debit and credits it
-// to the wallet of Credit. ID is the TigerBeetle transfer id. ID, Amount and GroupID are base-10
-// strings; an empty GroupID makes ID the group id.
+// to the wallet of Credit. ID and GroupID are UUIDs (see parseID), and ID is the TigerBeetle transfer id;
+// an empty GroupID makes ID the group id. Amount is a base-10 string.
 type Posting struct {
 	ID       string
 	Debit    string
@@ -82,7 +82,7 @@ func validateChains(chains [][]Posting) ([]tb.Transfer, error) {
 				return nil, fmt.Errorf("chain %d posting %d: %w", i, j, err)
 			}
 			if seen[t.ID] {
-				return nil, fmt.Errorf("%w: chain %d posting %d: id %s is used more than once", ErrInvalid, i, j, p.ID)
+				return nil, fmt.Errorf("%w: chain %d posting %d: id %s is used more than once", ErrInvalid, i, j, FormatID(t.ID))
 			}
 			seen[t.ID] = true
 			if j < len(chain)-1 {
@@ -97,9 +97,9 @@ func validateChains(chains [][]Posting) ([]tb.Transfer, error) {
 // parsePosting returns the TigerBeetle transfer for p without accounts, ledger or flags. It returns
 // ErrInvalid when a field is malformed.
 func parsePosting(p Posting) (tb.Transfer, error) {
-	id, ok := parseUint128(p.ID)
-	if !ok || id == maxUint128 {
-		return tb.Transfer{}, fmt.Errorf("%w: id %q must be a base-10 integer greater than zero and less than 2^128-1", ErrInvalid, p.ID)
+	id, ok := parseID(p.ID)
+	if !ok {
+		return tb.Transfer{}, fmt.Errorf("%w: id %q must be a UUID other than the nil and max UUIDs", ErrInvalid, p.ID)
 	}
 	if err := validateAddress(p.Debit); err != nil {
 		return tb.Transfer{}, err
@@ -116,8 +116,8 @@ func parsePosting(p Posting) (tb.Transfer, error) {
 	}
 	group := id
 	if p.GroupID != "" {
-		if group, ok = parseUint128(p.GroupID); !ok {
-			return tb.Transfer{}, fmt.Errorf("%w: group_id %q must be a base-10 integer greater than zero that fits in 128 bits", ErrInvalid, p.GroupID)
+		if group, ok = parseID(p.GroupID); !ok {
+			return tb.Transfer{}, fmt.Errorf("%w: group_id %q must be a UUID other than the nil and max UUIDs", ErrInvalid, p.GroupID)
 		}
 	}
 	return tb.Transfer{ID: id, Amount: amount, UserData128: group, Code: 1}, nil
@@ -244,7 +244,7 @@ func (s *Service) checkExistingChains(ctx context.Context, chains []existingChai
 // failChain sets err on chain[failed] and ErrChainFailed on every other posting of chain.
 func failChain(chain []Transfer, failed int, err error) {
 	for j := range chain {
-		chain[j].Err = fmt.Errorf("%w: transfer %s in the same chain failed", ErrChainFailed, chain[failed].ID.BigInt())
+		chain[j].Err = fmt.Errorf("%w: transfer %s in the same chain failed", ErrChainFailed, FormatID(chain[failed].ID))
 	}
 	chain[failed].Err = err
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	tb "github.com/tigerbeetle/tigerbeetle-go"
@@ -66,4 +67,14 @@ func newIntegrationService(t *testing.T) *ledger.Service {
 		t.Fatalf("error truncating tables: %v", err)
 	}
 	return ledger.New(db.NewStore(testPool), testTB, testTB)
+}
+
+// accountBalances returns the balances of the exact address as of at (now when zero), or the error of
+// s.Balances.
+func accountBalances(s *ledger.Service, address string, at time.Time) ([]ledger.Balance, error) {
+	_, accounts, err := s.Balances(context.Background(), address, "", at)
+	if err != nil || len(accounts) == 0 {
+		return nil, err
+	}
+	return accounts[0].Balances, nil
 }

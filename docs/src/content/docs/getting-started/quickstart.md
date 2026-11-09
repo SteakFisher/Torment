@@ -55,7 +55,7 @@ The rider tops up $100. The money arrives in your bank, and you now owe it to th
   "chains": [
     [
       {
-        "id": "1",
+        "id": "00000000-0000-0000-0000-000000000001",
         "debit": "bank:settlement",
         "credit": "rider:1:wallet",
         "currency": "USD",
@@ -67,7 +67,7 @@ The rider tops up $100. The money arrives in your bank, and you now owe it to th
 ```
 
 ```json title="200 OK"
-{ "chains": [[{ "id": "1", "group_id": "1", "status": "created" }]] }
+{ "chains": [[{ "id": "00000000-0000-0000-0000-000000000001", "group_id": "00000000-0000-0000-0000-000000000001", "status": "created" }]] }
 ```
 
 Each element of `chains` is a chain: a list of postings that all happen or none do. This request has one chain with one posting, and the response has the same shape.
@@ -81,9 +81,18 @@ GET /accounts/rider:1:wallet/balances
 ```json title="200 OK"
 {
   "address": "rider:1:wallet",
-  "balances": [{ "currency": "USD", "precision": 2, "amount": "10000" }]
+  "totals": [{ "type": "liability", "currency": "USD", "precision": 2, "amount": "10000" }],
+  "accounts": [
+    {
+      "address": "rider:1:wallet",
+      "type": "liability",
+      "balances": [{ "currency": "USD", "precision": 2, "amount": "10000" }]
+    }
+  ]
 }
 ```
+
+A single account comes back in the same shape as a [pattern](/reference/api/#get-accountsaddressbalances), so `totals` here is just the rider's balance.
 
 Both balances went up: the bank holds $100, and you owe the rider $100. That's double-entry: every posting debits one account and credits another by the same amount.
 
@@ -92,7 +101,7 @@ Both balances went up: the bank holds $100, and you owe the rider $100. That's d
 Send the same transfer from step 3 again. It isn't applied twice:
 
 ```json title="200 OK"
-{ "chains": [[{ "id": "1", "group_id": "1", "status": "exists" }]] }
+{ "chains": [[{ "id": "00000000-0000-0000-0000-000000000001", "group_id": "00000000-0000-0000-0000-000000000001", "status": "exists" }]] }
 ```
 
 That's what makes retries safe: if a request times out, send it again with the same ids.
@@ -106,7 +115,7 @@ The rider tries to withdraw $200 they don't have. Money leaving goes the other w
   "chains": [
     [
       {
-        "id": "2",
+        "id": "00000000-0000-0000-0000-000000000002",
         "debit": "rider:1:wallet",
         "credit": "bank:settlement",
         "currency": "USD",
@@ -120,7 +129,7 @@ The rider tries to withdraw $200 they don't have. Money leaving goes the other w
 ```json title="200 OK"
 {
   "chains": [
-    [{ "id": "2", "group_id": "2", "status": "failed", "error": "insufficient_funds", "message": "..." }]
+    [{ "id": "00000000-0000-0000-0000-000000000002", "group_id": "00000000-0000-0000-0000-000000000002", "status": "failed", "error": "insufficient_funds", "message": "..." }]
   ]
 }
 ```

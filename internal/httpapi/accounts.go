@@ -56,31 +56,32 @@ func postAccount(l Ledger) http.HandlerFunc {
 	}
 }
 
-// getAccounts handles GET /accounts?after=&limit= and GET /accounts/{address}. For an address it responds
-// 200 with that account or 404 when it does not exist. Otherwise it responds 200 with the accounts
-// matching the address pattern, or every account when there is none, ordered by address, and next set to
-// the last address when more match; or 400 for a malformed query.
+// getAccounts handles GET /accounts?cursor=&limit= and GET /accounts/{address}. It responds 200 with the
+// accounts matching the address pattern, or every account when there is none, ordered by address, and
+// next set to the last address when more match; or 400 for a malformed query. For an exact address the
+// accounts are that one account, or it responds 404 when it does not exist.
 func getAccounts(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		address := r.PathValue("address")
+		var accounts []ledger.Account
+		var more bool
 		if address != "" && !ledger.IsPattern(address) {
 			acct, err := l.Account(r.Context(), address)
 			if err != nil {
 				writeError(w, r, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, newAccountJSON(acct))
-			return
-		}
-		limit, err := parseLimit(r)
-		if err != nil {
-			writeError(w, r, err)
-			return
-		}
-		accounts, more, err := l.ListAccounts(r.Context(), address, r.URL.Query().Get("after"), limit)
-		if err != nil {
-			writeError(w, r, err)
-			return
+			accounts = []ledger.Account{acct}
+		} else {
+			limit, err := parseLimit(r)
+			if err != nil {
+				writeError(w, r, err)
+				return
+			}
+			if accounts, more, err = l.ListAccounts(r.Context(), address, r.URL.Query().Get("cursor"), limit); err != nil {
+				writeError(w, r, err)
+				return
+			}
 		}
 		out := struct {
 			Accounts []accountJSON `json:"accounts"`

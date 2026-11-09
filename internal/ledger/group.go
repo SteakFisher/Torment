@@ -32,12 +32,12 @@ type GroupTransfersParams struct {
 // GroupTransfers returns up to p.Limit transfers whose group id is p.GroupID, committed before p.Cursor,
 // newest first. more reports whether older transfers remain; passing the last Timestamp as Cursor gets
 // the next page. An unused group id has no transfers. It returns ErrInvalid when the group id is not a
-// base-10 integer greater than zero that fits in 128 bits, for a limit outside 0 to maxListLimit, or for
-// a cursor outside TigerBeetle's range.
+// UUID accepted by parseID, for a limit outside 0 to maxListLimit, or for a cursor outside TigerBeetle's
+// range.
 func (s *Service) GroupTransfers(ctx context.Context, p GroupTransfersParams) (transfers []TransferRecord, more bool, err error) {
-	group, ok := parseUint128(p.GroupID)
+	group, ok := parseID(p.GroupID)
 	if !ok {
-		return nil, false, fmt.Errorf("%w: group_id %q must be a base-10 integer greater than zero that fits in 128 bits", ErrInvalid, p.GroupID)
+		return nil, false, fmt.Errorf("%w: group_id %q must be a UUID other than the nil and max UUIDs", ErrInvalid, p.GroupID)
 	}
 	if p.Limit < 0 || p.Limit > maxListLimit {
 		return nil, false, fmt.Errorf("%w: limit %d must be between 1 and %d", ErrInvalid, p.Limit, maxListLimit)
@@ -88,7 +88,7 @@ func (s *Service) transferRecords(ctx context.Context, found []tb.Transfer) ([]T
 		debit, ok := wallets[t.DebitAccountID]
 		credit, ok2 := wallets[t.CreditAccountID]
 		if !ok || !ok2 {
-			return nil, fmt.Errorf("transfer %s has a tigerbeetle account with no wallet", t.ID.BigInt())
+			return nil, fmt.Errorf("transfer %s has a tigerbeetle account with no wallet", FormatID(t.ID))
 		}
 		out[i] = TransferRecord{
 			ID:        t.ID,

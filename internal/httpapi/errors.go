@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"torment/internal/ledger"
 )
@@ -12,26 +13,33 @@ import (
 // ledger.ErrPatternTooBroad → 400 pattern_too_broad, decodeError and ledger.ErrInvalid → 400
 // invalid_request, ledger.ErrCurrencyNotFound → 404 currency_not_found, ledger.ErrNotFound → 404
 // account_not_found, ledger.ErrConflict → 409 conflict, anything else → 500 internal with a generic
-// message, logging the real error.
+// message, logging the real error. The message is err's text without the "<sentinel>: " it carries.
 func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	status, code, msg := http.StatusInternalServerError, "internal", "internal error"
+	var sentinel error
 	var decodeErr decodeError
 	switch {
-	case errors.Is(err, ledger.ErrPatternTooBroad):
-		status, code = http.StatusBadRequest, "pattern_too_broad"
-	case errors.As(err, &decodeErr), errors.Is(err, ledger.ErrInvalid):
+	case errors.As(err, &decodeErr):
 		status, code = http.StatusBadRequest, "invalid_request"
+	case errors.Is(err, ledger.ErrPatternTooBroad):
+		status, code, sentinel = http.StatusBadRequest, "pattern_too_broad", ledger.ErrInvalid
+	case errors.Is(err, ledger.ErrInvalid):
+		status, code, sentinel = http.StatusBadRequest, "invalid_request", ledger.ErrInvalid
 	case errors.Is(err, ledger.ErrCurrencyNotFound):
-		status, code = http.StatusNotFound, "currency_not_found"
+		status, code, sentinel = http.StatusNotFound, "currency_not_found", ledger.ErrNotFound
 	case errors.Is(err, ledger.ErrNotFound):
-		status, code = http.StatusNotFound, "account_not_found"
+		status, code, sentinel = http.StatusNotFound, "account_not_found", ledger.ErrNotFound
 	case errors.Is(err, ledger.ErrConflict):
-		status, code = http.StatusConflict, "conflict"
+		status, code, sentinel = http.StatusConflict, "conflict", ledger.ErrConflict
 	default:
 		slog.Error("request failed", "request_id", requestID(r.Context()), "err", err)
 	}
 	if status != http.StatusInternalServerError {
 		msg = err.Error()
+	}
+	if sentinel != nil {
+		// The sentinel's text precedes any user input in the message, so the first match is the sentinel.
+		msg = strings.Replace(msg, sentinel.Error()+": ", "", 1)
 	}
 	writeErrorBody(w, status, code, msg)
 }

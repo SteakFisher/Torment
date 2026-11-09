@@ -2,12 +2,13 @@ package httpapi
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"torment/internal/ledger"
 )
 
-// transferRecordJSON is one committed transfer. ID, GroupID and Amount are decimal strings.
+// transferRecordJSON is one committed transfer. ID and GroupID are UUIDs; Amount is a decimal string.
 type transferRecordJSON struct {
 	ID        string    `json:"id"`
 	GroupID   string    `json:"group_id"`
@@ -22,8 +23,8 @@ func newTransferRecordsJSON(transfers []ledger.TransferRecord) []transferRecordJ
 	out := make([]transferRecordJSON, 0, len(transfers))
 	for _, t := range transfers {
 		out = append(out, transferRecordJSON{
-			ID:        t.ID.BigInt().String(),
-			GroupID:   t.GroupID.BigInt().String(),
+			ID:        ledger.FormatID(t.ID),
+			GroupID:   ledger.FormatID(t.GroupID),
 			Debit:     t.Debit,
 			Credit:    t.Credit,
 			Currency:  t.Currency,
@@ -58,7 +59,7 @@ func getGroupTransfers(l Ledger) http.HandlerFunc {
 			GroupID   string               `json:"group_id"`
 			Transfers []transferRecordJSON `json:"transfers"`
 			Next      *time.Time           `json:"next,omitempty"`
-		}{GroupID: p.GroupID, Transfers: newTransferRecordsJSON(transfers)}
+		}{GroupID: strings.ToLower(p.GroupID), Transfers: newTransferRecordsJSON(transfers)}
 		if more {
 			out.Next = &transfers[len(transfers)-1].Timestamp
 		}
@@ -66,7 +67,7 @@ func getGroupTransfers(l Ledger) http.HandlerFunc {
 	}
 }
 
-// getAccountTransfers handles GET /accounts/{address}/transfers?currency=&from=&before=&limit=. It responds
+// getAccountTransfers handles GET /accounts/{address}/transfers?currency=&from=&cursor=&limit=. It responds
 // 200 with the account's transfers, newest first, and next set to the last timestamp when older ones
 // remain; 400 for a malformed query or a pattern matching too many wallets; or 404 when the account does not exist.
 func getAccountTransfers(l Ledger) http.HandlerFunc {
@@ -77,7 +78,7 @@ func getAccountTransfers(l Ledger) http.HandlerFunc {
 			writeError(w, r, err)
 			return
 		}
-		if p.Before, err = parseTime(r, "before"); err != nil {
+		if p.Cursor, err = parseTime(r, "cursor"); err != nil {
 			writeError(w, r, err)
 			return
 		}

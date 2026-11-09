@@ -22,17 +22,17 @@ func TestPostTransfer(t *testing.T) {
 		return `{"id":"` + id + `","debit":"world","credit":"rider:1:wallet","currency":"USD","amount":"100"}`
 	}
 	body := `{"chains":[` +
-		`[{"id":"18446744073709551617","debit":"world","credit":"rider:1:wallet","currency":"USD","amount":"100","group_id":"9"}],` +
-		`[` + posting("2") + `,` + posting("3") + `],` +
-		`[` + posting("4") + `],` +
-		` [` + posting("5") + `,` + posting("6") + `,` + posting("7") + `],` +
-		`[` + posting("8") + `]]}`
+		`[{"id":"00000000-0000-0001-0000-000000000001","debit":"world","credit":"rider:1:wallet","currency":"USD","amount":"100","group_id":"00000000-0000-0000-0000-000000000009"}],` +
+		`[` + posting("00000000-0000-0000-0000-000000000002") + `,` + posting("00000000-0000-0000-0000-000000000003") + `],` +
+		`[` + posting("00000000-0000-0000-0000-000000000004") + `],` +
+		` [` + posting("00000000-0000-0000-0000-000000000005") + `,` + posting("00000000-0000-0000-0000-000000000006") + `,` + posting("00000000-0000-0000-0000-000000000007") + `],` +
+		`[` + posting("00000000-0000-0000-0000-000000000008") + `]]}`
 	p := func(id string) ledger.Posting {
 		return ledger.Posting{ID: id, Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "100"}
 	}
-	first := p("18446744073709551617")
-	first.GroupID = "9"
-	wantChains := [][]ledger.Posting{{first}, {p("2"), p("3")}, {p("4")}, {p("5"), p("6"), p("7")}, {p("8")}}
+	first := p("00000000-0000-0001-0000-000000000001")
+	first.GroupID = "00000000-0000-0000-0000-000000000009"
+	wantChains := [][]ledger.Posting{{first}, {p("00000000-0000-0000-0000-000000000002"), p("00000000-0000-0000-0000-000000000003")}, {p("00000000-0000-0000-0000-000000000004")}, {p("00000000-0000-0000-0000-000000000005"), p("00000000-0000-0000-0000-000000000006"), p("00000000-0000-0000-0000-000000000007")}, {p("00000000-0000-0000-0000-000000000008")}}
 	// 2^64 + 1 does not fit in a uint64
 	bigID := tb.BigIntToUint128(new(big.Int).SetBit(big.NewInt(1), 64, 1))
 	tr := func(id uint64, created bool, err error) ledger.Transfer {
@@ -59,21 +59,21 @@ func TestPostTransfer(t *testing.T) {
 		t.Fatalf("chains = %+v, want %+v", got, wantChains)
 	}
 	wantBody := `{"chains":[` +
-		`[{"id":"18446744073709551617","group_id":"9","status":"created"}],` +
-		`[{"id":"2","group_id":"2","status":"failed","error":"chain_failed","message":"chain failed: detail"},` +
-		`{"id":"3","group_id":"3","status":"failed","error":"insufficient_funds","message":"insufficient funds"}],` +
-		`[{"id":"4","group_id":"4","status":"exists"}],` +
-		`[{"id":"5","group_id":"5","status":"failed","error":"conflict","message":"conflict"},` +
-		`{"id":"6","group_id":"6","status":"failed","error":"id_already_failed","message":"id already failed"},` +
-		`{"id":"7","group_id":"7","status":"failed","error":"internal","message":"internal error"}],` +
-		`[{"id":"8","group_id":"8","status":"failed","error":"overflow","message":"overflow"}]]}`
+		`[{"id":"00000000-0000-0001-0000-000000000001","group_id":"00000000-0000-0000-0000-000000000009","status":"created"}],` +
+		`[{"id":"00000000-0000-0000-0000-000000000002","group_id":"00000000-0000-0000-0000-000000000002","status":"failed","error":"chain_failed","message":"chain failed: detail"},` +
+		`{"id":"00000000-0000-0000-0000-000000000003","group_id":"00000000-0000-0000-0000-000000000003","status":"failed","error":"insufficient_funds","message":"insufficient funds"}],` +
+		`[{"id":"00000000-0000-0000-0000-000000000004","group_id":"00000000-0000-0000-0000-000000000004","status":"exists"}],` +
+		`[{"id":"00000000-0000-0000-0000-000000000005","group_id":"00000000-0000-0000-0000-000000000005","status":"failed","error":"conflict","message":"conflict"},` +
+		`{"id":"00000000-0000-0000-0000-000000000006","group_id":"00000000-0000-0000-0000-000000000006","status":"failed","error":"id_already_failed","message":"id already failed"},` +
+		`{"id":"00000000-0000-0000-0000-000000000007","group_id":"00000000-0000-0000-0000-000000000007","status":"failed","error":"internal","message":"internal error"}],` +
+		`[{"id":"00000000-0000-0000-0000-000000000008","group_id":"00000000-0000-0000-0000-000000000008","status":"failed","error":"overflow","message":"overflow"}]]}`
 	if strings.TrimSpace(rec.Body.String()) != wantBody {
 		t.Fatalf("body = %s\nwant %s", rec.Body, wantBody)
 	}
 }
 
 func TestPostTransferErrors(t *testing.T) {
-	body := `{"chains":[[{"id":"1","debit":"world","credit":"rider:1:wallet","currency":"USD","amount":"100"}]]}`
+	body := `{"chains":[[{"id":"00000000-0000-0000-0000-000000000001","debit":"world","credit":"rider:1:wallet","currency":"USD","amount":"100"}]]}`
 
 	tests := []struct {
 		name       string
@@ -83,8 +83,8 @@ func TestPostTransferErrors(t *testing.T) {
 	}{
 		{name: "malformed json", body: `{"chains":`, wantStatus: http.StatusBadRequest},
 		{name: "unknown field", body: `{"chains":[],"x":1}`, wantStatus: http.StatusBadRequest},
-		{name: "unknown field in a posting", body: `{"chains":[[{"id":"1"},{"id":"2","x":1}]]}`, wantStatus: http.StatusBadRequest},
-		{name: "posting outside a chain", body: `{"chains":[{"id":"1"}]}`, wantStatus: http.StatusBadRequest},
+		{name: "unknown field in a posting", body: `{"chains":[[{"id":"00000000-0000-0000-0000-000000000001"},{"id":"00000000-0000-0000-0000-000000000002","x":1}]]}`, wantStatus: http.StatusBadRequest},
+		{name: "posting outside a chain", body: `{"chains":[{"id":"00000000-0000-0000-0000-000000000001"}]}`, wantStatus: http.StatusBadRequest},
 		{name: "invalid", body: body, err: ledger.ErrInvalid, wantStatus: http.StatusBadRequest},
 		{name: "account not found", body: body, err: ledger.ErrAccountNotFound, wantStatus: http.StatusNotFound},
 		{name: "currency not found", body: body, err: ledger.ErrCurrencyNotFound, wantStatus: http.StatusNotFound},

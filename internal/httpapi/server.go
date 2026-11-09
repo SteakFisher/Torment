@@ -17,11 +17,10 @@ type Ledger interface {
 	Currencies(ctx context.Context) ([]ledger.Currency, error)
 	RegisterAccount(ctx context.Context, p ledger.RegisterAccountParams) (ledger.Account, bool, error)
 	Account(ctx context.Context, address string) (ledger.Account, error)
-	Balances(ctx context.Context, address, currency string, at time.Time) ([]ledger.Balance, error)
 	Transfer(ctx context.Context, chains [][]ledger.Posting) ([][]ledger.Transfer, error)
 	GroupTransfers(ctx context.Context, p ledger.GroupTransfersParams) ([]ledger.TransferRecord, bool, error)
-	ListAccounts(ctx context.Context, pattern, after string, limit int) ([]ledger.Account, bool, error)
-	PatternBalances(ctx context.Context, pattern, currency string, at time.Time) ([]ledger.TypeTotal, []ledger.AccountBalances, error)
+	ListAccounts(ctx context.Context, pattern, cursor string, limit int) ([]ledger.Account, bool, error)
+	Balances(ctx context.Context, address, currency string, at time.Time) ([]ledger.TypeTotal, []ledger.AccountBalances, error)
 	AccountTransfers(ctx context.Context, p ledger.AccountTransfersParams) ([]ledger.TransferRecord, bool, error)
 	Ready(ctx context.Context) error
 }
@@ -73,8 +72,39 @@ func routes(l Ledger) http.Handler {
 	mux.HandleFunc("GET /accounts/{address}/transfers", getAccountTransfers(l))
 	mux.HandleFunc("POST /transfers", postTransfer(l))
 	mux.HandleFunc("GET /groups/{group_id}/transfers", getGroupTransfers(l))
-	return mux
+	return jsonMuxErrors(mux)
 }
+
+// jsonMuxErrors serves requests with mux, answering a request that matches no route with 404
+// route_not_found, and one whose path matches only under other methods with 405 method_not_allowed and
+// the Allow header.
+func jsonMuxErrors(mux *http.ServeMux) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h, pattern := mux.Handler(r)
+		if pattern != "" {
+			mux.ServeHTTP(w, r)
+			return
+		}
+		// h is mux's plain-text 404 or 405 handler; run it for its status and headers only.
+		rec := &statusRecorder{ResponseWriter: w}
+		h.ServeHTTP(rec, r)
+		if rec.status == http.StatusMethodNotAllowed {
+			writeErrorBody(w, rec.status, "method_not_allowed", fmt.Sprintf("method %s is not allowed on %s", r.Method, r.URL.Path))
+			return
+		}
+		writeErrorBody(w, http.StatusNotFound, "route_not_found", fmt.Sprintf("no route for %s %s", r.Method, r.URL.Path))
+	})
+}
+
+// statusRecorder records the status written to it and discards the body; headers go to the wrapped
+// ResponseWriter.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (s *statusRecorder) WriteHeader(code int)        { s.status = code }
+func (s *statusRecorder) Write(b []byte) (int, error) { return len(b), nil }
 
 // decodeError marks a request body that is not valid JSON for the target type.
 type decodeError struct{ err error }

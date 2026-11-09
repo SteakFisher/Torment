@@ -122,14 +122,14 @@ func TestIntegrationTransferCreatesWallets(t *testing.T) {
 	// transfer posts amount USD from world to address with a new id and fails the test unless it is created
 	transfer := func(address, amount string) {
 		t.Helper()
-		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: tb.ID().BigInt().String(), Debit: "world", Credit: address, Currency: "USD", Amount: amount}}})
+		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: ledger.FormatID(tb.ID()), Debit: "world", Credit: address, Currency: "USD", Amount: amount}}})
 		if err != nil || got[0][0].Err != nil || !got[0][0].Created {
 			t.Errorf("transfer to %s = %+v, err %v; want created", address, got, err)
 		}
 	}
 	checkUSD := func(address string, amount int64) {
 		t.Helper()
-		got, err := s.Balances(ctx, address, "", time.Time{})
+		got, err := accountBalances(s, address, time.Time{})
 		if err != nil || len(got) != 1 || got[0].Currency != "USD" || got[0].Amount.Int64() != amount {
 			t.Fatalf("%s balances = %+v, err %v; want USD %d", address, got, err, amount)
 		}

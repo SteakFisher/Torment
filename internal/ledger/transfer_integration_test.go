@@ -28,7 +28,7 @@ func TestIntegrationTransfer(t *testing.T) {
 	checkUSD := func(want map[string]int64) {
 		t.Helper()
 		for address, amount := range want {
-			got, err := s.Balances(ctx, address, "", time.Time{})
+			got, err := accountBalances(s, address, time.Time{})
 			if err != nil || len(got) != 1 || got[0].Amount.Int64() != amount {
 				t.Fatalf("%s balances = %+v, err %v; want USD %d", address, got, err, amount)
 			}
@@ -45,7 +45,7 @@ func TestIntegrationTransfer(t *testing.T) {
 	}
 	// posting returns one posting with a new id
 	posting := func(debit, credit, amount, group string) ledger.Posting {
-		return ledger.Posting{ID: tb.ID().BigInt().String(), Debit: debit, Credit: credit, Currency: "USD", Amount: amount, GroupID: group}
+		return ledger.Posting{ID: ledger.FormatID(tb.ID()), Debit: debit, Credit: credit, Currency: "USD", Amount: amount, GroupID: group}
 	}
 
 	plain := posting("world", "rider:1:wallet", "100", "")
@@ -80,7 +80,7 @@ func TestIntegrationTransfer(t *testing.T) {
 	checkUSD(map[string]int64{"world": -200, "rider:1:wallet": 200})
 
 	group := tb.ID()
-	grouped := transfer([]ledger.Posting{posting("rider:1:wallet", "world", "40", group.BigInt().String())})[0][0]
+	grouped := transfer([]ledger.Posting{posting("rider:1:wallet", "world", "40", ledger.FormatID(group))})[0][0]
 	if grouped.Err != nil || grouped.GroupID != group {
 		t.Fatalf("transfer with group = %+v; want group id %s", grouped, group.BigInt())
 	}

@@ -54,7 +54,7 @@ When you're unsure which side an account goes on, ask what should happen to its 
 ## Ids and retries
 You give every posting your own id. If a request times out, send it again with the same id: a posting that was already applied comes back as `exists` and isn't applied twice.
 
-Use ids that increase over time, such as a UUIDv7 read as a number. Random ids work, but they slow TigerBeetle down.
+Ids are UUIDs. The examples write them as `00000000-0000-0000-0000-000000001001`, with a short number at the end, so they're easy to read. Real code should generate a UUIDv7 for each posting; any language's UUID library can. UUIDv7s increase over time, which TigerBeetle prefers: random UUIDs work, but they slow it down.
 
 ## Chain
 A list of postings that must all happen or none of them. "Pay the merchant $25 and charge a $1 fee" is a chain: if the rider can't afford both, neither happens. Every request sends its postings in chains; a posting on its own is a chain of one.

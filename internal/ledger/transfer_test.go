@@ -3,10 +3,10 @@ package ledger
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"reflect"
 	"slices"
-	"strconv"
 	"testing"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
@@ -32,7 +32,7 @@ func testStore(missing string) *walletStore {
 
 // testPosting returns a world → rider:1:wallet posting of 100 USD with the given id.
 func testPosting(id int) Posting {
-	return Posting{ID: strconv.Itoa(id), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "100"}
+	return Posting{ID: fmt.Sprintf("00000000-0000-0000-0000-%012x", id), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "100"}
 }
 
 // testChains returns chains of the given lengths whose postings have ids 1, 2, 3 and so on in order.
@@ -71,8 +71,8 @@ func TestTransferRejects(t *testing.T) {
 		{name: "over the batch limit", chains: tooMany, wantErr: ErrInvalid},
 		{name: "duplicate id across chains", chains: [][]Posting{{testPosting(1), testPosting(2)}, {testPosting(2)}}, wantErr: ErrInvalid},
 		{name: "missing id", chains: edited(func(p *Posting) { p.ID = "" }), wantErr: ErrInvalid},
-		{name: "zero id", chains: edited(func(p *Posting) { p.ID = "0" }), wantErr: ErrInvalid},
-		{name: "max id", chains: edited(func(p *Posting) { p.ID = "340282366920938463463374607431768211455" }), wantErr: ErrInvalid},
+		{name: "zero id", chains: edited(func(p *Posting) { p.ID = "00000000-0000-0000-0000-000000000000" }), wantErr: ErrInvalid},
+		{name: "max id", chains: edited(func(p *Posting) { p.ID = "ffffffff-ffff-ffff-ffff-ffffffffffff" }), wantErr: ErrInvalid},
 		{name: "bad debit", chains: edited(func(p *Posting) { p.Debit = "a b" }), wantErr: ErrInvalid},
 		{name: "bad credit", chains: edited(func(p *Posting) { p.Credit = "" }), wantErr: ErrInvalid},
 		{name: "same debit and credit", chains: edited(func(p *Posting) { p.Credit = "world" }), wantErr: ErrInvalid},
@@ -80,7 +80,8 @@ func TestTransferRejects(t *testing.T) {
 		{name: "negative amount", chains: edited(func(p *Posting) { p.Amount = "-1" }), wantErr: ErrInvalid},
 		{name: "non-numeric amount", chains: edited(func(p *Posting) { p.Amount = "ten" }), wantErr: ErrInvalid},
 		{name: "amount over 128 bits", chains: edited(func(p *Posting) { p.Amount = "340282366920938463463374607431768211456" }), wantErr: ErrInvalid},
-		{name: "bad group id", chains: edited(func(p *Posting) { p.GroupID = "0" }), wantErr: ErrInvalid},
+		{name: "decimal id", chains: edited(func(p *Posting) { p.ID = "5" }), wantErr: ErrInvalid},
+		{name: "bad group id", chains: edited(func(p *Posting) { p.GroupID = "00000000-0000-0000-0000-000000000000" }), wantErr: ErrInvalid},
 		{name: "unknown debit account", chains: testChains(2, 1), missing: "world", wantErr: ErrAccountNotFound},
 		{name: "unknown credit account", chains: testChains(2, 1), missing: "rider:1:wallet", wantErr: ErrAccountNotFound},
 		{name: "unknown currency", chains: edited(func(p *Posting) { p.Currency = "AED" }), wantErr: ErrCurrencyNotFound},
@@ -101,7 +102,7 @@ func TestTransferRejects(t *testing.T) {
 
 func TestTransferBatch(t *testing.T) {
 	chains := [][]Posting{
-		{testPosting(1), testPosting(2), {ID: "3", Debit: "rider:1:wallet", Credit: "rider:2:wallet", Currency: "USD", Amount: "30", GroupID: "18446744073709551616"}},
+		{testPosting(1), testPosting(2), {ID: "00000000-0000-0000-0000-000000000003", Debit: "rider:1:wallet", Credit: "rider:2:wallet", Currency: "USD", Amount: "30", GroupID: "00000000-0000-0001-0000-000000000000"}},
 		{testPosting(4)},
 		{testPosting(5), testPosting(6)},
 	}

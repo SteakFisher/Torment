@@ -26,7 +26,7 @@ The deposit works like [chapter 2](/brokerage/deposits/), in AED. `bank:client-m
 ```json title="POST /transfers"
 {
   "chains": [
-    [{ "id": "5001", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "AED", "amount": "100000" }]
+    [{ "id": "00000000-0000-0000-0000-000000005001", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "AED", "amount": "100000" }]
   ]
 }
 ```
@@ -39,8 +39,8 @@ A chain of two postings, in two currencies. The user gives the brokerage AED: de
 {
   "chains": [
     [
-      { "id": "5011", "debit": "user:42:cash", "credit": "fx:position", "currency": "AED", "amount": "36725", "group_id": "5010" },
-      { "id": "5012", "debit": "fx:position", "credit": "user:42:cash", "currency": "USD", "amount": "10000", "group_id": "5010" }
+      { "id": "00000000-0000-0000-0000-000000005011", "debit": "user:42:cash", "credit": "fx:position", "currency": "AED", "amount": "36725", "group_id": "00000000-0000-0000-0000-000000005010" },
+      { "id": "00000000-0000-0000-0000-000000005012", "debit": "fx:position", "credit": "user:42:cash", "currency": "USD", "amount": "10000", "group_id": "00000000-0000-0000-0000-000000005010" }
     ]
   ]
 }
@@ -58,8 +58,8 @@ Later, the treasury team converts the dirhams at the bank. Two more postings. Th
 {
   "chains": [
     [
-      { "id": "5021", "debit": "fx:position", "credit": "bank:client-money", "currency": "AED", "amount": "36725", "group_id": "5020" },
-      { "id": "5022", "debit": "bank:client-money", "credit": "fx:position", "currency": "USD", "amount": "10000", "group_id": "5020" }
+      { "id": "00000000-0000-0000-0000-000000005021", "debit": "fx:position", "credit": "bank:client-money", "currency": "AED", "amount": "36725", "group_id": "00000000-0000-0000-0000-000000005020" },
+      { "id": "00000000-0000-0000-0000-000000005022", "debit": "bank:client-money", "credit": "fx:position", "currency": "USD", "amount": "10000", "group_id": "00000000-0000-0000-0000-000000005020" }
     ]
   ]
 }

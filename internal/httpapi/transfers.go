@@ -19,7 +19,7 @@ type postingJSON struct {
 	GroupID  string `json:"group_id"`
 }
 
-// transferJSON is the outcome of one posting. ID and GroupID are decimal strings; Error and Message are
+// transferJSON is the outcome of one posting. ID and GroupID are UUIDs; Error and Message are
 // set when Status is "failed".
 type transferJSON struct {
 	ID      string `json:"id"`
@@ -32,7 +32,7 @@ type transferJSON struct {
 // newTransferJSON returns the response for t. An error it does not recognise is logged and reported as
 // "internal".
 func newTransferJSON(ctx context.Context, t ledger.Transfer) transferJSON {
-	out := transferJSON{ID: t.ID.BigInt().String(), GroupID: t.GroupID.BigInt().String(), Status: "exists"}
+	out := transferJSON{ID: ledger.FormatID(t.ID), GroupID: ledger.FormatID(t.GroupID), Status: "exists"}
 	switch {
 	case t.Err == nil && t.Created:
 		out.Status = "created"

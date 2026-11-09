@@ -22,10 +22,10 @@ func TestIntegrationGroupTransfers(t *testing.T) {
 		t.Fatalf("rider: %v", err)
 	}
 
-	group := tb.ID().BigInt().String()
-	pay := ledger.Posting{ID: tb.ID().BigInt().String(), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "100", GroupID: group}
-	refund := ledger.Posting{ID: tb.ID().BigInt().String(), Debit: "rider:1:wallet", Credit: "world", Currency: "USD", Amount: "30", GroupID: group}
-	other := ledger.Posting{ID: tb.ID().BigInt().String(), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "5"}
+	group := ledger.FormatID(tb.ID())
+	pay := ledger.Posting{ID: ledger.FormatID(tb.ID()), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "100", GroupID: group}
+	refund := ledger.Posting{ID: ledger.FormatID(tb.ID()), Debit: "rider:1:wallet", Credit: "world", Currency: "USD", Amount: "30", GroupID: group}
+	other := ledger.Posting{ID: ledger.FormatID(tb.ID()), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "5"}
 	got, err := s.Transfer(ctx, [][]ledger.Posting{{pay}, {refund}, {other}})
 	if err != nil {
 		t.Fatalf("error transferring: %v", err)
@@ -45,7 +45,7 @@ func TestIntegrationGroupTransfers(t *testing.T) {
 	}
 	for i, want := range []ledger.Posting{refund, pay} {
 		g := transfers[i]
-		if g.ID.BigInt().String() != want.ID || g.Debit != want.Debit || g.Credit != want.Credit || g.Currency != "USD" || g.Amount.String() != want.Amount {
+		if ledger.FormatID(g.ID) != want.ID || g.Debit != want.Debit || g.Credit != want.Credit || g.Currency != "USD" || g.Amount.String() != want.Amount {
 			t.Fatalf("transfer %d = %+v, want %+v", i, g, want)
 		}
 	}
@@ -63,7 +63,7 @@ func TestIntegrationGroupTransfers(t *testing.T) {
 		t.Fatalf("second page = %+v, more %v, err %v; want the payment and no more", second, more, err)
 	}
 
-	unused, _, err := s.GroupTransfers(ctx, ledger.GroupTransfersParams{GroupID: tb.ID().BigInt().String()})
+	unused, _, err := s.GroupTransfers(ctx, ledger.GroupTransfersParams{GroupID: ledger.FormatID(tb.ID())})
 	if err != nil || len(unused) != 0 {
 		t.Fatalf("unused group = %+v, err %v; want none", unused, err)
 	}

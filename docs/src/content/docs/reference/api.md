@@ -15,15 +15,18 @@ JSON over HTTP. The server listens on `ADDR` (default `:8080`).
   | 401 | `unauthorized` | missing or wrong API key |
   | 404 | `account_not_found` | the account does not exist |
   | 404 | `currency_not_found` | the currency is not registered |
+  | 404 | `route_not_found` | no route has this path |
+  | 405 | `method_not_allowed` | the path exists, but not with this method; `Allow` lists the methods it takes |
   | 409 | `conflict` | the input clashes with something already stored |
   | 500 | `internal` | internal error, logged on the server; safe to retry |
   | 503 | `not_ready` | `GET /readyz` only: Postgres or TigerBeetle did not answer |
 
-- **Numbers:** ids, group ids and amounts are base-10 strings, because they are 128-bit. Amounts are integers in minor units: `"1050"` in `USD/2` is 10.50 USD.
+- **Ids:** posting ids and group ids are UUIDs, such as `0190f3a2-7b1c-7def-8abc-0123456789ab`, in any case; responses use lowercase. The nil and max UUIDs are rejected. Examples write them as `00000000-0000-0000-0000-000000001001` so they're easy to read; real code should generate a UUIDv7 for each posting with any UUID library.
+- **Amounts:** base-10 strings, because they are 128-bit. Amounts are integers in minor units: `"1050"` in `USD/2` is 10.50 USD.
 - **Times:** RFC 3339, with optional fractional seconds and offset. Transfer timestamps are TigerBeetle's commit time in nanoseconds.
 - **Bodies:** at most 1 MiB.
 - **Addresses:** colon-separated segments of `[a-zA-Z0-9_-]`, at most 255 bytes, such as `rider:123:wallet`. An address containing `*` is a pattern: each `*` matches exactly one segment, so `rider:*:wallet` matches every rider's wallet and `rider:123:*` matches every pot of rider 123.
-- **Paging:** a list response has `next` when more results remain. Pass it back as `after` for accounts or `before` for transfers. `limit` defaults to 100, and the maximum is 1000.
+- **Paging:** a list response has `next` when more results remain. Pass it back as `cursor` for the next page. `limit` defaults to 100, and the maximum is 1000.
 
 ## Health
 
@@ -100,9 +103,7 @@ Returns the account, with `wallets` listing the requested currencies in the orde
 | 409 | already registered with a different type or `allow_negative` |
 
 ### `GET /accounts/{address}`
-For an address, returns 200 with that account, in the same shape as above, or 404 `account_not_found`.
-
-For a pattern, returns 200 with the matching accounts ordered by address. It takes `after` and `limit`.
+Returns 200 with the matching accounts ordered by address, each in the same shape as above. For a pattern it takes `cursor` and `limit`. For an address, `accounts` holds just that account, or it returns 404 `account_not_found`.
 
 ```json
 {"accounts": [ ... ], "next": "rider:123:wallet"}
@@ -118,15 +119,9 @@ Query parameters:
 - `currency`: only this currency.
 - `at`: the balance after the last transfer at or before this time. Without it, the balance is the current one.
 
-For an address, returns 200 with one balance per wallet, ordered by currency, or 404 `account_not_found`. A wallet with no transfers reads as zero.
+Returns 200 with a total for each type and currency, plus each matching account's balances, one per wallet, ordered by currency. Types are never added together. A wallet with no transfers reads as zero. A pattern leaves out accounts with no wallet in scope.
 
-```json
-{"address": "rider:123:wallet", "balances": [{"currency": "USD", "precision": 2, "amount": "7000"}]}
-```
-
-`amount` follows the account type's normal side, so it is negative only for accounts with `allow_negative`.
-
-For a pattern, returns 200 with a total for each type and currency, plus each matching account's balances. Types are never added together. Accounts with no wallet in scope are left out. A pattern matching more than 1000 wallets returns 400 `pattern_too_broad`.
+For an address, `accounts` holds just that account and the totals are its balances, or it returns 404 `account_not_found`. An account with no wallet in scope is still listed, with `"balances": []` and `"totals": []`. A pattern matching more than 1000 wallets returns 400 `pattern_too_broad`.
 
 ```json
 {
@@ -139,6 +134,8 @@ For a pattern, returns 200 with a total for each type and currency, plus each ma
 }
 ```
 
+`amount` follows the account type's normal side, so it is negative only for accounts with `allow_negative`.
+
 ## Transfers
 
 ### `POST /transfers`
@@ -146,7 +143,7 @@ Moves money between accounts. Each posting debits the account in `debit` and cre
 
 | Field | |
 |---|---|
-| `id` | required. Your id for the posting, from 1 to 2^128-2, unique within the request. Use time-ordered ids such as UUIDv7 read as a number: random ids slow TigerBeetle down |
+| `id` | required. Your UUID for the posting, unique within the request. Use a UUIDv7: its ids increase over time, and random ids slow TigerBeetle down |
 | `debit`, `credit` | account addresses, which must differ |
 | `currency` | a registered currency name |
 | `amount` | greater than zero, in minor units |
@@ -157,11 +154,11 @@ Moves money between accounts. Each posting debits the account in `debit` and cre
 ```json
 {"chains": [
   [
-    {"id": "1001", "debit": "world", "credit": "rider:123:wallet", "currency": "USD", "amount": "10000"}
+    {"id": "00000000-0000-0000-0000-000000001001", "debit": "world", "credit": "rider:123:wallet", "currency": "USD", "amount": "10000"}
   ],
   [
-    {"id": "1002", "debit": "rider:123:wallet", "credit": "merchant:9", "currency": "USD", "amount": "2500"},
-    {"id": "1003", "debit": "rider:123:wallet", "credit": "platform:fees", "currency": "USD", "amount": "100"}
+    {"id": "00000000-0000-0000-0000-000000001002", "debit": "rider:123:wallet", "credit": "merchant:9", "currency": "USD", "amount": "2500"},
+    {"id": "00000000-0000-0000-0000-000000001003", "debit": "rider:123:wallet", "credit": "platform:fees", "currency": "USD", "amount": "100"}
   ]
 ]}
 ```
@@ -171,11 +168,11 @@ Returns 200 with one result per posting, nested in chains the same way as the re
 ```json
 {"chains": [
   [
-    {"id": "1001", "group_id": "1001", "status": "created"}
+    {"id": "00000000-0000-0000-0000-000000001001", "group_id": "00000000-0000-0000-0000-000000001001", "status": "created"}
   ],
   [
-    {"id": "1002", "group_id": "1002", "status": "failed", "error": "insufficient_funds", "message": "..."},
-    {"id": "1003", "group_id": "1003", "status": "failed", "error": "chain_failed", "message": "..."}
+    {"id": "00000000-0000-0000-0000-000000001002", "group_id": "00000000-0000-0000-0000-000000001002", "status": "failed", "error": "insufficient_funds", "message": "..."},
+    {"id": "00000000-0000-0000-0000-000000001003", "group_id": "00000000-0000-0000-0000-000000001003", "status": "failed", "error": "chain_failed", "message": "..."}
   ]
 ]}
 ```
@@ -204,7 +201,7 @@ The whole request fails, and nothing is applied, only for:
 **Batch when you have volume.** One request can carry thousands of independent postings and chains, and that is much faster than one request per posting. Send whatever has queued since your last request returned, and never wait to fill a batch. See [Batching](/internals/decisions/#batching).
 
 ### `GET /groups/{group_id}/transfers`
-Returns 200 with the group's transfers, newest first, a page at a time. An unknown group returns an empty list. A malformed id returns 400.
+Returns 200 with the group's transfers, newest first, a page at a time. An unknown group returns an empty list. An id that isn't a UUID returns 400.
 
 Query parameters:
 - `limit`: page size, default 100, at most 1000.
@@ -214,10 +211,10 @@ When more transfers remain, the response has `next`. Pass it back as `cursor` fo
 
 ```json
 {
-  "group_id": "1001",
+  "group_id": "00000000-0000-0000-0000-000000001001",
   "transfers": [
-    {"id": "1004", "group_id": "1001", "debit": "rider:123:wallet", "credit": "world", "currency": "USD", "amount": "3000", "timestamp": "2026-11-06T10:05:00.123456789Z"},
-    {"id": "1001", "group_id": "1001", "debit": "world", "credit": "rider:123:wallet", "currency": "USD", "amount": "10000", "timestamp": "2026-11-06T10:00:00.123456789Z"}
+    {"id": "00000000-0000-0000-0000-000000001004", "group_id": "00000000-0000-0000-0000-000000001001", "debit": "rider:123:wallet", "credit": "world", "currency": "USD", "amount": "3000", "timestamp": "2026-11-06T10:05:00.123456789Z"},
+    {"id": "00000000-0000-0000-0000-000000001001", "group_id": "00000000-0000-0000-0000-000000001001", "debit": "world", "credit": "rider:123:wallet", "currency": "USD", "amount": "10000", "timestamp": "2026-11-06T10:00:00.123456789Z"}
   ]
 }
 ```
@@ -228,10 +225,10 @@ An account's transfer history, newest first.
 Query parameters:
 - `currency`: only this currency.
 - `from`: the earliest time, inclusive.
-- `before`: the latest time, exclusive.
+- `cursor`: the latest time, exclusive. Pass `next` here for the next page.
 - `limit`: the page size.
 
-Returns 200, or 404 `account_not_found` for an unknown address. `next` is the last transfer's timestamp, to pass back as `before` for the next page.
+Returns 200, or 404 `account_not_found` for an unknown address. `next` is the last transfer's timestamp, to pass back as `cursor` for the next page.
 
 ```json
 {"address": "rider:123:wallet", "transfers": [ ... ], "next": "2026-11-06T10:00:00.123456789Z"}

@@ -22,7 +22,7 @@ Move the money out of the user's cash straight away, so they can't spend it twic
 ```json title="POST /transfers"
 {
   "chains": [
-    [{ "id": "7001", "debit": "user:42:cash", "credit": "transit:withdrawals", "currency": "USD", "amount": "10000", "group_id": "7000" }]
+    [{ "id": "00000000-0000-0000-0000-000000007001", "debit": "user:42:cash", "credit": "transit:withdrawals", "currency": "USD", "amount": "10000", "group_id": "00000000-0000-0000-0000-000000007000" }]
   ]
 }
 ```
@@ -36,7 +36,7 @@ When the bank confirms the payout, the money leaves the brokerage. Debit `transi
 ```json title="POST /transfers"
 {
   "chains": [
-    [{ "id": "7002", "debit": "transit:withdrawals", "credit": "bank:client-money", "currency": "USD", "amount": "10000", "group_id": "7000" }]
+    [{ "id": "00000000-0000-0000-0000-000000007002", "debit": "transit:withdrawals", "credit": "bank:client-money", "currency": "USD", "amount": "10000", "group_id": "00000000-0000-0000-0000-000000007000" }]
   ]
 }
 ```
@@ -45,17 +45,17 @@ Both go down: a debit lowers a liability and a credit lowers an asset. The bank 
 
 ## Step 2b: the bank rejects it
 
-Say the user also asked to withdraw $50, posted as `7011` in group `7010`, and the bank rejects that payout. The money goes back to the user: debit `transit:withdrawals` and credit `user:42:cash`, the reverse of step 1:
+Say the user also asked to withdraw $50, posted as `00000000-0000-0000-0000-000000007011` in group `00000000-0000-0000-0000-000000007010`, and the bank rejects that payout. The money goes back to the user: debit `transit:withdrawals` and credit `user:42:cash`, the reverse of step 1:
 
 ```json title="POST /transfers"
 {
   "chains": [
-    [{ "id": "7012", "debit": "transit:withdrawals", "credit": "user:42:cash", "currency": "USD", "amount": "5000", "group_id": "7010" }]
+    [{ "id": "00000000-0000-0000-0000-000000007012", "debit": "transit:withdrawals", "credit": "user:42:cash", "currency": "USD", "amount": "5000", "group_id": "00000000-0000-0000-0000-000000007010" }]
   ]
 }
 ```
 
-Either way, every withdrawal ends with its amount out of `transit:withdrawals`. At any moment, the balance of `transit:withdrawals` is the total of payouts the bank still owes an answer on. The `group_id` ties each request to its outcome, so `GET /groups/7000/transfers` tells the story of one withdrawal.
+Either way, every withdrawal ends with its amount out of `transit:withdrawals`. At any moment, the balance of `transit:withdrawals` is the total of payouts the bank still owes an answer on. The `group_id` ties each request to its outcome, so `GET /groups/00000000-0000-0000-0000-000000007000/transfers` tells the story of one withdrawal.
 
 ## Why not a hold?
 

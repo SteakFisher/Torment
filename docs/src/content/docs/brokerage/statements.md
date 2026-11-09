@@ -48,14 +48,14 @@ GET /accounts/user:42:*/balances
 ## The history
 
 ```http
-GET /accounts/user:42:*/transfers?from=2026-11-01T00:00:00Z&before=2026-12-01T00:00:00Z&limit=100
+GET /accounts/user:42:*/transfers?from=2026-11-01T00:00:00Z&cursor=2026-12-01T00:00:00Z&limit=100
 ```
 
 ```json title="200 OK"
 {
   "address": "user:42:*",
   "transfers": [
-    { "id": "7012", "group_id": "7010", "debit": "transit:withdrawals", "credit": "user:42:cash", "currency": "USD", "amount": "5000", "timestamp": "2026-11-06T12:41:09.6Z" },
+    { "id": "00000000-0000-0000-0000-000000007012", "group_id": "00000000-0000-0000-0000-000000007010", "debit": "transit:withdrawals", "credit": "user:42:cash", "currency": "USD", "amount": "5000", "timestamp": "2026-11-06T12:41:09.6Z" },
     ...
   ],
   "next": "2026-11-06T12:41:09.21Z"
@@ -65,7 +65,7 @@ GET /accounts/user:42:*/transfers?from=2026-11-01T00:00:00Z&before=2026-12-01T00
 - **Newest first.**
 - **Every currency,** unless you add `?currency=USD`.
 - **Once each.** A transfer between two of the user's own accounts would match twice, but is listed once.
-- **Paged.** When `next` is there, pass it as `before` to get the next page. When it's missing, you've reached the start of the range.
+- **Paged.** A page holds the transfers before `cursor`, so the first request sets it to the end of the month. When `next` is there, pass it as `cursor` to get the next page. When it's missing, you've reached the start of the range.
 
 A pattern can cover at most 100 wallets in a history query. Each wallet is one query to TigerBeetle, so this is meant for one user's pots, not a feed across many users.
 

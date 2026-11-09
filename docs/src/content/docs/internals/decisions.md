@@ -68,7 +68,7 @@ When TigerBeetle rejects postings, the result is reported for each one:
 - **Groups:** `group_id` is stored in `user_data_128`. It defaults to the posting's own id, which keeps retries consistent.
 
 ## Batching
-Most of a write's cost is the HTTP request around it, not TigerBeetle. Benchmarked on 8 cores with the wallet cache: about 7,700 applied writes/s with one write per request, and about 45,000 with 100 per request. One request can carry many independent postings and chains, each with its own result, so callers with volume should batch.
+Most of a write's cost is the HTTP request around it, not TigerBeetle. Benchmarked on 8 cores with the wallet cache, with every write touching the same few accounts: 7,081 applied writes/s with one write per request, and 35,995 with 100 per request ([Performance](/internals/performance/)). One request can carry many independent postings and chains, each with its own result, so callers with volume should batch.
 
 - **Torment already batches toward TigerBeetle.** Concurrent `create_transfers` calls on the write client merge into one TigerBeetle request, so Torment has no batcher of its own. What callers save by batching is the per-request work: HTTP, JSON, auth and building results.
 - **Which writes to batch:**
@@ -92,7 +92,7 @@ Most of a write's cost is the HTTP request around it, not TigerBeetle. Benchmark
 - **A TigerBeetle account with no wallet row returns 500.** Every TigerBeetle account is created from a Postgres row first, so this means the data is broken.
 
 ## Queries
-- **Patterns go in the path:** `GET /accounts/{address}`, `GET /accounts/{address}/balances` and `GET /accounts/{address}/transfers` treat an address containing `*` as a pattern, since a valid address never contains `*`. An exact address returns one account, its balances or its history; a pattern returns a page of accounts, the pattern totals or the merged history. `GET /accounts` lists every account.
+- **Patterns go in the path:** `GET /accounts/{address}`, `GET /accounts/{address}/balances` and `GET /accounts/{address}/transfers` treat an address containing `*` as a pattern, since a valid address never contains `*`. Each route returns one shape: an exact address is a list of one account, or totals and balances for one account, so clients parse a single response either way. `GET /accounts` lists every account.
 - **Pattern transfers are capped at 100 wallets**, not 1000: each page costs one TigerBeetle request per wallet. The use is one user's pots in one timeline (`rider:123:*`); a feed across many users is an analytics or export query. A transfer between two matching accounts is returned once.
 - **Pattern balances are capped at 1000 wallets**; more returns 400 asking to narrow the pattern. The ledger answers operational queries (one user's pots, a few system accounts). Totals across all users are analytics: export through TigerBeetle CDC to something like ClickHouse. That export is not built.
 - **Patterns:** `*` matches exactly one segment. In Postgres, a pattern becomes an anchored regex.

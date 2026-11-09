@@ -19,9 +19,9 @@ A chain is one array of postings inside `chains`. All three postings go in the s
 {
   "chains": [
     [
-      { "id": "2001", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "22500", "group_id": "2000" },
-      { "id": "2002", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "AAPL", "amount": "1500000", "group_id": "2000" },
-      { "id": "2003", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "2000" }
+      { "id": "00000000-0000-0000-0000-000000002001", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "22500", "group_id": "00000000-0000-0000-0000-000000002000" },
+      { "id": "00000000-0000-0000-0000-000000002002", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "AAPL", "amount": "1500000", "group_id": "00000000-0000-0000-0000-000000002000" },
+      { "id": "00000000-0000-0000-0000-000000002003", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "00000000-0000-0000-0000-000000002000" }
     ]
   ]
 }
@@ -31,9 +31,9 @@ A chain is one array of postings inside `chains`. All three postings go in the s
 {
   "chains": [
     [
-      { "id": "2001", "group_id": "2000", "status": "created" },
-      { "id": "2002", "group_id": "2000", "status": "created" },
-      { "id": "2003", "group_id": "2000", "status": "created" }
+      { "id": "00000000-0000-0000-0000-000000002001", "group_id": "00000000-0000-0000-0000-000000002000", "status": "created" },
+      { "id": "00000000-0000-0000-0000-000000002002", "group_id": "00000000-0000-0000-0000-000000002000", "status": "created" },
+      { "id": "00000000-0000-0000-0000-000000002003", "group_id": "00000000-0000-0000-0000-000000002000", "status": "created" }
     ]
   ]
 }
@@ -45,11 +45,11 @@ The response has the same shape as the request: a chain in, a chain of results o
 
 | Posting | Account | Side | Change | Why |
 |---|---|---|---|---|
-| 2001 | `user:42:cash` | debit | −$225 | the user paid |
+| `…2001` | `user:42:cash` | debit | −$225 | the user paid |
 | | `bank:client-money` | credit | −$225 | the money left to pay the seller |
-| 2002 | `custodian:positions` | debit | +1.5 AAPL | the custodian now holds the shares for the brokerage |
+| `…2002` | `custodian:positions` | debit | +1.5 AAPL | the custodian now holds the shares for the brokerage |
 | | `user:42:holdings` | credit | +1.5 AAPL | the brokerage owes the user those shares |
-| 2003 | `user:42:cash` | debit | −$1 | the user paid the fee |
+| `…2003` | `user:42:cash` | debit | −$1 | the user paid the fee |
 | | `revenue:commissions` | credit | +$1 | the brokerage earned it |
 
 Check each row against [chapter 1](/brokerage/chart-of-accounts/#which-way-balances-move). A debit lowers a liability like `user:42:cash` and raises an asset like `custodian:positions`. A credit raises a liability or revenue and lowers an asset like `bank:client-money`.
@@ -64,9 +64,9 @@ Now the user tries to buy 10 Tesla shares at $200, for $2,000. They have $774.
 {
   "chains": [
     [
-      { "id": "2011", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "200000", "group_id": "2010" },
-      { "id": "2012", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "10000000", "group_id": "2010" },
-      { "id": "2013", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "2010" }
+      { "id": "00000000-0000-0000-0000-000000002011", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "200000", "group_id": "00000000-0000-0000-0000-000000002010" },
+      { "id": "00000000-0000-0000-0000-000000002012", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "10000000", "group_id": "00000000-0000-0000-0000-000000002010" },
+      { "id": "00000000-0000-0000-0000-000000002013", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "00000000-0000-0000-0000-000000002010" }
     ]
   ]
 }
@@ -76,9 +76,9 @@ Now the user tries to buy 10 Tesla shares at $200, for $2,000. They have $774.
 {
   "chains": [
     [
-      { "id": "2011", "group_id": "2010", "status": "failed", "error": "insufficient_funds", "message": "insufficient funds: 200000 USD debiting \"user:42:cash\", crediting \"bank:client-money\"" },
-      { "id": "2012", "group_id": "2010", "status": "failed", "error": "chain_failed", "message": "chain failed: transfer 2011 in the same chain failed" },
-      { "id": "2013", "group_id": "2010", "status": "failed", "error": "chain_failed", "message": "chain failed: transfer 2011 in the same chain failed" }
+      { "id": "00000000-0000-0000-0000-000000002011", "group_id": "00000000-0000-0000-0000-000000002010", "status": "failed", "error": "insufficient_funds", "message": "insufficient funds: 200000 USD debiting \"user:42:cash\", crediting \"bank:client-money\"" },
+      { "id": "00000000-0000-0000-0000-000000002012", "group_id": "00000000-0000-0000-0000-000000002010", "status": "failed", "error": "chain_failed", "message": "chain failed: transfer 00000000-0000-0000-0000-000000002011 in the same chain failed" },
+      { "id": "00000000-0000-0000-0000-000000002013", "group_id": "00000000-0000-0000-0000-000000002010", "status": "failed", "error": "chain_failed", "message": "chain failed: transfer 00000000-0000-0000-0000-000000002011 in the same chain failed" }
     ]
   ]
 }
@@ -86,7 +86,7 @@ Now the user tries to buy 10 Tesla shares at $200, for $2,000. They have $774.
 
 Nothing moved. The posting that caused the failure says `insufficient_funds`, and the rest of the chain says `chain_failed`. The shares posting would have worked on its own, but the chain stopped it.
 
-The status is still `200`: the request worked, and the order didn't. To retry after a deposit, send `2011` with a **new id**, because a failed id can't be used again (`id_already_failed`). The other two ids never applied, so they can be reused.
+The status is still `200`: the request worked, and the order didn't. To retry after a deposit, send `00000000-0000-0000-0000-000000002011` with a **new id**, because a failed id can't be used again (`id_already_failed`). The other two ids never applied, so they can be reused.
 
 ## Selling
 
@@ -96,9 +96,9 @@ Selling is the same chain the other way round: each account that was debited is 
 {
   "chains": [
     [
-      { "id": "2021", "debit": "user:42:holdings", "credit": "custodian:positions", "currency": "AAPL", "amount": "500000", "group_id": "2020" },
-      { "id": "2022", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "amount": "8000", "group_id": "2020" },
-      { "id": "2023", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "2020" }
+      { "id": "00000000-0000-0000-0000-000000002021", "debit": "user:42:holdings", "credit": "custodian:positions", "currency": "AAPL", "amount": "500000", "group_id": "00000000-0000-0000-0000-000000002020" },
+      { "id": "00000000-0000-0000-0000-000000002022", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "amount": "8000", "group_id": "00000000-0000-0000-0000-000000002020" },
+      { "id": "00000000-0000-0000-0000-000000002023", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "00000000-0000-0000-0000-000000002020" }
     ]
   ]
 }

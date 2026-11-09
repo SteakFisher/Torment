@@ -56,10 +56,10 @@ func patternRegex(pattern string) (string, error) {
 }
 
 // ListAccounts returns the accounts whose address matches pattern (see patternRegex) and sorts after
-// after, ordered by address, with their wallets in currency order. Wallet IDs are not set. limit 0 means
+// cursor, ordered by address, with their wallets in currency order. Wallet IDs are not set. limit 0 means
 // defaultListLimit; more reports whether further accounts match. It returns ErrInvalid for a malformed
 // pattern or a limit outside 0 to maxListLimit.
-func (s *Service) ListAccounts(ctx context.Context, pattern, after string, limit int) (accounts []Account, more bool, err error) {
+func (s *Service) ListAccounts(ctx context.Context, pattern, cursor string, limit int) (accounts []Account, more bool, err error) {
 	re, err := patternRegex(pattern)
 	if err != nil {
 		return nil, false, err
@@ -70,10 +70,10 @@ func (s *Service) ListAccounts(ctx context.Context, pattern, after string, limit
 	if limit == 0 {
 		limit = defaultListLimit
 	}
-	return s.store.ListAccounts(ctx, re, after, limit)
+	return s.store.ListAccounts(ctx, re, cursor, limit)
 }
 
-// AccountBalances is one account's balances in a pattern balance query.
+// AccountBalances is one account's balances in a balance query.
 type AccountBalances struct {
 	Address  string
 	Type     AccountType
@@ -88,29 +88,32 @@ type TypeTotal struct {
 	Amount    *big.Int
 }
 
-// PatternBalances returns the balances of the accounts whose address matches pattern (see patternRegex),
-// in currency unless it is empty, with one total per type and currency. Accounts are ordered by address,
-// their balances by currency, and totals by type code then currency. A zero at means now; otherwise
-// balances are as of at, as in Balances. Accounts with no wallet in scope are left out. Totals and
-// accounts come from the same read, so they agree. It returns ErrInvalid for a malformed pattern or at,
-// and ErrPatternTooBroad when more than maxPatternWallets wallets match.
-func (s *Service) PatternBalances(ctx context.Context, pattern, currency string, at time.Time) ([]TypeTotal, []AccountBalances, error) {
-	re, err := patternRegex(pattern)
-	if err != nil {
-		return nil, nil, err
-	}
+// Balances returns the balances of the account at address, or of every account matching it when it is a
+// pattern (see patternRegex), in currency unless it is empty, with one total per type and currency.
+// Accounts are ordered by address, their balances by currency, and totals by type code then currency. A
+// zero at means now; otherwise each balance is as it was after the last transfer at or before at. A
+// wallet with no TigerBeetle account, or no transfer by at, has a zero balance. The exact account is
+// listed even with no wallet in scope; pattern accounts with no wallet in scope are left out. Totals and accounts come from the same read, so they agree. It returns
+// ErrAccountNotFound when no account has the exact address, ErrPatternTooBroad for a pattern matching
+// more than maxPatternWallets wallets, and ErrInvalid for a malformed pattern or an at outside 1970 to
+// 2262.
+func (s *Service) Balances(ctx context.Context, address, currency string, at time.Time) ([]TypeTotal, []AccountBalances, error) {
 	if err := validateAt(at); err != nil {
 		return nil, nil, err
 	}
-	wallets, tooMany, err := s.store.PatternWallets(ctx, re, currency, maxPatternWallets)
+	wallets, err := s.scopeWallets(ctx, address, currency, maxPatternWallets)
 	if err != nil {
 		return nil, nil, err
 	}
-	if tooMany {
-		return nil, nil, fmt.Errorf("%w: address pattern %q matches more than %d wallets; narrow it", ErrPatternTooBroad, pattern, maxPatternWallets)
-	}
 	if len(wallets) == 0 {
-		return []TypeTotal{}, []AccountBalances{}, nil
+		if IsPattern(address) {
+			return []TypeTotal{}, []AccountBalances{}, nil
+		}
+		acct, err := s.store.AccountWallets(ctx, address, currency)
+		if err != nil {
+			return nil, nil, err
+		}
+		return []TypeTotal{}, []AccountBalances{{Address: acct.Address, Type: acct.Type, Balances: []Balance{}}}, nil
 	}
 
 	ids := make([]tb.Uint128, len(wallets))
@@ -152,20 +155,20 @@ func (s *Service) PatternBalances(ctx context.Context, pattern, currency string,
 	return totals, accounts, nil
 }
 
-// AccountTransfersParams is the input to AccountTransfers. A zero From or Before leaves that side of the
+// AccountTransfersParams is the input to AccountTransfers. A zero From or Cursor leaves that side of the
 // time range open, and a zero Limit means defaultListLimit.
 type AccountTransfersParams struct {
 	Address  string
 	Currency string
 	From     time.Time
-	Before   time.Time
+	Cursor   time.Time
 	Limit    int
 }
 
 // AccountTransfers returns the transfers of the account at p.Address, or of every account matching it when
-// it is a pattern, committed at or after p.From and before p.Before, newest first. A transfer between two
+// it is a pattern, committed at or after p.From and before p.Cursor, newest first. A transfer between two
 // matching accounts is returned once. more reports whether older transfers remain; passing the last
-// Timestamp as Before gets the next page. It makes one TigerBeetle request per wallet in scope. It returns
+// Timestamp as Cursor gets the next page. It makes one TigerBeetle request per wallet in scope. It returns
 // ErrAccountNotFound when no account has the exact address, ErrPatternTooBroad for a pattern matching
 // more than maxPatternTransferWallets wallets, and ErrInvalid for a malformed pattern, a limit outside 0
 // to maxListLimit or a time outside TigerBeetle's range.
@@ -179,7 +182,7 @@ func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams
 	if err := validateAt(p.From); err != nil {
 		return nil, false, err
 	}
-	if err := validateAt(p.Before); err != nil {
+	if err := validateAt(p.Cursor); err != nil {
 		return nil, false, err
 	}
 	ids, err := s.transferWalletIDs(ctx, p.Address, p.Currency)
@@ -195,8 +198,8 @@ func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams
 	if !p.From.IsZero() {
 		filter.TimestampMin = uint64(p.From.UnixNano())
 	}
-	if !p.Before.IsZero() {
-		filter.TimestampMax = uint64(p.Before.UnixNano()) - 1
+	if !p.Cursor.IsZero() {
+		filter.TimestampMax = uint64(p.Cursor.UnixNano()) - 1
 		if filter.TimestampMin > filter.TimestampMax {
 			return []TransferRecord{}, false, nil
 		}
@@ -238,35 +241,45 @@ func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams
 
 // transferWalletIDs returns the TigerBeetle ids of the wallets in currency, or in every currency when it
 // is empty, of the account at address or of every account matching it when it is a pattern. It returns
-// ErrAccountNotFound when no account has the exact address, ErrPatternTooBroad for a pattern matching
-// more than maxPatternTransferWallets wallets, and ErrInvalid for a malformed pattern.
+// the errors of scopeWallets.
 func (s *Service) transferWalletIDs(ctx context.Context, address, currency string) ([]tb.Uint128, error) {
-	var wallets []Wallet
-	if IsPattern(address) {
-		re, err := patternRegex(address)
-		if err != nil {
-			return nil, err
-		}
-		matched, tooMany, err := s.store.PatternWallets(ctx, re, currency, maxPatternTransferWallets)
-		if err != nil {
-			return nil, err
-		}
-		if tooMany {
-			return nil, fmt.Errorf("%w: address pattern %q matches more than %d wallets; narrow it", ErrPatternTooBroad, address, maxPatternTransferWallets)
-		}
-		for _, w := range matched {
-			wallets = append(wallets, w.Wallet)
-		}
-	} else {
-		acct, err := s.store.AccountWallets(ctx, address, currency)
-		if err != nil {
-			return nil, err
-		}
-		wallets = acct.Wallets
+	wallets, err := s.scopeWallets(ctx, address, currency, maxPatternTransferWallets)
+	if err != nil {
+		return nil, err
 	}
 	ids := make([]tb.Uint128, len(wallets))
 	for i, w := range wallets {
 		ids[i] = w.ID
 	}
 	return ids, nil
+}
+
+// scopeWallets returns the wallets in currency, or in every currency when it is empty, of the account at
+// address or of every account matching it when it is a pattern, ordered by address and currency. It
+// returns ErrAccountNotFound when no account has the exact address, ErrPatternTooBroad for a pattern
+// matching more than limit wallets, and ErrInvalid for a malformed pattern.
+func (s *Service) scopeWallets(ctx context.Context, address, currency string, limit int) ([]AddressWallet, error) {
+	if !IsPattern(address) {
+		acct, err := s.store.AccountWallets(ctx, address, currency)
+		if err != nil {
+			return nil, err
+		}
+		wallets := make([]AddressWallet, len(acct.Wallets))
+		for i, w := range acct.Wallets {
+			wallets[i] = AddressWallet{Address: acct.Address, Type: acct.Type, Wallet: w}
+		}
+		return wallets, nil
+	}
+	re, err := patternRegex(address)
+	if err != nil {
+		return nil, err
+	}
+	wallets, tooMany, err := s.store.PatternWallets(ctx, re, currency, limit)
+	if err != nil {
+		return nil, err
+	}
+	if tooMany {
+		return nil, fmt.Errorf("%w: address pattern %q matches more than %d wallets; narrow it", ErrPatternTooBroad, address, limit)
+	}
+	return wallets, nil
 }

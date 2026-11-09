@@ -25,8 +25,8 @@ expect() {
 	fi
 }
 
-# id N prints this run's id N; ids grow with N.
-id() { printf '%s%02d' "$run" "$1"; }
+# id N prints this run's id N as a UUID: the run in the first group, N in the last; ids grow with N.
+id() { printf '%08x-0000-0000-0000-%012d' "$run" "$1"; }
 
 # account ADDRESS TYPE [EXTRA] prints an account registration, with EXTRA appended as JSON fields.
 account() { printf '{"address":"%s","type":"%s"%s}' "$1" "$2" "${3:+,$3}"; }
@@ -92,7 +92,7 @@ expect "register fx:position" "$(post /accounts "$(account fx:position equity '"
 expect "deposit 1000 AED" "$(transfer "$(p "$(id 50)" bank:client-money "$user:cash" AED 100000)")" '"status":"created".* 200$'
 fx=$(id 51)
 expect "exchange 367.25 AED for 100 USD" "$(transfer "$(p "$(id 52)" "$user:cash" fx:position AED 36725 "$fx"),$(p "$(id 53)" fx:position "$user:cash" USD 10000 "$fx")")" '"status":"created".*"status":"created".* 200$'
-expect "the user has 351.75 USD and 632.75 AED" "$(get "/accounts/$user:cash/balances")" '"currency":"AED","precision":2,"amount":"63275".*"currency":"USD","precision":2,"amount":"35175".* 200$'
+expect "the user has 351.75 USD and 632.75 AED" "$(get "/accounts/$user:cash/balances")" '"totals":\[\{"type":"liability","currency":"AED","precision":2,"amount":"63275"\},\{"type":"liability","currency":"USD","precision":2,"amount":"35175"\}\],"accounts":\[\{"address":"[^"]+","type":"liability","balances":\[\{"currency":"AED","precision":2,"amount":"63275"\},\{"currency":"USD","precision":2,"amount":"35175"\}\]\}\]\} 200$'
 settle=$(id 54)
 expect "treasury converts at the bank" "$(transfer "$(p "$(id 55)" fx:position bank:client-money AED 36725 "$settle"),$(p "$(id 56)" bank:client-money fx:position USD 10000 "$settle")")" '"status":"created".*"status":"created".* 200$'
 
@@ -119,8 +119,8 @@ expect "the user still has 253.25 USD" "$(amount "$user:cash" USD)" '^25325$'
 echo "# 8. Statements"
 page=$(get "/accounts/$user:*/transfers?limit=5")
 expect "the newest 5 transfers start with the returned withdrawal" "$page" "^\\{\"address\":\"$user:\\*\",\"transfers\":\\[\\{\"id\":\"$(id 75)\".*\"next\":\"[^\"]+\"\\} 200\$"
-before=$(printf '%s' "$page" | sed -E 's/.*"next":"([^"]+)".*/\1/')
-expect "the next page carries on" "$(get "/accounts/$user:*/transfers?limit=5&before=$before")" "^\\{\"address\":\"$user:\\*\",\"transfers\":\\[\\{\"id\":\"$(id 52)\""
+cursor=$(printf '%s' "$page" | sed -E 's/.*"next":"([^"]+)".*/\1/')
+expect "the next page carries on" "$(get "/accounts/$user:*/transfers?limit=5&cursor=$cursor")" "^\\{\"address\":\"$user:\\*\",\"transfers\":\\[\\{\"id\":\"$(id 52)\""
 at=$(get "/groups/$(id 10)/transfers" | sed -E 's/.*"timestamp":"([^"]+)".*/\1/')
 expect "the balance right after the deposit was 1000 USD" "$(get "/accounts/$user:cash/balances?currency=USD&at=$at")" '"amount":"100000".* 200$'
 expect "the user's totals" "$(get "/accounts/$user:*/balances")" '"totals":\[\{"type":"liability","currency":"AAPL","precision":6,"amount":"1000000"\},\{"type":"liability","currency":"AED","precision":2,"amount":"63275"\},\{"type":"liability","currency":"TSLA","precision":6,"amount":"3000000"\},\{"type":"liability","currency":"USD","precision":2,"amount":"25325"\}\]'

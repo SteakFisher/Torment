@@ -12,9 +12,9 @@ Each payment is one posting that debits `bank:client-money` and credits the user
 ```json title="POST /transfers"
 {
   "chains": [
-    [{ "id": "6001", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "amount": "150", "group_id": "6000" }],
-    [{ "id": "6002", "debit": "bank:client-money", "credit": "user:43:cash", "currency": "USD", "amount": "1200", "group_id": "6000" }],
-    [{ "id": "6003", "debit": "bank:client-money", "credit": "user:44:cash", "currency": "USD", "amount": "25", "group_id": "6000" }]
+    [{ "id": "00000000-0000-0000-0000-000000006001", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "amount": "150", "group_id": "00000000-0000-0000-0000-000000006000" }],
+    [{ "id": "00000000-0000-0000-0000-000000006002", "debit": "bank:client-money", "credit": "user:43:cash", "currency": "USD", "amount": "1200", "group_id": "00000000-0000-0000-0000-000000006000" }],
+    [{ "id": "00000000-0000-0000-0000-000000006003", "debit": "bank:client-money", "credit": "user:44:cash", "currency": "USD", "amount": "25", "group_id": "00000000-0000-0000-0000-000000006000" }]
   ]
 }
 ```
@@ -22,9 +22,9 @@ Each payment is one posting that debits `bank:client-money` and credits the user
 ```json title="200 OK"
 {
   "chains": [
-    [{ "id": "6001", "group_id": "6000", "status": "created" }],
-    [{ "id": "6002", "group_id": "6000", "status": "created" }],
-    [{ "id": "6003", "group_id": "6000", "status": "created" }]
+    [{ "id": "00000000-0000-0000-0000-000000006001", "group_id": "00000000-0000-0000-0000-000000006000", "status": "created" }],
+    [{ "id": "00000000-0000-0000-0000-000000006002", "group_id": "00000000-0000-0000-0000-000000006000", "status": "created" }],
+    [{ "id": "00000000-0000-0000-0000-000000006003", "group_id": "00000000-0000-0000-0000-000000006000", "status": "created" }]
   ]
 }
 ```
@@ -47,7 +47,7 @@ The same idea works for live traffic, such as order fills from the market. Keep 
 
 ## Finding the payments again
 
-`group_id` is the dividend's id, so `GET /groups/6000/transfers` lists the payments. A group is read a page at a time, so for a dividend paid to thousands of users, follow `next` until it is gone to see every payment.
+`group_id` is the dividend's id, so `GET /groups/00000000-0000-0000-0000-000000006000/transfers` lists the payments. A group is read a page at a time, so for a dividend paid to thousands of users, follow `next` until it is gone to see every payment.
 
 ## Where this leaves us
 

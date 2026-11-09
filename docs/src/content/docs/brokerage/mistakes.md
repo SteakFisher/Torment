@@ -17,14 +17,14 @@ Undo the wrong posting with one that swaps its debit and credit, and post the ri
 {
   "chains": [
     [
-      { "id": "9001", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "amount": "20000", "group_id": "3000" },
-      { "id": "9002", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "19000", "group_id": "3000" }
+      { "id": "00000000-0000-0000-0000-000000009001", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "amount": "20000", "group_id": "00000000-0000-0000-0000-000000003000" },
+      { "id": "00000000-0000-0000-0000-000000009002", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "19000", "group_id": "00000000-0000-0000-0000-000000003000" }
     ]
   ]
 }
 ```
 
-The user gets $10 back, and `GET /groups/3000/transfers` now shows the original fill, its reversal and the corrected fill.
+The user gets $10 back, and `GET /groups/00000000-0000-0000-0000-000000003000/transfers` now shows the original fill, its reversal and the corrected fill.
 
 You could post just the $10 difference instead. A full reversal is clearer on a statement, because each line matches something that really happened: "fill at $200", "reversal of fill", "fill at $190".
 
@@ -35,7 +35,7 @@ Sending a posting again with the same id but a different amount doesn't change i
 ```json title="200 OK"
 {
   "chains": [
-    [{ "id": "1001", "group_id": "1001", "status": "failed", "error": "conflict", "message": "conflict: transfer 1001 exists with different fields: TransferExistsWithDifferentAmount" }]
+    [{ "id": "00000000-0000-0000-0000-000000001001", "group_id": "00000000-0000-0000-0000-000000001001", "status": "failed", "error": "conflict", "message": "conflict: transfer 00000000-0000-0000-0000-000000001001 exists with different fields: TransferExistsWithDifferentAmount" }]
   ]
 }
 ```

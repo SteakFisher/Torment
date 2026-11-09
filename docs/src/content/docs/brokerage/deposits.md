@@ -14,7 +14,7 @@ One posting records both sides. It debits `bank:client-money`, an asset, and cre
   "chains": [
     [
       {
-        "id": "1001",
+        "id": "00000000-0000-0000-0000-000000001001",
         "debit": "bank:client-money",
         "credit": "user:42:cash",
         "currency": "USD",
@@ -26,7 +26,7 @@ One posting records both sides. It debits `bank:client-money`, an asset, and cre
 ```
 
 ```json title="200 OK"
-{ "chains": [[{ "id": "1001", "group_id": "1001", "status": "created" }]] }
+{ "chains": [[{ "id": "00000000-0000-0000-0000-000000001001", "group_id": "00000000-0000-0000-0000-000000001001", "status": "created" }]] }
 ```
 
 `chains` is a list of chains. A chain is a list of postings that all happen or none do. This deposit is one chain with one posting in it. The response has the same shape.
@@ -45,7 +45,7 @@ Payment providers tell you about a deposit with a webhook, and they often send t
 The posting `id` prevents that. Send the same posting again, and Torment recognises it:
 
 ```json title="200 OK"
-{ "chains": [[{ "id": "1001", "group_id": "1001", "status": "exists" }]] }
+{ "chains": [[{ "id": "00000000-0000-0000-0000-000000001001", "group_id": "00000000-0000-0000-0000-000000001001", "status": "exists" }]] }
 ```
 
 `exists` means "already applied, nothing changed". It's a success, not an error.
@@ -56,11 +56,11 @@ The trick is to choose the id **before** you send anything, and store it with th
 2. Send the posting with that id.
 3. On every later webhook for the same payment, look up the row and send the same id again.
 
-Provider ids like `pay_8f3k2` can't be used directly, because Torment ids are numbers. That's why you keep your own.
+Provider ids like `pay_8f3k2` can't be used directly, because Torment ids are UUIDs. That's why you keep your own.
 
 ## Choosing ids
 
-Ids are numbers from 1 to 2¹²⁸−2. This tutorial uses short ones like `1001` so they're easy to read. In production, use ids that increase over time, such as a UUIDv7 read as a 128-bit number. Random ids work, but they slow TigerBeetle down.
+Ids are UUIDs. This tutorial writes them as `00000000-0000-0000-0000-000000001001`, with a short number at the end, so they're easy to read and `…2001` visibly belongs to order `…2000`. In production, generate a UUIDv7 for each posting; any language's UUID library can. UUIDv7s increase over time, which TigerBeetle prefers: random UUIDs work, but they slow it down.
 
 ## When the request itself fails
 
