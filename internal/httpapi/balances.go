@@ -40,13 +40,13 @@ func getBalances(l Ledger) http.HandlerFunc {
 		address, currency := r.PathValue("address"), r.URL.Query().Get("currency")
 		at, err := parseTime(r, "at")
 		if err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		if !ledger.IsPattern(address) {
 			balances, err := l.Balances(r.Context(), address, currency, at)
 			if err != nil {
-				writeError(w, err)
+				writeError(w, r, err)
 				return
 			}
 			writeJSON(w, http.StatusOK, struct {
@@ -57,7 +57,7 @@ func getBalances(l Ledger) http.HandlerFunc {
 		}
 		totals, accounts, err := l.PatternBalances(r.Context(), address, currency, at)
 		if err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		out := struct {

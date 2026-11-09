@@ -18,7 +18,7 @@ Every example below is one HTTP request with a JSON body. To send one with curl:
 curl -H 'Authorization: Bearer dev-key' -d '<body>' localhost:8080/<path>
 ```
 
-`dev-key` is the development API key. Every route except `/healthz` needs it.
+`dev-key` is the development API key. Every route except `/healthz` and `/readyz` needs it.
 
 ## 1. Register a currency
 

@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"context"
+	"fmt"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 )
@@ -17,6 +18,18 @@ type Service struct {
 // through writes and reads through reads, which should be separate clients.
 func New(store Store, writes tbWriter, reads tbReader) *Service {
 	return &Service{store: newWalletCache(store), writes: writes, reads: reads}
+}
+
+// Ready returns an error when Postgres or TigerBeetle can't be reached.
+func (s *Service) Ready(ctx context.Context) error {
+	if err := s.store.Ping(ctx); err != nil {
+		return fmt.Errorf("error pinging postgres: %w", err)
+	}
+	// Any id works: looking it up is a round trip whether or not the account exists.
+	if _, err := tbCall(ctx, func() ([]tb.Account, error) { return s.reads.LookupAccounts([]tb.Uint128{tb.ToUint128(1)}) }); err != nil {
+		return fmt.Errorf("error reaching tigerbeetle: %w", err)
+	}
+	return nil
 }
 
 // Store keeps currencies, accounts and wallets. Errors other than ErrNotFound and ErrConflict mean the
@@ -64,4 +77,7 @@ type Store interface {
 
 	// MarkWalletsCreated records that the TigerBeetle accounts ids of their wallets exist.
 	MarkWalletsCreated(ctx context.Context, ids []tb.Uint128) error
+
+	// Ping returns an error when the store can't be reached.
+	Ping(ctx context.Context) error
 }

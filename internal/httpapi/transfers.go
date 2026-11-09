@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -50,7 +51,7 @@ type transferJSON struct {
 
 // newTransferJSON returns the response for t. An error it does not recognise is logged and reported as
 // "internal".
-func newTransferJSON(t ledger.Transfer) transferJSON {
+func newTransferJSON(ctx context.Context, t ledger.Transfer) transferJSON {
 	out := transferJSON{ID: t.ID.BigInt().String(), GroupID: t.GroupID.BigInt().String(), Status: "exists"}
 	switch {
 	case t.Err == nil && t.Created:
@@ -71,7 +72,7 @@ func newTransferJSON(t ledger.Transfer) transferJSON {
 			out.Error = "overflow"
 		default:
 			out.Error, out.Message = "internal", "internal error"
-			slog.Error("transfer failed", "id", out.ID, "err", t.Err)
+			slog.Error("transfer failed", "request_id", requestID(ctx), "id", out.ID, "err", t.Err)
 		}
 	}
 	return out
@@ -85,7 +86,7 @@ func postTransfer(l Ledger) http.HandlerFunc {
 			Postings []chainJSON `json:"postings"`
 		}
 		if err := decodeJSON(w, r, &req); err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		chains := make([][]ledger.Posting, len(req.Postings))
@@ -96,19 +97,19 @@ func postTransfer(l Ledger) http.HandlerFunc {
 		}
 		results, err := l.Transfer(r.Context(), chains)
 		if err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		// each element is a transferJSON, or a []transferJSON when the request element was an array
 		out := make([]any, len(results))
 		for i, chain := range results {
 			if !req.Postings[i].array {
-				out[i] = newTransferJSON(chain[0])
+				out[i] = newTransferJSON(r.Context(), chain[0])
 				continue
 			}
 			arr := make([]transferJSON, len(chain))
 			for j, t := range chain {
-				arr[j] = newTransferJSON(t)
+				arr[j] = newTransferJSON(r.Context(), t)
 			}
 			out[i] = arr
 		}

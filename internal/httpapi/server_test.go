@@ -22,6 +22,7 @@ type fakeLedger struct {
 	listAccounts     func(ctx context.Context, pattern, after string, limit int) ([]ledger.Account, bool, error)
 	patternBalances  func(ctx context.Context, pattern, currency string, at time.Time) ([]ledger.TypeTotal, []ledger.AccountBalances, error)
 	accountTransfers func(ctx context.Context, p ledger.AccountTransfersParams) ([]ledger.TransferRecord, bool, error)
+	ready            func(ctx context.Context) error
 }
 
 var _ Ledger = fakeLedger{}
@@ -64,6 +65,10 @@ func (f fakeLedger) PatternBalances(ctx context.Context, pattern, currency strin
 
 func (f fakeLedger) AccountTransfers(ctx context.Context, p ledger.AccountTransfersParams) ([]ledger.TransferRecord, bool, error) {
 	return f.accountTransfers(ctx, p)
+}
+
+func (f fakeLedger) Ready(ctx context.Context) error {
+	return f.ready(ctx)
 }
 
 func TestHealthz(t *testing.T) {

@@ -22,6 +22,7 @@ type fakeStore struct {
 	storedWallets      func(ctx context.Context, keys []WalletKey) (map[WalletKey]StoredWallet, error)
 	insertWallets      func(ctx context.Context, wallets []NewWallet) error
 	markWalletsCreated func(ctx context.Context, ids []tb.Uint128) error
+	ping               func(ctx context.Context) error
 }
 
 var _ Store = (*fakeStore)(nil)
@@ -68,6 +69,10 @@ func (f *fakeStore) InsertWallets(ctx context.Context, wallets []NewWallet) erro
 
 func (f *fakeStore) MarkWalletsCreated(ctx context.Context, ids []tb.Uint128) error {
 	return f.markWalletsCreated(ctx, ids)
+}
+
+func (f *fakeStore) Ping(ctx context.Context) error {
+	return f.ping(ctx)
 }
 
 // fakeAccount is an account in a walletStore.

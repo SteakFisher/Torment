@@ -5,7 +5,7 @@ title: API
 JSON over HTTP. The server listens on `ADDR` (default `:8080`).
 
 ## Conventions
-- **Auth:** every route except `GET /healthz` needs `Authorization: Bearer <key>`, with a key from `API_KEYS`. A missing or wrong key returns 401.
+- **Auth:** every route except `GET /healthz` and `GET /readyz` needs `Authorization: Bearer <key>`, with a key from `API_KEYS`. A missing or wrong key returns 401.
 - **Errors:** a failed request returns `{"error": "<message>"}`.
 
   | Status | Meaning |
@@ -25,7 +25,13 @@ JSON over HTTP. The server listens on `ADDR` (default `:8080`).
 ## Health
 
 ### `GET /healthz`
-Returns 200 with the body `ok`. It needs no API key.
+Returns 200 with the body `ok` while the process is serving. It needs no API key.
+
+### `GET /readyz`
+Returns 200 with the body `ok` when Postgres and TigerBeetle both answer within 10 seconds, and 503 otherwise. It needs no API key.
+
+### Request ids
+Every response has an `X-Request-Id` header. Send your own (up to 64 bytes) to have it used; otherwise Torment makes one. The same id appears in the server's log lines for that request, so quote it when reporting a problem.
 
 ## Currencies
 

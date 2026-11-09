@@ -41,7 +41,7 @@ func getGroupTransfers(l Ledger) http.HandlerFunc {
 		groupID := r.PathValue("group_id")
 		transfers, err := l.GroupTransfers(r.Context(), groupID)
 		if err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, struct {
@@ -59,20 +59,20 @@ func getAccountTransfers(l Ledger) http.HandlerFunc {
 		p := ledger.AccountTransfersParams{Address: r.PathValue("address"), Currency: r.URL.Query().Get("currency")}
 		var err error
 		if p.From, err = parseTime(r, "from"); err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		if p.Before, err = parseTime(r, "before"); err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		if p.Limit, err = parseLimit(r); err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		transfers, more, err := l.AccountTransfers(r.Context(), p)
 		if err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		out := struct {

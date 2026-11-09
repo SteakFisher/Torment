@@ -35,7 +35,7 @@ func postAccount(l Ledger) http.HandlerFunc {
 			Currencies    []string `json:"currencies"`
 		}
 		if err := decodeJSON(w, r, &req); err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		acct, created, err := l.RegisterAccount(r.Context(), ledger.RegisterAccountParams{
@@ -45,7 +45,7 @@ func postAccount(l Ledger) http.HandlerFunc {
 			Currencies:    req.Currencies,
 		})
 		if err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		status := http.StatusOK
@@ -66,7 +66,7 @@ func getAccounts(l Ledger) http.HandlerFunc {
 		if address != "" && !ledger.IsPattern(address) {
 			acct, err := l.Account(r.Context(), address)
 			if err != nil {
-				writeError(w, err)
+				writeError(w, r, err)
 				return
 			}
 			writeJSON(w, http.StatusOK, newAccountJSON(acct))
@@ -74,12 +74,12 @@ func getAccounts(l Ledger) http.HandlerFunc {
 		}
 		limit, err := parseLimit(r)
 		if err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		accounts, more, err := l.ListAccounts(r.Context(), address, r.URL.Query().Get("after"), limit)
 		if err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		out := struct {

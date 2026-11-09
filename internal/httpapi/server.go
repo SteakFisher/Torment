@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -22,19 +23,29 @@ type Ledger interface {
 	ListAccounts(ctx context.Context, pattern, after string, limit int) ([]ledger.Account, bool, error)
 	PatternBalances(ctx context.Context, pattern, currency string, at time.Time) ([]ledger.TypeTotal, []ledger.AccountBalances, error)
 	AccountTransfers(ctx context.Context, p ledger.AccountTransfersParams) ([]ledger.TransferRecord, bool, error)
+	Ready(ctx context.Context) error
 }
 
 // Fails to compile when *ledger.Service no longer satisfies Ledger.
 var _ Ledger = (*ledger.Service)(nil)
 
-// New returns the HTTP handler. GET /healthz is open; every other route requires one of apiKeys.
+// New returns the HTTP handler. GET /healthz and GET /readyz are open; every other route requires one
+// of apiKeys. Every request is logged by logRequests.
 func New(l Ledger, apiKeys []string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok\n"))
 	})
+	mux.Handle("GET /readyz", withTimeout(requestTimeout, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := l.Ready(r.Context()); err != nil {
+			slog.Error("not ready", "request_id", requestID(r.Context()), "err", err)
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "not ready"})
+			return
+		}
+		w.Write([]byte("ok\n"))
+	})))
 	mux.Handle("/", requireAPIKey(apiKeys, withTimeout(requestTimeout, routes(l))))
-	return mux
+	return logRequests(mux)
 }
 
 // requestTimeout is how long a request may wait on Postgres and TigerBeetle. It is shorter than the

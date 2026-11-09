@@ -16,7 +16,7 @@ On startup, Torment connects to Postgres, applies any new database migrations, a
 
 ## API keys
 
-Every route except `GET /healthz` needs `Authorization: Bearer <key>`, where the key is one of `API_KEYS`. A missing or wrong key returns 401.
+Every route except `GET /healthz` and `GET /readyz` needs `Authorization: Bearer <key>`, where the key is one of `API_KEYS`. A missing or wrong key returns 401.
 
 To rotate a key without downtime:
 
@@ -44,7 +44,14 @@ docker run -p 8080:8080 \
 
 ## Health
 
-`GET /healthz` returns 200 with `ok` and needs no key. It tells you the process is serving, not that Postgres and TigerBeetle are reachable.
+Two checks, neither needing a key:
+
+- **`GET /healthz`** returns 200 while the process is serving. Use it as the liveness check: if it fails, restart the instance.
+- **`GET /readyz`** returns 200 when Postgres and TigerBeetle both answer, and 503 otherwise. Use it as the readiness check: a load balancer should stop sending traffic while it fails. Don't restart on it, since a restart won't fix a database that's down.
+
+## Logs
+
+Torment logs to stderr as `key=value` lines, through Go's standard `log/slog`. Every request except the health checks gets one line with its method, path, status and duration, plus its request id. Errors for that request carry the same `request_id`, so one id finds everything about a request.
 
 ## Shutdown
 

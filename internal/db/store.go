@@ -15,7 +15,8 @@ import (
 
 // Store implements ledger.Store with the sqlc queries.
 type Store struct {
-	q sqlc.Querier
+	q    sqlc.Querier
+	pool *pgxpool.Pool
 }
 
 // Fails to compile when Store no longer satisfies ledger.Store.
@@ -23,7 +24,7 @@ var _ ledger.Store = (*Store)(nil)
 
 // NewStore returns a Store that runs its queries on pool.
 func NewStore(pool *pgxpool.Pool) *Store {
-	return &Store{q: sqlc.New(pool)}
+	return &Store{q: sqlc.New(pool), pool: pool}
 }
 
 // idToBytes returns id as 16 bytes in TigerBeetle's little-endian order, the form stored in Postgres.
@@ -247,4 +248,9 @@ func (s *Store) MarkWalletsCreated(ctx context.Context, ids []tb.Uint128) error 
 		return fmt.Errorf("error marking wallets created: %w", err)
 	}
 	return nil
+}
+
+// Ping returns an error when Postgres can't be reached.
+func (s *Store) Ping(ctx context.Context) error {
+	return s.pool.Ping(ctx)
 }

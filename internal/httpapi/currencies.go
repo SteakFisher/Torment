@@ -16,12 +16,12 @@ func postCurrency(l Ledger) http.HandlerFunc {
 			Code string `json:"code"`
 		}
 		if err := decodeJSON(w, r, &req); err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		currency, created, err := l.RegisterCurrency(r.Context(), req.Code)
 		if err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		status := http.StatusOK
@@ -37,7 +37,7 @@ func getCurrencies(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		currencies, err := l.Currencies(r.Context())
 		if err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		out := struct {
