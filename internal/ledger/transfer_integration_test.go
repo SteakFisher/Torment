@@ -44,8 +44,8 @@ func TestIntegrationTransfer(t *testing.T) {
 		return got
 	}
 	// posting returns one posting with a new id
-	posting := func(source, destination, amount, group string) ledger.Posting {
-		return ledger.Posting{ID: tb.ID().BigInt().String(), Source: source, Destination: destination, Currency: "USD", Amount: amount, GroupID: group}
+	posting := func(debit, credit, amount, group string) ledger.Posting {
+		return ledger.Posting{ID: tb.ID().BigInt().String(), Debit: debit, Credit: credit, Currency: "USD", Amount: amount, GroupID: group}
 	}
 
 	plain := posting("world", "rider:1:wallet", "100", "")

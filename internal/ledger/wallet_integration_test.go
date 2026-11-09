@@ -122,7 +122,7 @@ func TestIntegrationTransferCreatesWallets(t *testing.T) {
 	// transfer posts amount USD from world to address with a new id and fails the test unless it is created
 	transfer := func(address, amount string) {
 		t.Helper()
-		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: tb.ID().BigInt().String(), Source: "world", Destination: address, Currency: "USD", Amount: amount}}})
+		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: tb.ID().BigInt().String(), Debit: "world", Credit: address, Currency: "USD", Amount: amount}}})
 		if err != nil || got[0][0].Err != nil || !got[0][0].Created {
 			t.Errorf("transfer to %s = %+v, err %v; want created", address, got, err)
 		}

@@ -55,7 +55,7 @@ GET /accounts/user:42:*/transfers?from=2026-11-01T00:00:00Z&before=2026-12-01T00
 {
   "address": "user:42:*",
   "transfers": [
-    { "id": "7012", "group_id": "7010", "source": "transit:withdrawals", "destination": "user:42:cash", "currency": "USD", "amount": "5000", "timestamp": "2026-11-06T12:41:09.6Z" },
+    { "id": "7012", "group_id": "7010", "debit": "transit:withdrawals", "credit": "user:42:cash", "currency": "USD", "amount": "5000", "timestamp": "2026-11-06T12:41:09.6Z" },
     ...
   ],
   "next": "2026-11-06T12:41:09.21Z"

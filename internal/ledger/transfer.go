@@ -11,16 +11,16 @@ import (
 // maxPostings is the most transfers TigerBeetle accepts in one request.
 const maxPostings = 8189
 
-// Posting moves Amount, an integer in minor units of Currency, from the wallet of Source to the wallet
-// of Destination. ID is the TigerBeetle transfer id. ID, Amount and GroupID are base-10 strings; an empty
-// GroupID makes ID the group id.
+// Posting debits Amount, an integer in minor units of Currency, from the wallet of Debit and credits it
+// to the wallet of Credit. ID is the TigerBeetle transfer id. ID, Amount and GroupID are base-10
+// strings; an empty GroupID makes ID the group id.
 type Posting struct {
-	ID          string
-	Source      string
-	Destination string
-	Currency    string
-	Amount      string
-	GroupID     string
+	ID       string
+	Debit    string
+	Credit   string
+	Currency string
+	Amount   string
+	GroupID  string
 }
 
 // Transfer is the outcome of one posting. Err nil and Created true means the transfer was created; Err
@@ -32,8 +32,8 @@ type Transfer struct {
 	Err     error
 }
 
-// Transfer posts each posting as a TigerBeetle transfer that debits the source wallet and credits the
-// destination wallet, and returns an outcome for each posting in the shape of chains. Each chain is
+// Transfer posts each posting as a TigerBeetle transfer that debits the wallet of Debit and credits the
+// wallet of Credit, and returns an outcome for each posting in the shape of chains. Each chain is
 // applied atomically and chains independently. It is idempotent per posting id. The returned error
 // covers only failures before anything is written: ErrInvalid for malformed input, ErrAccountNotFound
 // or ErrCurrencyNotFound when an account or currency is not registered, or another error. Each outcome's Err is ErrInsufficientFunds,
@@ -101,14 +101,14 @@ func parsePosting(p Posting) (tb.Transfer, error) {
 	if !ok || id == maxUint128 {
 		return tb.Transfer{}, fmt.Errorf("%w: id %q must be a base-10 integer greater than zero and less than 2^128-1", ErrInvalid, p.ID)
 	}
-	if err := validateAddress(p.Source); err != nil {
+	if err := validateAddress(p.Debit); err != nil {
 		return tb.Transfer{}, err
 	}
-	if err := validateAddress(p.Destination); err != nil {
+	if err := validateAddress(p.Credit); err != nil {
 		return tb.Transfer{}, err
 	}
-	if p.Source == p.Destination {
-		return tb.Transfer{}, fmt.Errorf("%w: source and destination must differ, both are %q", ErrInvalid, p.Source)
+	if p.Debit == p.Credit {
+		return tb.Transfer{}, fmt.Errorf("%w: debit and credit must differ, both are %q", ErrInvalid, p.Debit)
 	}
 	amount, ok := parseUint128(p.Amount)
 	if !ok {
@@ -131,7 +131,7 @@ func (s *Service) resolveWallets(ctx context.Context, chains [][]Posting, batch 
 	seen := make(map[WalletKey]bool)
 	for _, chain := range chains {
 		for _, p := range chain {
-			for _, k := range []WalletKey{{p.Source, p.Currency}, {p.Destination, p.Currency}} {
+			for _, k := range []WalletKey{{p.Debit, p.Currency}, {p.Credit, p.Currency}} {
 				if !seen[k] {
 					seen[k] = true
 					keys = append(keys, k)
@@ -146,9 +146,9 @@ func (s *Service) resolveWallets(ctx context.Context, chains [][]Posting, batch 
 	k := 0
 	for _, chain := range chains {
 		for _, p := range chain {
-			debit := wallets[WalletKey{p.Source, p.Currency}]
+			debit := wallets[WalletKey{p.Debit, p.Currency}]
 			batch[k].DebitAccountID = debit.ID
-			batch[k].CreditAccountID = wallets[WalletKey{p.Destination, p.Currency}].ID
+			batch[k].CreditAccountID = wallets[WalletKey{p.Credit, p.Currency}].ID
 			batch[k].Ledger = uint32(debit.Ledger)
 			k++
 		}
@@ -253,7 +253,7 @@ func failChain(chain []Transfer, failed int, err error) {
 func statusError(p Posting, status tb.CreateTransferStatus) error {
 	switch status {
 	case tb.TransferExceedsCredits, tb.TransferExceedsDebits:
-		return fmt.Errorf("%w: %s %s from %q to %q", ErrInsufficientFunds, p.Amount, p.Currency, p.Source, p.Destination)
+		return fmt.Errorf("%w: %s %s debiting %q, crediting %q", ErrInsufficientFunds, p.Amount, p.Currency, p.Debit, p.Credit)
 	case tb.TransferExistsWithDifferentFlags,
 		tb.TransferExistsWithDifferentPendingID,
 		tb.TransferExistsWithDifferentTimeout,
@@ -269,7 +269,7 @@ func statusError(p Posting, status tb.CreateTransferStatus) error {
 	case tb.TransferOverflowsDebits, tb.TransferOverflowsCredits,
 		tb.TransferOverflowsDebitsPosted, tb.TransferOverflowsCreditsPosted,
 		tb.TransferOverflowsDebitsPending, tb.TransferOverflowsCreditsPending:
-		return fmt.Errorf("%w: %s %s from %q to %q: %s", ErrOverflow, p.Amount, p.Currency, p.Source, p.Destination, status)
+		return fmt.Errorf("%w: %s %s debiting %q, crediting %q: %s", ErrOverflow, p.Amount, p.Currency, p.Debit, p.Credit, status)
 	case tb.TransferIDAlreadyFailed:
 		return fmt.Errorf("%w: id %s belongs to a transfer that failed; use a new id", ErrIDAlreadyFailed, p.ID)
 	default:

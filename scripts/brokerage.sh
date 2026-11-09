@@ -31,15 +31,15 @@ id() { printf '%s%02d' "$run" "$1"; }
 # account ADDRESS TYPE [EXTRA] prints an account registration, with EXTRA appended as JSON fields.
 account() { printf '{"address":"%s","type":"%s"%s}' "$1" "$2" "${3:+,$3}"; }
 
-# p ID SOURCE DESTINATION CURRENCY AMOUNT [GROUP_ID] prints one posting.
-p() { printf '{"id":"%s","source":"%s","destination":"%s","currency":"%s","amount":"%s","group_id":"%s"}' "$1" "$2" "$3" "$4" "$5" "${6:-}"; }
+# p ID DEBIT CREDIT CURRENCY AMOUNT [GROUP_ID] prints one posting.
+p() { printf '{"id":"%s","debit":"%s","credit":"%s","currency":"%s","amount":"%s","group_id":"%s"}' "$1" "$2" "$3" "$4" "$5" "${6:-}"; }
 
-# transfer ELEMENT... posts the elements (postings or chains) as one request.
+# transfer CHAIN... posts one request with a chain per argument. Each CHAIN is comma-separated postings.
 transfer() {
-	body=$1
+	body="[$1]"
 	shift
-	for e in "$@"; do body="$body,$e"; done
-	post /transfers "{\"postings\":[$body]}"
+	for c in "$@"; do body="$body,[$c]"; done
+	post /transfers "{\"chains\":[$body]}"
 }
 
 # amount ADDRESS CURRENCY prints the account's balance in currency.
@@ -64,22 +64,22 @@ expect "the user has 1000 USD" "$(amount "$user:cash" USD)" '^100000$'
 
 echo "# 3. Buying shares"
 buy=$(id 20)
-expect "buy 1.5 AAPL at 150 with a 1 USD fee" "$(transfer "[$(p "$(id 21)" "$user:cash" bank:client-money USD 22500 "$buy"),$(p "$(id 22)" custodian:positions "$user:holdings" AAPL 1500000 "$buy"),$(p "$(id 23)" "$user:cash" revenue:commissions USD 100 "$buy")]")" '^\{"transfers":\[\[(\{[^}]*"status":"created"\},?){3}\]\]\} 200$'
+expect "buy 1.5 AAPL at 150 with a 1 USD fee" "$(transfer "$(p "$(id 21)" "$user:cash" bank:client-money USD 22500 "$buy"),$(p "$(id 22)" custodian:positions "$user:holdings" AAPL 1500000 "$buy"),$(p "$(id 23)" "$user:cash" revenue:commissions USD 100 "$buy")")" '^\{"chains":\[\[(\{[^}]*"status":"created"\},?){3}\]\]\} 200$'
 expect "the user has 774 USD" "$(amount "$user:cash" USD)" '^77400$'
 expect "the user has 1.5 AAPL" "$(amount "$user:holdings" AAPL)" '^1500000$'
 big=$(id 24)
-expect "buying 10 TSLA is refused" "$(transfer "[$(p "$(id 25)" "$user:cash" bank:client-money USD 200000 "$big"),$(p "$(id 26)" custodian:positions "$user:holdings" TSLA 10000000 "$big"),$(p "$(id 27)" "$user:cash" revenue:commissions USD 100 "$big")]")" '"error":"insufficient_funds".*"error":"chain_failed".*"error":"chain_failed".* 200$'
+expect "buying 10 TSLA is refused" "$(transfer "$(p "$(id 25)" "$user:cash" bank:client-money USD 200000 "$big"),$(p "$(id 26)" custodian:positions "$user:holdings" TSLA 10000000 "$big"),$(p "$(id 27)" "$user:cash" revenue:commissions USD 100 "$big")")" '"error":"insufficient_funds".*"error":"chain_failed".*"error":"chain_failed".* 200$'
 expect "the user still has 774 USD" "$(amount "$user:cash" USD)" '^77400$'
 sell=$(id 28)
-expect "sell 0.5 AAPL at 160" "$(transfer "[$(p "$(id 29)" "$user:holdings" custodian:positions AAPL 500000 "$sell"),$(p "$(id 30)" bank:client-money "$user:cash" USD 8000 "$sell"),$(p "$(id 31)" "$user:cash" revenue:commissions USD 100 "$sell")]")" '^\{"transfers":\[\[(\{[^}]*"status":"created"\},?){3}\]\]\} 200$'
+expect "sell 0.5 AAPL at 160" "$(transfer "$(p "$(id 29)" "$user:holdings" custodian:positions AAPL 500000 "$sell"),$(p "$(id 30)" bank:client-money "$user:cash" USD 8000 "$sell"),$(p "$(id 31)" "$user:cash" revenue:commissions USD 100 "$sell")")" '^\{"chains":\[\[(\{[^}]*"status":"created"\},?){3}\]\]\} 200$'
 expect "the user has 853 USD" "$(amount "$user:cash" USD)" '^85300$'
 expect "the user has 1 AAPL" "$(amount "$user:holdings" AAPL)" '^1000000$'
 
 echo "# 4. Partial fills"
 order=$(id 40)
-expect "fill 1: 1 TSLA at 200" "$(transfer "[$(p "$(id 41)" "$user:cash" bank:client-money USD 20000 "$order"),$(p "$(id 42)" custodian:positions "$user:holdings" TSLA 1000000 "$order")]")" '"status":"created".*"status":"created".* 200$'
-expect "fill 2: 1 TSLA at 200.50" "$(transfer "[$(p "$(id 43)" "$user:cash" bank:client-money USD 20050 "$order"),$(p "$(id 44)" custodian:positions "$user:holdings" TSLA 1000000 "$order")]")" '"status":"created".*"status":"created".* 200$'
-expect "fill 3: 1 TSLA at 199.75, and the fee" "$(transfer "[$(p "$(id 45)" "$user:cash" bank:client-money USD 19975 "$order"),$(p "$(id 46)" custodian:positions "$user:holdings" TSLA 1000000 "$order"),$(p "$(id 47)" "$user:cash" revenue:commissions USD 100 "$order")]")" '"status":"created".*"status":"created".*"status":"created".* 200$'
+expect "fill 1: 1 TSLA at 200" "$(transfer "$(p "$(id 41)" "$user:cash" bank:client-money USD 20000 "$order"),$(p "$(id 42)" custodian:positions "$user:holdings" TSLA 1000000 "$order")")" '"status":"created".*"status":"created".* 200$'
+expect "fill 2: 1 TSLA at 200.50" "$(transfer "$(p "$(id 43)" "$user:cash" bank:client-money USD 20050 "$order"),$(p "$(id 44)" custodian:positions "$user:holdings" TSLA 1000000 "$order")")" '"status":"created".*"status":"created".* 200$'
+expect "fill 3: 1 TSLA at 199.75, and the fee" "$(transfer "$(p "$(id 45)" "$user:cash" bank:client-money USD 19975 "$order"),$(p "$(id 46)" custodian:positions "$user:holdings" TSLA 1000000 "$order"),$(p "$(id 47)" "$user:cash" revenue:commissions USD 100 "$order")")" '"status":"created".*"status":"created".*"status":"created".* 200$'
 fills=$(get "/groups/$order/transfers")
 expect "the order has 7 transfers" "$(printf '%s' "$fills" | grep -o '"id":' | wc -l | tr -d ' ')" '^7$'
 expect "the order's newest transfer is the fee" "$fills" "^\\{\"group_id\":\"$order\",\"transfers\":\\[\\{\"id\":\"$(id 47)\""
@@ -91,17 +91,17 @@ expect "register AED/2" "$(post /currencies '{"code":"AED/2"}')" ' (200|201)$'
 expect "register fx:position" "$(post /accounts "$(account fx:position equity '"allow_negative":true')")" ' (200|201)$'
 expect "deposit 1000 AED" "$(transfer "$(p "$(id 50)" bank:client-money "$user:cash" AED 100000)")" '"status":"created".* 200$'
 fx=$(id 51)
-expect "exchange 367.25 AED for 100 USD" "$(transfer "[$(p "$(id 52)" "$user:cash" fx:position AED 36725 "$fx"),$(p "$(id 53)" fx:position "$user:cash" USD 10000 "$fx")]")" '"status":"created".*"status":"created".* 200$'
+expect "exchange 367.25 AED for 100 USD" "$(transfer "$(p "$(id 52)" "$user:cash" fx:position AED 36725 "$fx"),$(p "$(id 53)" fx:position "$user:cash" USD 10000 "$fx")")" '"status":"created".*"status":"created".* 200$'
 expect "the user has 351.75 USD and 632.75 AED" "$(get "/accounts/$user:cash/balances")" '"currency":"AED","precision":2,"amount":"63275".*"currency":"USD","precision":2,"amount":"35175".* 200$'
 settle=$(id 54)
-expect "treasury converts at the bank" "$(transfer "[$(p "$(id 55)" fx:position bank:client-money AED 36725 "$settle"),$(p "$(id 56)" bank:client-money fx:position USD 10000 "$settle")]")" '"status":"created".*"status":"created".* 200$'
+expect "treasury converts at the bank" "$(transfer "$(p "$(id 55)" fx:position bank:client-money AED 36725 "$settle"),$(p "$(id 56)" bank:client-money fx:position USD 10000 "$settle")")" '"status":"created".*"status":"created".* 200$'
 
 echo "# 6. Dividends"
 for u in "$amira" "$omar"; do
 	expect "register $u:cash" "$(post /accounts "$(account "$u:cash" liability)")" ' 201$'
 done
 dividend=$(id 60)
-expect "pay the TSLA dividend to three users" "$(transfer "$(p "$(id 61)" bank:client-money "$user:cash" USD 150 "$dividend")" "$(p "$(id 62)" bank:client-money "$amira:cash" USD 1200 "$dividend")" "$(p "$(id 63)" bank:client-money "$omar:cash" USD 25 "$dividend")")" '^\{"transfers":\[(\{[^}]*"status":"created"\},?){3}\]\} 200$'
+expect "pay the TSLA dividend to three users" "$(transfer "$(p "$(id 61)" bank:client-money "$user:cash" USD 150 "$dividend")" "$(p "$(id 62)" bank:client-money "$amira:cash" USD 1200 "$dividend")" "$(p "$(id 63)" bank:client-money "$omar:cash" USD 25 "$dividend")")" '^\{"chains":\[(\[\{[^}]*"status":"created"\}\],?){3}\]\} 200$'
 expect "the dividend group lists three payments" "$(get "/groups/$dividend/transfers" | grep -o '"id":' | wc -l | tr -d ' ')" '^3$'
 expect "the user has 353.25 USD" "$(amount "$user:cash" USD)" '^35325$'
 
@@ -126,7 +126,7 @@ expect "the balance right after the deposit was 1000 USD" "$(get "/accounts/$use
 expect "the user's totals" "$(get "/accounts/$user:*/balances")" '"totals":\[\{"type":"liability","currency":"AAPL","precision":6,"amount":"1000000"\},\{"type":"liability","currency":"AED","precision":2,"amount":"63275"\},\{"type":"liability","currency":"TSLA","precision":6,"amount":"3000000"\},\{"type":"liability","currency":"USD","precision":2,"amount":"25325"\}\]'
 
 echo "# 9. Mistakes"
-expect "fill 1 was really at 190: reverse it and post it again" "$(transfer "[$(p "$(id 91)" bank:client-money "$user:cash" USD 20000 "$order"),$(p "$(id 92)" "$user:cash" bank:client-money USD 19000 "$order")]")" '"status":"created".*"status":"created".* 200$'
+expect "fill 1 was really at 190: reverse it and post it again" "$(transfer "$(p "$(id 91)" bank:client-money "$user:cash" USD 20000 "$order"),$(p "$(id 92)" "$user:cash" bank:client-money USD 19000 "$order")")" '"status":"created".*"status":"created".* 200$'
 expect "the user has 263.25 USD" "$(amount "$user:cash" USD)" '^26325$'
 expect "the order now has 9 transfers" "$(get "/groups/$order/transfers" | grep -o '"id":' | wc -l | tr -d ' ')" '^9$'
 expect "reusing an id with other fields is a conflict" "$(transfer "$(p "$(id 10)" bank:client-money "$user:cash" USD 999)")" '"error":"conflict".* 200$'

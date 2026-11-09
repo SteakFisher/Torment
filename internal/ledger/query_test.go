@@ -235,7 +235,7 @@ func TestAccountTransfers(t *testing.T) {
 			var times []int64
 			for _, g := range got {
 				times = append(times, g.Timestamp.UnixNano())
-				if g.Source != "world" || g.Destination != "rider:1:wallet" {
+				if g.Debit != "world" || g.Credit != "rider:1:wallet" {
 					t.Fatalf("transfer = %+v; want world to rider:1:wallet", g)
 				}
 			}

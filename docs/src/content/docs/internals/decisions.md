@@ -46,7 +46,7 @@ One per (account, currency), and each is one TigerBeetle account. The type goes 
 `GET /accounts/{address}/balances`, optionally one `?currency=`. A read only: Postgres wallets, then TigerBeetle `lookup_accounts`. A wallet with no TigerBeetle account reads as zero. With `?at=`, each wallet takes one `get_account_balances` call for its last snapshot at or before `at`, using TigerBeetle's clock.
 
 ## Transfers
-Each posting has a client-chosen `id`, used as the TigerBeetle transfer id. A posting on its own is independent. An array of postings is an atomic chain. The response gives a status for each posting.
+Each posting has a client-chosen `id`, used as the TigerBeetle transfer id, and becomes one TigerBeetle transfer: its `debit` account's wallet is the transfer's debit account and its `credit` account's wallet the credit account. The request is a list of chains, and each chain is atomic: TigerBeetle links every posting but the last to the next. A posting on its own is a chain of one. The response gives a status for each posting, nested in the same chains.
 
 | Step | Fails → state | Recovery |
 |---|---|---|

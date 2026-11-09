@@ -26,12 +26,12 @@ expect() {
 	fi
 }
 
-# posting ID SOURCE DESTINATION CURRENCY AMOUNT [GROUP_ID] prints a transfer request with one posting.
+# posting ID DEBIT CREDIT CURRENCY AMOUNT [GROUP_ID] prints a transfer request with one chain of one posting.
 posting() {
-	printf '{"postings":[{"id":"%s","source":"%s","destination":"%s","currency":"%s","amount":"%s","group_id":"%s"}]}' "$1" "$2" "$3" "$4" "$5" "${6:-}"
+	printf '{"chains":[[{"id":"%s","debit":"%s","credit":"%s","currency":"%s","amount":"%s","group_id":"%s"}]]}' "$1" "$2" "$3" "$4" "$5" "${6:-}"
 }
 
-expect "no key is rejected" "$(curl -sS -w ' %{http_code}' "$BASE_URL/accounts")" '^\{"error":\{"code":"unauthorized",.* 401$'
+expect "no key is rejected" "$(curl -sS -w ' %{http_code}' "$BASE_URL/accounts" | tr -d '\n')" '^\{"error":\{"code":"unauthorized",.* 401$'
 expect "register USD" "$(post /currencies '{"code":"USD/2"}')" ' (200|201)$'
 expect "register EUR" "$(post /currencies '{"code":"EUR/2"}')" ' (200|201)$'
 expect "list currencies" "$(get /currencies)" '"name":"EUR","precision":2\}.*"name":"USD","precision":2\}.* 200$'

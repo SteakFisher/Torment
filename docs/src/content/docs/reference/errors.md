@@ -32,11 +32,11 @@ For `POST /transfers`, a 400 or 404 means nothing was applied. A 500, a timeout 
 
 ## Posting failures
 
-`POST /transfers` returns 200 with a result for every posting, even when some fail:
+`POST /transfers` returns 200 with a result for every posting, nested in the same chains as the request, even when some fail:
 
 | `error` | Meaning | What to do |
 |---|---|---|
-| `insufficient_funds` | the posting would take an account below zero. Nothing in its chain was applied | top up first, then resend this posting **with a new id** |
+| `insufficient_funds` | the debit or the credit would take an account below zero, and it wasn't registered with `allow_negative`. Nothing in its chain was applied | top up first, then resend this posting **with a new id** |
 | `chain_failed` | another posting in the same chain failed, so this one wasn't applied | fix the other posting. This id can be reused |
 | `conflict` | the id was already used for a posting with different fields | use a new id. If you meant to correct a posting, see [Mistakes](/brokerage/mistakes/) |
 | `id_already_failed` | the id belongs to a posting that failed before | use a new id |

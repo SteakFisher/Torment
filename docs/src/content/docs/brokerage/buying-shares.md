@@ -13,15 +13,15 @@ They have to happen together. If the user could pay without getting the shares, 
 
 ## The chain
 
-A chain is an array of postings inside `postings`. All three share a `group_id`: the brokerage's order id, so the order's postings can be found later.
+A chain is one array of postings inside `chains`. All three postings go in the same array. They share a `group_id`: the brokerage's order id, so the order's postings can be found later.
 
 ```json title="POST /transfers"
 {
-  "postings": [
+  "chains": [
     [
-      { "id": "2001", "source": "user:42:cash", "destination": "bank:client-money", "currency": "USD", "amount": "22500", "group_id": "2000" },
-      { "id": "2002", "source": "custodian:positions", "destination": "user:42:holdings", "currency": "AAPL", "amount": "1500000", "group_id": "2000" },
-      { "id": "2003", "source": "user:42:cash", "destination": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "2000" }
+      { "id": "2001", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "22500", "group_id": "2000" },
+      { "id": "2002", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "AAPL", "amount": "1500000", "group_id": "2000" },
+      { "id": "2003", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "2000" }
     ]
   ]
 }
@@ -29,7 +29,7 @@ A chain is an array of postings inside `postings`. All three share a `group_id`:
 
 ```json title="200 OK"
 {
-  "transfers": [
+  "chains": [
     [
       { "id": "2001", "group_id": "2000", "status": "created" },
       { "id": "2002", "group_id": "2000", "status": "created" },
@@ -43,14 +43,16 @@ The response has the same shape as the request: a chain in, a chain of results o
 
 ## What each posting did
 
-| Posting | Account | Change | Why |
-|---|---|---|---|
-| 2001 | `user:42:cash` | −$225 | the user paid |
-| | `bank:client-money` | −$225 | the money left to pay the seller |
-| 2002 | `custodian:positions` | +1.5 AAPL | the custodian now holds the shares for the brokerage |
-| | `user:42:holdings` | +1.5 AAPL | the brokerage owes the user those shares |
-| 2003 | `user:42:cash` | −$1 | the user paid the fee |
-| | `revenue:commissions` | +$1 | the brokerage earned it |
+| Posting | Account | Side | Change | Why |
+|---|---|---|---|---|
+| 2001 | `user:42:cash` | debit | −$225 | the user paid |
+| | `bank:client-money` | credit | −$225 | the money left to pay the seller |
+| 2002 | `custodian:positions` | debit | +1.5 AAPL | the custodian now holds the shares for the brokerage |
+| | `user:42:holdings` | credit | +1.5 AAPL | the brokerage owes the user those shares |
+| 2003 | `user:42:cash` | debit | −$1 | the user paid the fee |
+| | `revenue:commissions` | credit | +$1 | the brokerage earned it |
+
+Check each row against [chapter 1](/brokerage/chart-of-accounts/#which-way-balances-move). A debit lowers a liability like `user:42:cash` and raises an asset like `custodian:positions`. A credit raises a liability or revenue and lowers an asset like `bank:client-money`.
 
 `user:42:holdings` had no AAPL wallet before. Torment created it when the first AAPL posting touched the account.
 
@@ -60,11 +62,11 @@ Now the user tries to buy 10 Tesla shares at $200, for $2,000. They have $774.
 
 ```json title="POST /transfers"
 {
-  "postings": [
+  "chains": [
     [
-      { "id": "2011", "source": "user:42:cash", "destination": "bank:client-money", "currency": "USD", "amount": "200000", "group_id": "2010" },
-      { "id": "2012", "source": "custodian:positions", "destination": "user:42:holdings", "currency": "TSLA", "amount": "10000000", "group_id": "2010" },
-      { "id": "2013", "source": "user:42:cash", "destination": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "2010" }
+      { "id": "2011", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "200000", "group_id": "2010" },
+      { "id": "2012", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "10000000", "group_id": "2010" },
+      { "id": "2013", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "2010" }
     ]
   ]
 }
@@ -72,9 +74,9 @@ Now the user tries to buy 10 Tesla shares at $200, for $2,000. They have $774.
 
 ```json title="200 OK"
 {
-  "transfers": [
+  "chains": [
     [
-      { "id": "2011", "group_id": "2010", "status": "failed", "error": "insufficient_funds", "message": "insufficient funds: 200000 USD from \"user:42:cash\" to \"bank:client-money\"" },
+      { "id": "2011", "group_id": "2010", "status": "failed", "error": "insufficient_funds", "message": "insufficient funds: 200000 USD debiting \"user:42:cash\", crediting \"bank:client-money\"" },
       { "id": "2012", "group_id": "2010", "status": "failed", "error": "chain_failed", "message": "chain failed: transfer 2011 in the same chain failed" },
       { "id": "2013", "group_id": "2010", "status": "failed", "error": "chain_failed", "message": "chain failed: transfer 2011 in the same chain failed" }
     ]
@@ -88,15 +90,15 @@ The status is still `200`: the request worked, and the order didn't. To retry af
 
 ## Selling
 
-Selling is the same chain the other way round. The user sells 0.5 AAPL at $160, so $80, minus the $1 fee:
+Selling is the same chain the other way round: each account that was debited is now credited, and the other way round. The fee is still a debit to the user's cash and a credit to revenue. The user sells 0.5 AAPL at $160, so $80, minus the $1 fee:
 
 ```json title="POST /transfers"
 {
-  "postings": [
+  "chains": [
     [
-      { "id": "2021", "source": "user:42:holdings", "destination": "custodian:positions", "currency": "AAPL", "amount": "500000", "group_id": "2020" },
-      { "id": "2022", "source": "bank:client-money", "destination": "user:42:cash", "currency": "USD", "amount": "8000", "group_id": "2020" },
-      { "id": "2023", "source": "user:42:cash", "destination": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "2020" }
+      { "id": "2021", "debit": "user:42:holdings", "credit": "custodian:positions", "currency": "AAPL", "amount": "500000", "group_id": "2020" },
+      { "id": "2022", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "amount": "8000", "group_id": "2020" },
+      { "id": "2023", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "2020" }
     ]
   ]
 }

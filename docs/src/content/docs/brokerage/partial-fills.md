@@ -7,14 +7,14 @@ User 42 places an order for 3 Tesla shares. The market doesn't fill it all at on
 
 ## One chain per fill
 
-Each fill is its own chain: the user pays for one share and receives it. The fee is charged once, with the last fill. Every posting carries the order id, `3000`, as its `group_id`.
+Each fill is its own chain: the user pays for one share and receives it. Paying debits `user:42:cash` and credits `bank:client-money`. Receiving debits `custodian:positions` and credits `user:42:holdings`, the same as in [chapter 3](/brokerage/buying-shares/). The fee is charged once, with the last fill. Every posting carries the order id, `3000`, as its `group_id`.
 
 ```json title="POST /transfers (fill 1)"
 {
-  "postings": [
+  "chains": [
     [
-      { "id": "3001", "source": "user:42:cash", "destination": "bank:client-money", "currency": "USD", "amount": "20000", "group_id": "3000" },
-      { "id": "3002", "source": "custodian:positions", "destination": "user:42:holdings", "currency": "TSLA", "amount": "1000000", "group_id": "3000" }
+      { "id": "3001", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "20000", "group_id": "3000" },
+      { "id": "3002", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "1000000", "group_id": "3000" }
     ]
   ]
 }
@@ -22,10 +22,10 @@ Each fill is its own chain: the user pays for one share and receives it. The fee
 
 ```json title="POST /transfers (fill 2)"
 {
-  "postings": [
+  "chains": [
     [
-      { "id": "3003", "source": "user:42:cash", "destination": "bank:client-money", "currency": "USD", "amount": "20050", "group_id": "3000" },
-      { "id": "3004", "source": "custodian:positions", "destination": "user:42:holdings", "currency": "TSLA", "amount": "1000000", "group_id": "3000" }
+      { "id": "3003", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "20050", "group_id": "3000" },
+      { "id": "3004", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "1000000", "group_id": "3000" }
     ]
   ]
 }
@@ -33,11 +33,11 @@ Each fill is its own chain: the user pays for one share and receives it. The fee
 
 ```json title="POST /transfers (fill 3, and the fee)"
 {
-  "postings": [
+  "chains": [
     [
-      { "id": "3005", "source": "user:42:cash", "destination": "bank:client-money", "currency": "USD", "amount": "19975", "group_id": "3000" },
-      { "id": "3006", "source": "custodian:positions", "destination": "user:42:holdings", "currency": "TSLA", "amount": "1000000", "group_id": "3000" },
-      { "id": "3007", "source": "user:42:cash", "destination": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "3000" }
+      { "id": "3005", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "19975", "group_id": "3000" },
+      { "id": "3006", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "1000000", "group_id": "3000" },
+      { "id": "3007", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "group_id": "3000" }
     ]
   ]
 }
@@ -55,9 +55,9 @@ GET /groups/3000/transfers
 {
   "group_id": "3000",
   "transfers": [
-    { "id": "3007", "group_id": "3000", "source": "user:42:cash", "destination": "revenue:commissions", "currency": "USD", "amount": "100", "timestamp": "2026-11-06T12:41:09.206050152Z" },
-    { "id": "3006", "group_id": "3000", "source": "custodian:positions", "destination": "user:42:holdings", "currency": "TSLA", "amount": "1000000", "timestamp": "2026-11-06T12:41:09.206050151Z" },
-    { "id": "3005", "group_id": "3000", "source": "user:42:cash", "destination": "bank:client-money", "currency": "USD", "amount": "19975", "timestamp": "2026-11-06T12:41:09.20605015Z" },
+    { "id": "3007", "group_id": "3000", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "timestamp": "2026-11-06T12:41:09.206050152Z" },
+    { "id": "3006", "group_id": "3000", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "1000000", "timestamp": "2026-11-06T12:41:09.206050151Z" },
+    { "id": "3005", "group_id": "3000", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "19975", "timestamp": "2026-11-06T12:41:09.20605015Z" },
     ...
   ]
 }

@@ -32,7 +32,7 @@ func testStore(missing string) *walletStore {
 
 // testPosting returns a world → rider:1:wallet posting of 100 USD with the given id.
 func testPosting(id int) Posting {
-	return Posting{ID: strconv.Itoa(id), Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: "100"}
+	return Posting{ID: strconv.Itoa(id), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "100"}
 }
 
 // testChains returns chains of the given lengths whose postings have ids 1, 2, 3 and so on in order.
@@ -73,16 +73,16 @@ func TestTransferRejects(t *testing.T) {
 		{name: "missing id", chains: edited(func(p *Posting) { p.ID = "" }), wantErr: ErrInvalid},
 		{name: "zero id", chains: edited(func(p *Posting) { p.ID = "0" }), wantErr: ErrInvalid},
 		{name: "max id", chains: edited(func(p *Posting) { p.ID = "340282366920938463463374607431768211455" }), wantErr: ErrInvalid},
-		{name: "bad source", chains: edited(func(p *Posting) { p.Source = "a b" }), wantErr: ErrInvalid},
-		{name: "bad destination", chains: edited(func(p *Posting) { p.Destination = "" }), wantErr: ErrInvalid},
-		{name: "same source and destination", chains: edited(func(p *Posting) { p.Destination = "world" }), wantErr: ErrInvalid},
+		{name: "bad debit", chains: edited(func(p *Posting) { p.Debit = "a b" }), wantErr: ErrInvalid},
+		{name: "bad credit", chains: edited(func(p *Posting) { p.Credit = "" }), wantErr: ErrInvalid},
+		{name: "same debit and credit", chains: edited(func(p *Posting) { p.Credit = "world" }), wantErr: ErrInvalid},
 		{name: "zero amount", chains: edited(func(p *Posting) { p.Amount = "0" }), wantErr: ErrInvalid},
 		{name: "negative amount", chains: edited(func(p *Posting) { p.Amount = "-1" }), wantErr: ErrInvalid},
 		{name: "non-numeric amount", chains: edited(func(p *Posting) { p.Amount = "ten" }), wantErr: ErrInvalid},
 		{name: "amount over 128 bits", chains: edited(func(p *Posting) { p.Amount = "340282366920938463463374607431768211456" }), wantErr: ErrInvalid},
 		{name: "bad group id", chains: edited(func(p *Posting) { p.GroupID = "0" }), wantErr: ErrInvalid},
-		{name: "unknown source account", chains: testChains(2, 1), missing: "world", wantErr: ErrAccountNotFound},
-		{name: "unknown destination account", chains: testChains(2, 1), missing: "rider:1:wallet", wantErr: ErrAccountNotFound},
+		{name: "unknown debit account", chains: testChains(2, 1), missing: "world", wantErr: ErrAccountNotFound},
+		{name: "unknown credit account", chains: testChains(2, 1), missing: "rider:1:wallet", wantErr: ErrAccountNotFound},
 		{name: "unknown currency", chains: edited(func(p *Posting) { p.Currency = "AED" }), wantErr: ErrCurrencyNotFound},
 	}
 	for _, tt := range tests {
@@ -101,7 +101,7 @@ func TestTransferRejects(t *testing.T) {
 
 func TestTransferBatch(t *testing.T) {
 	chains := [][]Posting{
-		{testPosting(1), testPosting(2), {ID: "3", Source: "rider:1:wallet", Destination: "rider:2:wallet", Currency: "USD", Amount: "30", GroupID: "18446744073709551616"}},
+		{testPosting(1), testPosting(2), {ID: "3", Debit: "rider:1:wallet", Credit: "rider:2:wallet", Currency: "USD", Amount: "30", GroupID: "18446744073709551616"}},
 		{testPosting(4)},
 		{testPosting(5), testPosting(6)},
 	}

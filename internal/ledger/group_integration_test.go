@@ -23,9 +23,9 @@ func TestIntegrationGroupTransfers(t *testing.T) {
 	}
 
 	group := tb.ID().BigInt().String()
-	pay := ledger.Posting{ID: tb.ID().BigInt().String(), Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: "100", GroupID: group}
-	refund := ledger.Posting{ID: tb.ID().BigInt().String(), Source: "rider:1:wallet", Destination: "world", Currency: "USD", Amount: "30", GroupID: group}
-	other := ledger.Posting{ID: tb.ID().BigInt().String(), Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: "5"}
+	pay := ledger.Posting{ID: tb.ID().BigInt().String(), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "100", GroupID: group}
+	refund := ledger.Posting{ID: tb.ID().BigInt().String(), Debit: "rider:1:wallet", Credit: "world", Currency: "USD", Amount: "30", GroupID: group}
+	other := ledger.Posting{ID: tb.ID().BigInt().String(), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: "5"}
 	got, err := s.Transfer(ctx, [][]ledger.Posting{{pay}, {refund}, {other}})
 	if err != nil {
 		t.Fatalf("error transferring: %v", err)
@@ -45,7 +45,7 @@ func TestIntegrationGroupTransfers(t *testing.T) {
 	}
 	for i, want := range []ledger.Posting{refund, pay} {
 		g := transfers[i]
-		if g.ID.BigInt().String() != want.ID || g.Source != want.Source || g.Destination != want.Destination || g.Currency != "USD" || g.Amount.String() != want.Amount {
+		if g.ID.BigInt().String() != want.ID || g.Debit != want.Debit || g.Credit != want.Credit || g.Currency != "USD" || g.Amount.String() != want.Amount {
 			t.Fatalf("transfer %d = %+v, want %+v", i, g, want)
 		}
 	}

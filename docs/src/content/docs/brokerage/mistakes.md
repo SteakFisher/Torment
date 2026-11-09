@@ -11,14 +11,14 @@ A posting in Torment can never be changed or removed. That's deliberate: a ledge
 
 ## Reverse it, then post it again
 
-Undo the wrong posting with one going the other way, and post the right one. Put both in one chain, so the user's balance is never halfway corrected. Use the order's `group_id`, so the fix shows up with the order.
+Undo the wrong posting with one that swaps its debit and credit, and post the right one. Put both in one chain, so the user's balance is never halfway corrected. Use the order's `group_id`, so the fix shows up with the order.
 
 ```json title="POST /transfers"
 {
-  "postings": [
+  "chains": [
     [
-      { "id": "9001", "source": "bank:client-money", "destination": "user:42:cash", "currency": "USD", "amount": "20000", "group_id": "3000" },
-      { "id": "9002", "source": "user:42:cash", "destination": "bank:client-money", "currency": "USD", "amount": "19000", "group_id": "3000" }
+      { "id": "9001", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "amount": "20000", "group_id": "3000" },
+      { "id": "9002", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "19000", "group_id": "3000" }
     ]
   ]
 }
@@ -34,8 +34,8 @@ Sending a posting again with the same id but a different amount doesn't change i
 
 ```json title="200 OK"
 {
-  "transfers": [
-    { "id": "1001", "group_id": "1001", "status": "failed", "error": "conflict", "message": "conflict: transfer 1001 exists with different fields: TransferExistsWithDifferentAmount" }
+  "chains": [
+    [{ "id": "1001", "group_id": "1001", "status": "failed", "error": "conflict", "message": "conflict: transfer 1001 exists with different fields: TransferExistsWithDifferentAmount" }]
   ]
 }
 ```

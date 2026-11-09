@@ -51,14 +51,14 @@ A user's wallet is a liability, which feels backwards at first: from the user's 
 
 ### Which way balances move
 
-Every posting has a `source` and a `destination`. How each one's balance changes depends on its type:
+Every posting debits one account and credits another by the same amount. Whether a debit or a credit raises a balance depends on the account's type:
 
-| Type | As `source` | As `destination` |
+| Type | A debit | A credit |
 |---|---|---|
 | asset, expense | goes **up** | goes **down** |
 | liability, equity, revenue | goes **down** | goes **up** |
 
-So when a user deposits $100, the posting goes from `bank:client-money` to `user:42:cash`, and **both** go up: the bank holds $100 more, and the brokerage owes the user $100 more. You'll see this in the next chapter.
+So when a user deposits $100, the posting debits `bank:client-money` and credits `user:42:cash`, and **both** go up: the bank holds $100 more, and the brokerage owes the user $100 more. You'll see this in the next chapter.
 
 ## Registering the brokerage's accounts
 

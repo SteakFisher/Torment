@@ -30,21 +30,21 @@ func TestGetGroupTransfers(t *testing.T) {
 		{
 			name:       "page with more",
 			query:      "?cursor=1970-01-01T00:00:02Z&limit=1",
-			transfers:  []ledger.TransferRecord{{ID: tb.ToUint128(5), GroupID: tb.ToUint128(9), Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: big.NewInt(100), Timestamp: time.Unix(1, 500).UTC()}},
+			transfers:  []ledger.TransferRecord{{ID: tb.ToUint128(5), GroupID: tb.ToUint128(9), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: big.NewInt(100), Timestamp: time.Unix(1, 500).UTC()}},
 			more:       true,
 			wantParams: ledger.GroupTransfersParams{GroupID: "9", Cursor: time.Unix(2, 0), Limit: 1},
 			wantStatus: http.StatusOK,
-			wantBody: `{"group_id":"9","transfers":[{"id":"5","group_id":"9","source":"world","destination":"rider:1:wallet","currency":"USD","amount":"100","timestamp":"1970-01-01T00:00:01.0000005Z"}],` +
+			wantBody: `{"group_id":"9","transfers":[{"id":"5","group_id":"9","debit":"world","credit":"rider:1:wallet","currency":"USD","amount":"100","timestamp":"1970-01-01T00:00:01.0000005Z"}],` +
 				`"next":"1970-01-01T00:00:01.0000005Z"}`,
 		},
 		{name: "malformed cursor", query: "?cursor=yesterday", wantStatus: http.StatusBadRequest},
 		{name: "malformed limit", query: "?limit=x", wantStatus: http.StatusBadRequest},
 		{
 			name:       "transfers",
-			transfers:  []ledger.TransferRecord{{ID: tb.ToUint128(5), GroupID: tb.ToUint128(9), Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: big.NewInt(100), Timestamp: time.Unix(1, 500).UTC()}},
+			transfers:  []ledger.TransferRecord{{ID: tb.ToUint128(5), GroupID: tb.ToUint128(9), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: big.NewInt(100), Timestamp: time.Unix(1, 500).UTC()}},
 			wantParams: ledger.GroupTransfersParams{GroupID: "9"},
 			wantStatus: http.StatusOK,
-			wantBody:   `{"group_id":"9","transfers":[{"id":"5","group_id":"9","source":"world","destination":"rider:1:wallet","currency":"USD","amount":"100","timestamp":"1970-01-01T00:00:01.0000005Z"}]}`,
+			wantBody:   `{"group_id":"9","transfers":[{"id":"5","group_id":"9","debit":"world","credit":"rider:1:wallet","currency":"USD","amount":"100","timestamp":"1970-01-01T00:00:01.0000005Z"}]}`,
 		},
 		{name: "no transfers", transfers: []ledger.TransferRecord{}, wantParams: ledger.GroupTransfersParams{GroupID: "9"}, wantStatus: http.StatusOK, wantBody: `{"group_id":"9","transfers":[]}`},
 		{name: "invalid", err: ledger.ErrInvalid, wantParams: ledger.GroupTransfersParams{GroupID: "9"}, wantStatus: http.StatusBadRequest},
@@ -77,7 +77,7 @@ func TestGetGroupTransfers(t *testing.T) {
 
 func TestGetAccountTransfers(t *testing.T) {
 	ts := time.Unix(1, 500).UTC()
-	transfers := []ledger.TransferRecord{{ID: tb.ToUint128(5), GroupID: tb.ToUint128(5), Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: big.NewInt(100), Timestamp: ts}}
+	transfers := []ledger.TransferRecord{{ID: tb.ToUint128(5), GroupID: tb.ToUint128(5), Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: big.NewInt(100), Timestamp: ts}}
 	tests := []struct {
 		name       string
 		query      string
@@ -93,7 +93,7 @@ func TestGetAccountTransfers(t *testing.T) {
 			more:       true,
 			wantParams: ledger.AccountTransfersParams{Address: "rider:1:wallet", Currency: "USD", From: time.Unix(0, 0), Before: time.Unix(2, 0), Limit: 1},
 			wantStatus: http.StatusOK,
-			wantBody: `{"address":"rider:1:wallet","transfers":[{"id":"5","group_id":"5","source":"world","destination":"rider:1:wallet","currency":"USD","amount":"100","timestamp":"1970-01-01T00:00:01.0000005Z"}],` +
+			wantBody: `{"address":"rider:1:wallet","transfers":[{"id":"5","group_id":"5","debit":"world","credit":"rider:1:wallet","currency":"USD","amount":"100","timestamp":"1970-01-01T00:00:01.0000005Z"}],` +
 				`"next":"1970-01-01T00:00:01.0000005Z"}`,
 		},
 		{name: "last page", wantParams: ledger.AccountTransfersParams{Address: "rider:1:wallet"}, wantStatus: http.StatusOK},

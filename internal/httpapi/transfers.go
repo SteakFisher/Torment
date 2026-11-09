@@ -1,9 +1,7 @@
 package httpapi
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -13,30 +11,12 @@ import (
 
 // postingJSON is one posting in a request.
 type postingJSON struct {
-	ID          string `json:"id"`
-	Source      string `json:"source"`
-	Destination string `json:"destination"`
-	Currency    string `json:"currency"`
-	Amount      string `json:"amount"`
-	GroupID     string `json:"group_id"`
-}
-
-// chainJSON is one element of a request's postings: a single posting, or an array of postings that form
-// one chain. array reports which form it was.
-type chainJSON struct {
-	postings []postingJSON
-	array    bool
-}
-
-// UnmarshalJSON decodes an array of postings or a single posting, rejecting unknown fields.
-func (c *chainJSON) UnmarshalJSON(b []byte) error {
-	dec := json.NewDecoder(bytes.NewReader(b))
-	dec.DisallowUnknownFields()
-	if c.array = bytes.HasPrefix(bytes.TrimSpace(b), []byte("[")); c.array {
-		return dec.Decode(&c.postings)
-	}
-	c.postings = make([]postingJSON, 1)
-	return dec.Decode(&c.postings[0])
+	ID       string `json:"id"`
+	Debit    string `json:"debit"`
+	Credit   string `json:"credit"`
+	Currency string `json:"currency"`
+	Amount   string `json:"amount"`
+	GroupID  string `json:"group_id"`
 }
 
 // transferJSON is the outcome of one posting. ID and GroupID are decimal strings; Error and Message are
@@ -78,20 +58,20 @@ func newTransferJSON(ctx context.Context, t ledger.Transfer) transferJSON {
 	return out
 }
 
-// postTransfer handles POST /transfers. It responds 200 with a result for each posting, 400 for invalid
-// input, or 404 for an unregistered account or currency.
+// postTransfer handles POST /transfers. It responds 200 with a result for each posting, nested in chains as in
+// the request; 400 for invalid input; or 404 for an unregistered account or currency.
 func postTransfer(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			Postings []chainJSON `json:"postings"`
+			Chains [][]postingJSON `json:"chains"`
 		}
 		if err := decodeJSON(w, r, &req); err != nil {
 			writeError(w, r, err)
 			return
 		}
-		chains := make([][]ledger.Posting, len(req.Postings))
-		for i, c := range req.Postings {
-			for _, p := range c.postings {
+		chains := make([][]ledger.Posting, len(req.Chains))
+		for i, c := range req.Chains {
+			for _, p := range c {
 				chains[i] = append(chains[i], ledger.Posting(p))
 			}
 		}
@@ -100,21 +80,14 @@ func postTransfer(l Ledger) http.HandlerFunc {
 			writeError(w, r, err)
 			return
 		}
-		// each element is a transferJSON, or a []transferJSON when the request element was an array
-		out := make([]any, len(results))
+		out := make([][]transferJSON, len(results))
 		for i, chain := range results {
-			if !req.Postings[i].array {
-				out[i] = newTransferJSON(r.Context(), chain[0])
-				continue
+			for _, t := range chain {
+				out[i] = append(out[i], newTransferJSON(r.Context(), t))
 			}
-			arr := make([]transferJSON, len(chain))
-			for j, t := range chain {
-				arr[j] = newTransferJSON(r.Context(), t)
-			}
-			out[i] = arr
 		}
 		writeJSON(w, http.StatusOK, struct {
-			Transfers []any `json:"transfers"`
+			Chains [][]transferJSON `json:"chains"`
 		}{out})
 	}
 }

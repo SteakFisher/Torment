@@ -10,7 +10,7 @@ By the end, you'll have used every part of the API and seen why each part exists
 ## What you need
 
 - Torment running locally (see the [Quickstart](/getting-started/quickstart/)).
-- A rough idea of [debits and credits](https://docs.tigerbeetle.com/coding/financial-accounting/). Each chapter explains the accounting it needs, so you don't need much.
+- The short section on [debits and credits](/getting-started/concepts/#debits-and-credits). Every posting debits one account and credits another, and each chapter says which and why.
 
 ## Chapters
 

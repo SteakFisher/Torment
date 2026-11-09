@@ -12,13 +12,13 @@ import (
 // TransferRecord is a committed transfer. Amount is in minor units of Currency. Timestamp is when
 // TigerBeetle committed the transfer.
 type TransferRecord struct {
-	ID          tb.Uint128
-	GroupID     tb.Uint128
-	Source      string
-	Destination string
-	Currency    string
-	Amount      *big.Int
-	Timestamp   time.Time
+	ID        tb.Uint128
+	GroupID   tb.Uint128
+	Debit     string
+	Credit    string
+	Currency  string
+	Amount    *big.Int
+	Timestamp time.Time
 }
 
 // GroupTransfersParams is the input to GroupTransfers. A zero Cursor starts at the newest transfer, and a
@@ -91,13 +91,13 @@ func (s *Service) transferRecords(ctx context.Context, found []tb.Transfer) ([]T
 			return nil, fmt.Errorf("transfer %s has a tigerbeetle account with no wallet", t.ID.BigInt())
 		}
 		out[i] = TransferRecord{
-			ID:          t.ID,
-			GroupID:     t.UserData128,
-			Source:      debit.Address,
-			Destination: credit.Address,
-			Currency:    debit.Currency,
-			Amount:      t.Amount.BigInt(),
-			Timestamp:   time.Unix(0, int64(t.Timestamp)).UTC(),
+			ID:        t.ID,
+			GroupID:   t.UserData128,
+			Debit:     debit.Address,
+			Credit:    credit.Address,
+			Currency:  debit.Currency,
+			Amount:    t.Amount.BigInt(),
+			Timestamp: time.Unix(0, int64(t.Timestamp)).UTC(),
 		}
 	}
 	return out, nil

@@ -17,12 +17,12 @@ It's a liability because the brokerage still owes this money to someone: the use
 
 ## Step 1: the user asks
 
-Move the money out of the user's cash straight away, so they can't spend it twice:
+Move the money out of the user's cash straight away, so they can't spend it twice. Debit `user:42:cash`, so the brokerage owes the user $100 less, and credit `transit:withdrawals`, so it owes $100 more in transit:
 
 ```json title="POST /transfers"
 {
-  "postings": [
-    { "id": "7001", "source": "user:42:cash", "destination": "transit:withdrawals", "currency": "USD", "amount": "10000", "group_id": "7000" }
+  "chains": [
+    [{ "id": "7001", "debit": "user:42:cash", "credit": "transit:withdrawals", "currency": "USD", "amount": "10000", "group_id": "7000" }]
   ]
 }
 ```
@@ -31,26 +31,26 @@ If the user doesn't have $100, this fails with `insufficient_funds`, and you tel
 
 ## Step 2a: the bank pays it
 
-When the bank confirms the payout, the money leaves the brokerage:
+When the bank confirms the payout, the money leaves the brokerage. Debit `transit:withdrawals`, a liability, and credit `bank:client-money`, an asset:
 
 ```json title="POST /transfers"
 {
-  "postings": [
-    { "id": "7002", "source": "transit:withdrawals", "destination": "bank:client-money", "currency": "USD", "amount": "10000", "group_id": "7000" }
+  "chains": [
+    [{ "id": "7002", "debit": "transit:withdrawals", "credit": "bank:client-money", "currency": "USD", "amount": "10000", "group_id": "7000" }]
   ]
 }
 ```
 
-Both go down: the bank holds $100 less, and nothing is owed in transit any more.
+Both go down: a debit lowers a liability and a credit lowers an asset. The bank holds $100 less, and nothing is owed in transit any more.
 
 ## Step 2b: the bank rejects it
 
-Say the user also asked to withdraw $50, posted as `7011` in group `7010`, and the bank rejects that payout. The money goes back to the user:
+Say the user also asked to withdraw $50, posted as `7011` in group `7010`, and the bank rejects that payout. The money goes back to the user: debit `transit:withdrawals` and credit `user:42:cash`, the reverse of step 1:
 
 ```json title="POST /transfers"
 {
-  "postings": [
-    { "id": "7012", "source": "transit:withdrawals", "destination": "user:42:cash", "currency": "USD", "amount": "5000", "group_id": "7010" }
+  "chains": [
+    [{ "id": "7012", "debit": "transit:withdrawals", "credit": "user:42:cash", "currency": "USD", "amount": "5000", "group_id": "7010" }]
   ]
 }
 ```

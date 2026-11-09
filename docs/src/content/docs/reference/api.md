@@ -142,33 +142,37 @@ For a pattern, returns 200 with a total for each type and currency, plus each ma
 ## Transfers
 
 ### `POST /transfers`
-Moves money between accounts. Each posting debits `source` and credits `destination`. Both accounts must be registered, and missing wallets are created.
+Moves money between accounts. Each posting debits the account in `debit` and credits the account in `credit` by `amount`. Whether that raises or lowers each balance depends on the account's type: see the table under [Accounts](#accounts). Both accounts must be registered, and missing wallets are created.
 
 | Field | |
 |---|---|
 | `id` | required. Your id for the posting, from 1 to 2^128-2, unique within the request. Use time-ordered ids such as UUIDv7 read as a number: random ids slow TigerBeetle down |
-| `source`, `destination` | account addresses, which must differ |
+| `debit`, `credit` | account addresses, which must differ |
 | `currency` | a registered currency name |
 | `amount` | greater than zero, in minor units |
 | `group_id` | optional. Links related postings, such as a payment and its refund. Defaults to `id` |
 
-Each element of `postings` is either a single posting or an array of postings. An array is a chain: either all of it is applied, or none of it is. Separate elements are independent of each other.
+`chains` is a list of chains, and each chain is a list of postings. Either all of a chain is applied, or none of it is. Separate chains are independent of each other. A posting on its own is a chain of one.
 
 ```json
-{"postings": [
-  {"id": "1001", "source": "world", "destination": "rider:123:wallet", "currency": "USD", "amount": "10000"},
+{"chains": [
   [
-    {"id": "1002", "source": "rider:123:wallet", "destination": "merchant:9", "currency": "USD", "amount": "2500"},
-    {"id": "1003", "source": "rider:123:wallet", "destination": "platform:fees", "currency": "USD", "amount": "100"}
+    {"id": "1001", "debit": "world", "credit": "rider:123:wallet", "currency": "USD", "amount": "10000"}
+  ],
+  [
+    {"id": "1002", "debit": "rider:123:wallet", "credit": "merchant:9", "currency": "USD", "amount": "2500"},
+    {"id": "1003", "debit": "rider:123:wallet", "credit": "platform:fees", "currency": "USD", "amount": "100"}
   ]
 ]}
 ```
 
-Returns 200 with one result per posting, in the same shape as the request:
+Returns 200 with one result per posting, nested in chains the same way as the request:
 
 ```json
-{"transfers": [
-  {"id": "1001", "group_id": "1001", "status": "created"},
+{"chains": [
+  [
+    {"id": "1001", "group_id": "1001", "status": "created"}
+  ],
   [
     {"id": "1002", "group_id": "1002", "status": "failed", "error": "insufficient_funds", "message": "..."},
     {"id": "1003", "group_id": "1003", "status": "failed", "error": "chain_failed", "message": "..."}
@@ -180,7 +184,7 @@ Returns 200 with one result per posting, in the same shape as the request:
 |---|---|---|---|
 | `created` | | applied now | nothing |
 | `exists` | | already applied by an earlier request | nothing |
-| `failed` | `insufficient_funds` | the source can't go that low. Nothing in the chain was applied | top up, and resend this posting **with a new id** |
+| `failed` | `insufficient_funds` | an account would go below zero, and it wasn't registered with `allow_negative`. Nothing in the chain was applied | top up, and resend this posting **with a new id** |
 | `failed` | `chain_failed` | another posting in the chain failed | fix that one; this id can be reused |
 | `failed` | `conflict` | the id was already used with different fields | use a new id |
 | `failed` | `id_already_failed` | the id belongs to a posting that failed before | use a new id |
@@ -212,8 +216,8 @@ When more transfers remain, the response has `next`. Pass it back as `cursor` fo
 {
   "group_id": "1001",
   "transfers": [
-    {"id": "1004", "group_id": "1001", "source": "rider:123:wallet", "destination": "world", "currency": "USD", "amount": "3000", "timestamp": "2026-11-06T10:05:00.123456789Z"},
-    {"id": "1001", "group_id": "1001", "source": "world", "destination": "rider:123:wallet", "currency": "USD", "amount": "10000", "timestamp": "2026-11-06T10:00:00.123456789Z"}
+    {"id": "1004", "group_id": "1001", "debit": "rider:123:wallet", "credit": "world", "currency": "USD", "amount": "3000", "timestamp": "2026-11-06T10:05:00.123456789Z"},
+    {"id": "1001", "group_id": "1001", "debit": "world", "credit": "rider:123:wallet", "currency": "USD", "amount": "10000", "timestamp": "2026-11-06T10:00:00.123456789Z"}
   ]
 }
 ```

@@ -93,9 +93,9 @@ func TestIntegrationPatternBalances(t *testing.T) {
 		}
 	}
 	// pay moves amount of USD and returns TigerBeetle's timestamp for it
-	pay := func(source, destination, amount string) time.Time {
+	pay := func(debit, credit, amount string) time.Time {
 		t.Helper()
-		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: tb.ID().BigInt().String(), Source: source, Destination: destination, Currency: "USD", Amount: amount}}})
+		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: tb.ID().BigInt().String(), Debit: debit, Credit: credit, Currency: "USD", Amount: amount}}})
 		if err != nil || got[0][0].Err != nil {
 			t.Fatalf("error transferring: %v, %+v", err, got)
 		}
@@ -163,10 +163,10 @@ func TestIntegrationAccountTransfers(t *testing.T) {
 		}
 	}
 	// pay sends one posting and returns its id
-	pay := func(source, destination, currency, amount string) string {
+	pay := func(debit, credit, currency, amount string) string {
 		t.Helper()
 		id := tb.ID().BigInt().String()
-		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: id, Source: source, Destination: destination, Currency: currency, Amount: amount}}})
+		got, err := s.Transfer(ctx, [][]ledger.Posting{{{ID: id, Debit: debit, Credit: credit, Currency: currency, Amount: amount}}})
 		if err != nil || got[0][0].Err != nil {
 			t.Fatalf("error transferring: %v, %+v", err, got)
 		}
@@ -196,7 +196,7 @@ func TestIntegrationAccountTransfers(t *testing.T) {
 	if fmt.Sprint(all) != fmt.Sprint([]string{c, b, a}) || more {
 		t.Fatalf("all = %v, more %v; want %v", all, more, []string{c, b, a})
 	}
-	if r := records[0]; r.Source != "rider:1:wallet" || r.Destination != "rider:2:wallet" || r.Currency != "USD" || r.Amount.Int64() != 30 || r.GroupID.BigInt().String() != c {
+	if r := records[0]; r.Debit != "rider:1:wallet" || r.Credit != "rider:2:wallet" || r.Currency != "USD" || r.Amount.Int64() != 30 || r.GroupID.BigInt().String() != c {
 		t.Fatalf("newest = %+v", r)
 	}
 

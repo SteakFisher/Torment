@@ -32,6 +32,6 @@ When you post a transfer, Torment looks up the wallets (from memory after the fi
 - **Simplicity.** You run two databases, not one, and TigerBeetle needs its own machine and replicas in production.
 - **Features.** Formance has Numscript, metadata on accounts and transactions, and filtered queries over everything. Torment has no metadata, no holds (pending transfers), no currency conversion and no scripting.
 - **Reads.** Pattern balances stop at 1000 wallets and pattern history at 100, and nothing can total every user's balances. Those need an export to an analytics database, which isn't built yet.
-- **Editing.** An account's type and `allow_negative` are fixed forever. A mistaken transfer is fixed with a new transfer going the other way, never by editing or deleting.
+- **Editing.** An account's type and `allow_negative` are fixed forever. A mistaken transfer is fixed with a new transfer that swaps its debit and credit, never by editing or deleting.
 - **Ids.** You choose every posting's id, and ids should increase over time, because random ids slow TigerBeetle down.
 - **Maturity.** Torment is young: no SDKs, no UI and only basic auth.

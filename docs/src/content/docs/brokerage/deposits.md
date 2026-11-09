@@ -7,32 +7,36 @@ User 42 sends $1,000 by bank transfer. The money lands in the brokerage's bank a
 
 ## The posting
 
-One posting records both sides: from `bank:client-money` to `user:42:cash`.
+One posting records both sides. It debits `bank:client-money`, an asset, and credits `user:42:cash`, a liability.
 
 ```json title="POST /transfers"
 {
-  "postings": [
-    {
-      "id": "1001",
-      "source": "bank:client-money",
-      "destination": "user:42:cash",
-      "currency": "USD",
-      "amount": "100000"
-    }
+  "chains": [
+    [
+      {
+        "id": "1001",
+        "debit": "bank:client-money",
+        "credit": "user:42:cash",
+        "currency": "USD",
+        "amount": "100000"
+      }
+    ]
   ]
 }
 ```
 
 ```json title="200 OK"
-{ "transfers": [{ "id": "1001", "group_id": "1001", "status": "created" }] }
+{ "chains": [[{ "id": "1001", "group_id": "1001", "status": "created" }]] }
 ```
+
+`chains` is a list of chains. A chain is a list of postings that all happen or none do. This deposit is one chain with one posting in it. The response has the same shape.
 
 Both balances go up, as [chapter 1](/brokerage/chart-of-accounts/#which-way-balances-move) said they would:
 
-| Account | Type | Change | Why |
-|---|---|---|---|
-| `bank:client-money` | asset | +$1,000 | the bank holds $1,000 more |
-| `user:42:cash` | liability | +$1,000 | the brokerage owes the user $1,000 more |
+| Account | Type | Side | Change | Why |
+|---|---|---|---|---|
+| `bank:client-money` | asset | debit | +$1,000 | the bank holds $1,000 more |
+| `user:42:cash` | liability | credit | +$1,000 | the brokerage owes the user $1,000 more |
 
 ## Counting a payment once
 
@@ -41,7 +45,7 @@ Payment providers tell you about a deposit with a webhook, and they often send t
 The posting `id` prevents that. Send the same posting again, and Torment recognises it:
 
 ```json title="200 OK"
-{ "transfers": [{ "id": "1001", "group_id": "1001", "status": "exists" }] }
+{ "chains": [[{ "id": "1001", "group_id": "1001", "status": "exists" }]] }
 ```
 
 `exists` means "already applied, nothing changed". It's a success, not an error.

@@ -9,26 +9,26 @@ import (
 
 // transferRecordJSON is one committed transfer. ID, GroupID and Amount are decimal strings.
 type transferRecordJSON struct {
-	ID          string    `json:"id"`
-	GroupID     string    `json:"group_id"`
-	Source      string    `json:"source"`
-	Destination string    `json:"destination"`
-	Currency    string    `json:"currency"`
-	Amount      string    `json:"amount"`
-	Timestamp   time.Time `json:"timestamp"`
+	ID        string    `json:"id"`
+	GroupID   string    `json:"group_id"`
+	Debit     string    `json:"debit"`
+	Credit    string    `json:"credit"`
+	Currency  string    `json:"currency"`
+	Amount    string    `json:"amount"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 func newTransferRecordsJSON(transfers []ledger.TransferRecord) []transferRecordJSON {
 	out := make([]transferRecordJSON, 0, len(transfers))
 	for _, t := range transfers {
 		out = append(out, transferRecordJSON{
-			ID:          t.ID.BigInt().String(),
-			GroupID:     t.GroupID.BigInt().String(),
-			Source:      t.Source,
-			Destination: t.Destination,
-			Currency:    t.Currency,
-			Amount:      t.Amount.String(),
-			Timestamp:   t.Timestamp,
+			ID:        t.ID.BigInt().String(),
+			GroupID:   t.GroupID.BigInt().String(),
+			Debit:     t.Debit,
+			Credit:    t.Credit,
+			Currency:  t.Currency,
+			Amount:    t.Amount.String(),
+			Timestamp: t.Timestamp,
 		})
 	}
 	return out

@@ -25,22 +25,22 @@ The deposit works like [chapter 2](/brokerage/deposits/), in AED. `bank:client-m
 
 ```json title="POST /transfers"
 {
-  "postings": [
-    { "id": "5001", "source": "bank:client-money", "destination": "user:42:cash", "currency": "AED", "amount": "100000" }
+  "chains": [
+    [{ "id": "5001", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "AED", "amount": "100000" }]
   ]
 }
 ```
 
 ## The exchange
 
-A chain of two postings, in two currencies. The user gives the brokerage AED, and the brokerage gives the user USD:
+A chain of two postings, in two currencies. The user gives the brokerage AED: debit `user:42:cash`, so the brokerage owes the user fewer dirhams, and credit `fx:position`. The brokerage gives the user USD: debit `fx:position`, and credit `user:42:cash`, so the brokerage owes the user more dollars.
 
 ```json title="POST /transfers"
 {
-  "postings": [
+  "chains": [
     [
-      { "id": "5011", "source": "user:42:cash", "destination": "fx:position", "currency": "AED", "amount": "36725", "group_id": "5010" },
-      { "id": "5012", "source": "fx:position", "destination": "user:42:cash", "currency": "USD", "amount": "10000", "group_id": "5010" }
+      { "id": "5011", "debit": "user:42:cash", "credit": "fx:position", "currency": "AED", "amount": "36725", "group_id": "5010" },
+      { "id": "5012", "debit": "fx:position", "credit": "user:42:cash", "currency": "USD", "amount": "10000", "group_id": "5010" }
     ]
   ]
 }
@@ -48,18 +48,18 @@ A chain of two postings, in two currencies. The user gives the brokerage AED, an
 
 The chain matters here too: the user must never give dirhams without getting dollars.
 
-Afterwards, `fx:position` holds +367.25 AED and −100.00 USD. That's the brokerage's open position: it has taken in dirhams and promised dollars it hasn't bought yet. A negative balance is the honest way to show that, which is why this account allows one.
+`fx:position` is equity, so a credit raises it and a debit lowers it. Afterwards it holds +367.25 AED and −100.00 USD. That's the brokerage's open position: it has taken in dirhams and promised dollars it hasn't bought yet. A negative balance is the honest way to show that, which is why this account allows one.
 
 ## Closing the position
 
-Later, the treasury team converts the dirhams at the bank. Two more postings: the dirhams leave the bank, and the dollars arrive.
+Later, the treasury team converts the dirhams at the bank. Two more postings. The dirhams leave the bank: credit `bank:client-money`, an asset, so it goes down, and debit `fx:position` back to zero. The dollars arrive: debit `bank:client-money`, so it goes up, and credit `fx:position` back to zero.
 
 ```json title="POST /transfers"
 {
-  "postings": [
+  "chains": [
     [
-      { "id": "5021", "source": "fx:position", "destination": "bank:client-money", "currency": "AED", "amount": "36725", "group_id": "5020" },
-      { "id": "5022", "source": "bank:client-money", "destination": "fx:position", "currency": "USD", "amount": "10000", "group_id": "5020" }
+      { "id": "5021", "debit": "fx:position", "credit": "bank:client-money", "currency": "AED", "amount": "36725", "group_id": "5020" },
+      { "id": "5022", "debit": "bank:client-money", "credit": "fx:position", "currency": "USD", "amount": "10000", "group_id": "5020" }
     ]
   ]
 }

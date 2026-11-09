@@ -7,29 +7,29 @@ Tesla pays a dividend of $0.50 per share. The custodian pays the total into the 
 
 ## One request, many payments
 
-Each payment is one posting from `bank:client-money` to the user's cash. They aren't in a chain: if one user's payment fails, the others should still go through.
+Each payment is one posting that debits `bank:client-money` and credits the user's cash, like a deposit. Each posting is its own chain of one, so if one user's payment fails, the others still go through.
 
 ```json title="POST /transfers"
 {
-  "postings": [
-    { "id": "6001", "source": "bank:client-money", "destination": "user:42:cash", "currency": "USD", "amount": "150", "group_id": "6000" },
-    { "id": "6002", "source": "bank:client-money", "destination": "user:43:cash", "currency": "USD", "amount": "1200", "group_id": "6000" },
-    { "id": "6003", "source": "bank:client-money", "destination": "user:44:cash", "currency": "USD", "amount": "25", "group_id": "6000" }
+  "chains": [
+    [{ "id": "6001", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "amount": "150", "group_id": "6000" }],
+    [{ "id": "6002", "debit": "bank:client-money", "credit": "user:43:cash", "currency": "USD", "amount": "1200", "group_id": "6000" }],
+    [{ "id": "6003", "debit": "bank:client-money", "credit": "user:44:cash", "currency": "USD", "amount": "25", "group_id": "6000" }]
   ]
 }
 ```
 
 ```json title="200 OK"
 {
-  "transfers": [
-    { "id": "6001", "group_id": "6000", "status": "created" },
-    { "id": "6002", "group_id": "6000", "status": "created" },
-    { "id": "6003", "group_id": "6000", "status": "created" }
+  "chains": [
+    [{ "id": "6001", "group_id": "6000", "status": "created" }],
+    [{ "id": "6002", "group_id": "6000", "status": "created" }],
+    [{ "id": "6003", "group_id": "6000", "status": "created" }]
   ]
 }
 ```
 
-The response has one result per posting, in the same order, so you can tell exactly which payments went through.
+The response has one result per posting, in the same chains and order, so you can tell exactly which payments went through.
 
 ## Why batch
 

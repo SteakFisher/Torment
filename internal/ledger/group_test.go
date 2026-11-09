@@ -36,14 +36,14 @@ func TestGroupTransfers(t *testing.T) {
 			name: "page with more", params: GroupTransfersParams{GroupID: "9", Cursor: time.Unix(3, 0), Limit: 1},
 			found: []tb.Transfer{refund, pay}, wantQuery: true, wantMore: true, wantLimit: 2, wantMax: 3_000_000_000 - 1,
 			want: []TransferRecord{
-				{ID: refund.ID, Source: "rider:1:wallet", Destination: "world", Currency: "USD", Amount: refund.Amount.BigInt(), Timestamp: time.Unix(2, 0).UTC()},
+				{ID: refund.ID, Debit: "rider:1:wallet", Credit: "world", Currency: "USD", Amount: refund.Amount.BigInt(), Timestamp: time.Unix(2, 0).UTC()},
 			},
 		},
 		{
 			name: "transfers", params: GroupTransfersParams{GroupID: "9"}, found: []tb.Transfer{pay, refund}, wantQuery: true, wantLimit: defaultListLimit + 1,
 			want: []TransferRecord{
-				{ID: pay.ID, Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: pay.Amount.BigInt(), Timestamp: time.Unix(1, 0).UTC()},
-				{ID: refund.ID, Source: "rider:1:wallet", Destination: "world", Currency: "USD", Amount: refund.Amount.BigInt(), Timestamp: time.Unix(2, 0).UTC()},
+				{ID: pay.ID, Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: pay.Amount.BigInt(), Timestamp: time.Unix(1, 0).UTC()},
+				{ID: refund.ID, Debit: "rider:1:wallet", Credit: "world", Currency: "USD", Amount: refund.Amount.BigInt(), Timestamp: time.Unix(2, 0).UTC()},
 			},
 		},
 		{name: "account with no wallet", params: GroupTransfersParams{GroupID: "9"}, found: []tb.Transfer{{ID: tb.ID(), DebitAccountID: orphan, CreditAccountID: rider}}, wantQuery: true, wantOther: true},
@@ -86,7 +86,7 @@ func TestGroupTransfers(t *testing.T) {
 			}
 			for i, g := range got {
 				w := tt.want[i]
-				if g.ID != w.ID || g.Source != w.Source || g.Destination != w.Destination || g.Currency != w.Currency || g.Amount.Cmp(w.Amount) != 0 || !g.Timestamp.Equal(w.Timestamp) {
+				if g.ID != w.ID || g.Debit != w.Debit || g.Credit != w.Credit || g.Currency != w.Currency || g.Amount.Cmp(w.Amount) != 0 || !g.Timestamp.Equal(w.Timestamp) {
 					t.Fatalf("transfer %d = %+v, want %+v", i, g, w)
 				}
 			}
