@@ -50,7 +50,7 @@ type Store interface {
 	InsertAccount(ctx context.Context, address string, typ AccountType, allowNegative bool) (acct Account, created bool, err error)
 
 	// AccountWallets returns the account at address with its wallets in currency order, only those in
-	// currency unless it is empty. It returns ErrNotFound when no account has the address.
+	// currency unless it is empty. It returns ErrAccountNotFound when no account has the address.
 	AccountWallets(ctx context.Context, address, currency string) (Account, error)
 
 	// ListAccounts returns up to limit accounts whose address matches the Postgres regex re and sorts

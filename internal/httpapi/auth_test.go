@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"torment/internal/ledger"
@@ -40,6 +41,9 @@ func TestAPIKey(t *testing.T) {
 			h.ServeHTTP(rec, req)
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d (body %s)", rec.Code, tt.wantStatus, rec.Body)
+			}
+			if want := `{"error":{"code":"unauthorized","message":"unauthorized"}}`; rec.Code == http.StatusUnauthorized && strings.TrimSpace(rec.Body.String()) != want {
+				t.Fatalf("body = %s, want %s", rec.Body, want)
 			}
 		})
 	}

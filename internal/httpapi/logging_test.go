@@ -48,14 +48,18 @@ func TestLogRequests(t *testing.T) {
 
 func TestReadyz(t *testing.T) {
 	for _, tt := range []struct {
-		err  error
-		want int
-	}{{nil, http.StatusOK}, {errors.New("boom"), http.StatusServiceUnavailable}} {
+		err      error
+		want     int
+		wantBody string
+	}{
+		{nil, http.StatusOK, "ok"},
+		{errors.New("boom"), http.StatusServiceUnavailable, `{"error":{"code":"not_ready","message":"not ready"}}`},
+	} {
 		l := fakeLedger{ready: func(context.Context) error { return tt.err }}
 		rec := httptest.NewRecorder()
 		New(l, nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
-		if rec.Code != tt.want {
-			t.Fatalf("ready err %v: status = %d, want %d", tt.err, rec.Code, tt.want)
+		if rec.Code != tt.want || strings.TrimSpace(rec.Body.String()) != tt.wantBody {
+			t.Fatalf("ready err %v: status = %d, body %s; want %d, %s", tt.err, rec.Code, rec.Body, tt.want, tt.wantBody)
 		}
 	}
 }

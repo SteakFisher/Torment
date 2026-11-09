@@ -6,15 +6,18 @@ JSON over HTTP. The server listens on `ADDR` (default `:8080`).
 
 ## Conventions
 - **Auth:** every route except `GET /healthz` and `GET /readyz` needs `Authorization: Bearer <key>`, with a key from `API_KEYS`. A missing or wrong key returns 401.
-- **Errors:** a failed request returns `{"error": "<message>"}`.
+- **Errors:** a failed request returns `{"error": {"code": "<code>", "message": "<message>"}}`. Match on `code`; `message` is for people and may change. See [Errors and retries](/reference/errors/).
 
-  | Status | Meaning |
-  |---|---|
-  | 400 | malformed JSON, an unknown field or an invalid value |
-  | 401 | missing or wrong API key |
-  | 404 | the account, currency or wallet does not exist |
-  | 409 | the input clashes with something already stored |
-  | 500 | internal error, logged on the server; safe to retry |
+  | Status | `code` | Meaning |
+  |---|---|---|
+  | 400 | `invalid_request` | malformed JSON, an unknown field or an invalid value |
+  | 400 | `pattern_too_broad` | an address pattern matches more wallets than allowed |
+  | 401 | `unauthorized` | missing or wrong API key |
+  | 404 | `account_not_found` | the account does not exist |
+  | 404 | `currency_not_found` | the currency is not registered |
+  | 409 | `conflict` | the input clashes with something already stored |
+  | 500 | `internal` | internal error, logged on the server; safe to retry |
+  | 503 | `not_ready` | `GET /readyz` only: Postgres or TigerBeetle did not answer |
 
 - **Numbers:** ids, group ids and amounts are base-10 strings, because they are 128-bit. Amounts are integers in minor units: `"1050"` in `USD/2` is 10.50 USD.
 - **Times:** RFC 3339, with optional fractional seconds and offset. Transfer timestamps are TigerBeetle's commit time in nanoseconds.
@@ -28,7 +31,7 @@ JSON over HTTP. The server listens on `ADDR` (default `:8080`).
 Returns 200 with the body `ok` while the process is serving. It needs no API key.
 
 ### `GET /readyz`
-Returns 200 with the body `ok` when Postgres and TigerBeetle both answer within 10 seconds, and 503 otherwise. It needs no API key.
+Returns 200 with the body `ok` when Postgres and TigerBeetle both answer within 10 seconds, and 503 with code `not_ready` otherwise. It needs no API key.
 
 ### Request ids
 Every response has an `X-Request-Id` header. Send your own (up to 64 bytes) to have it used; otherwise Torment makes one. The same id appears in the server's log lines for that request, so quote it when reporting a problem.
@@ -92,11 +95,12 @@ Returns the account, with `wallets` listing the requested currencies in the orde
 |---|---|
 | 201 | registered |
 | 200 | already registered with the same fields. Any missing wallets in `currencies` are added |
-| 400 | invalid address or type, or an unregistered currency |
+| 400 | invalid address or type (`invalid_request`) |
+| 404 | an unregistered currency (`currency_not_found`) |
 | 409 | already registered with a different type or `allow_negative` |
 
 ### `GET /accounts/{address}`
-For an address, returns 200 with that account, in the same shape as above, or 404.
+For an address, returns 200 with that account, in the same shape as above, or 404 `account_not_found`.
 
 For a pattern, returns 200 with the matching accounts ordered by address. It takes `after` and `limit`.
 
@@ -114,7 +118,7 @@ Query parameters:
 - `currency`: only this currency.
 - `at`: the balance after the last transfer at or before this time. Without it, the balance is the current one.
 
-For an address, returns 200 with one balance per wallet, ordered by currency, or 404. A wallet with no transfers reads as zero.
+For an address, returns 200 with one balance per wallet, ordered by currency, or 404 `account_not_found`. A wallet with no transfers reads as zero.
 
 ```json
 {"address": "rider:123:wallet", "balances": [{"currency": "USD", "precision": 2, "amount": "7000"}]}
@@ -122,7 +126,7 @@ For an address, returns 200 with one balance per wallet, ordered by currency, or
 
 `amount` follows the account type's normal side, so it is negative only for accounts with `allow_negative`.
 
-For a pattern, returns 200 with a total for each type and currency, plus each matching account's balances. Types are never added together. Accounts with no wallet in scope are left out. A pattern matching more than 1000 wallets returns 400.
+For a pattern, returns 200 with a total for each type and currency, plus each matching account's balances. Types are never added together. Accounts with no wallet in scope are left out. A pattern matching more than 1000 wallets returns 400 `pattern_too_broad`.
 
 ```json
 {
@@ -187,8 +191,8 @@ The whole request fails, and nothing is applied, only for:
 
 | Status | When |
 |---|---|
-| 400 | invalid input, a duplicate id in the request, or more than 8189 postings |
-| 404 | an account or currency is not registered |
+| 400 | invalid input, a duplicate id in the request, or more than 8189 postings (`invalid_request`) |
+| 404 | an account is not registered (`account_not_found`) or a currency is not registered (`currency_not_found`) |
 | 500 | an error before or while sending to TigerBeetle. The outcome is unknown, so resend the same request with the same ids |
 
 **Retries are safe.** Resending a posting with the same id and fields never applies it twice; it returns `exists`.
@@ -196,7 +200,13 @@ The whole request fails, and nothing is applied, only for:
 **Batch when you have volume.** One request can carry thousands of independent postings and chains, and that is much faster than one request per posting. Send whatever has queued since your last request returned, and never wait to fill a batch. See [Batching](/internals/decisions/#batching).
 
 ### `GET /groups/{group_id}/transfers`
-Returns 200 with the group's transfers, newest first, up to 8189. An unknown group returns an empty list. A malformed id returns 400.
+Returns 200 with the group's transfers, newest first, a page at a time. An unknown group returns an empty list. A malformed id returns 400.
+
+Query parameters:
+- `limit`: page size, default 100, at most 1000.
+- `cursor`: the `next` value from the previous page.
+
+When more transfers remain, the response has `next`. Pass it back as `cursor` for the next page. With no `next`, you have them all.
 
 ```json
 {
@@ -217,10 +227,10 @@ Query parameters:
 - `before`: the latest time, exclusive.
 - `limit`: the page size.
 
-Returns 200, or 404 for an unknown address. `next` is the last transfer's timestamp, to pass back as `before` for the next page.
+Returns 200, or 404 `account_not_found` for an unknown address. `next` is the last transfer's timestamp, to pass back as `before` for the next page.
 
 ```json
 {"address": "rider:123:wallet", "transfers": [ ... ], "next": "2026-11-06T10:00:00.123456789Z"}
 ```
 
-For a pattern, it merges the history of every matching account, and a transfer between two of them appears once. A pattern matching more than 100 wallets returns 400.
+For a pattern, it merges the history of every matching account, and a transfer between two of them appears once. A pattern matching more than 100 wallets returns 400 `pattern_too_broad`.

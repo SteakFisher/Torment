@@ -18,7 +18,7 @@ type fakeLedger struct {
 	account          func(ctx context.Context, address string) (ledger.Account, error)
 	balances         func(ctx context.Context, address, currency string, at time.Time) ([]ledger.Balance, error)
 	transfer         func(ctx context.Context, chains [][]ledger.Posting) ([][]ledger.Transfer, error)
-	groupTransfers   func(ctx context.Context, groupID string) ([]ledger.TransferRecord, error)
+	groupTransfers   func(ctx context.Context, p ledger.GroupTransfersParams) ([]ledger.TransferRecord, bool, error)
 	listAccounts     func(ctx context.Context, pattern, after string, limit int) ([]ledger.Account, bool, error)
 	patternBalances  func(ctx context.Context, pattern, currency string, at time.Time) ([]ledger.TypeTotal, []ledger.AccountBalances, error)
 	accountTransfers func(ctx context.Context, p ledger.AccountTransfersParams) ([]ledger.TransferRecord, bool, error)
@@ -51,8 +51,8 @@ func (f fakeLedger) Transfer(ctx context.Context, chains [][]ledger.Posting) ([]
 	return f.transfer(ctx, chains)
 }
 
-func (f fakeLedger) GroupTransfers(ctx context.Context, groupID string) ([]ledger.TransferRecord, error) {
-	return f.groupTransfers(ctx, groupID)
+func (f fakeLedger) GroupTransfers(ctx context.Context, p ledger.GroupTransfersParams) ([]ledger.TransferRecord, bool, error) {
+	return f.groupTransfers(ctx, p)
 }
 
 func (f fakeLedger) ListAccounts(ctx context.Context, pattern, after string, limit int) ([]ledger.Account, bool, error) {

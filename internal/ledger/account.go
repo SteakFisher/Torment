@@ -42,8 +42,8 @@ func validateAddress(address string) error {
 // RegisterAccount stores a new account and ensures it has a wallet, backed by a TigerBeetle account,
 // in each of p.Currencies. It is idempotent: an identical re-registration returns the stored account
 // with created false, adding any missing wallets and TigerBeetle accounts. The returned Wallets follow
-// the order of p.Currencies without duplicates. It returns ErrInvalid for a malformed address or type or
-// an unregistered currency, and ErrConflict when the account exists with different fields.
+// the order of p.Currencies without duplicates. It returns ErrInvalid for a malformed address or type,
+// ErrCurrencyNotFound for an unregistered currency, and ErrConflict when the account exists with different fields.
 func (s *Service) RegisterAccount(ctx context.Context, p RegisterAccountParams) (acct Account, created bool, err error) {
 	if err := validateAddress(p.Address); err != nil {
 		return Account{}, false, err
@@ -80,8 +80,8 @@ func (s *Service) RegisterAccount(ctx context.Context, p RegisterAccountParams) 
 	return acct, created, nil
 }
 
-// Account returns the account at address with its wallets in currency order. It returns ErrNotFound when
-// no account has the address.
+// Account returns the account at address with its wallets in currency order. It returns ErrAccountNotFound
+// when no account has the address.
 func (s *Service) Account(ctx context.Context, address string) (Account, error) {
 	return s.store.AccountWallets(ctx, address, "")
 }

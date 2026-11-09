@@ -36,8 +36,8 @@ func TestIntegrationGroupTransfers(t *testing.T) {
 		}
 	}
 
-	transfers, err := s.GroupTransfers(ctx, group)
-	if err != nil {
+	transfers, more, err := s.GroupTransfers(ctx, ledger.GroupTransfersParams{GroupID: group})
+	if err != nil || more {
 		t.Fatalf("error getting group transfers: %v", err)
 	}
 	if len(transfers) != 2 {
@@ -53,7 +53,17 @@ func TestIntegrationGroupTransfers(t *testing.T) {
 		t.Fatalf("timestamps %v, %v; want newest first", transfers[0].Timestamp, transfers[1].Timestamp)
 	}
 
-	unused, err := s.GroupTransfers(ctx, tb.ID().BigInt().String())
+	// Paging one at a time returns the same two transfers.
+	first, more, err := s.GroupTransfers(ctx, ledger.GroupTransfersParams{GroupID: group, Limit: 1})
+	if err != nil || !more || len(first) != 1 || first[0].ID != transfers[0].ID {
+		t.Fatalf("first page = %+v, more %v, err %v; want the refund and more", first, more, err)
+	}
+	second, more, err := s.GroupTransfers(ctx, ledger.GroupTransfersParams{GroupID: group, Cursor: first[0].Timestamp, Limit: 1})
+	if err != nil || more || len(second) != 1 || second[0].ID != transfers[1].ID {
+		t.Fatalf("second page = %+v, more %v, err %v; want the payment and no more", second, more, err)
+	}
+
+	unused, _, err := s.GroupTransfers(ctx, ledger.GroupTransfersParams{GroupID: tb.ID().BigInt().String()})
 	if err != nil || len(unused) != 0 {
 		t.Fatalf("unused group = %+v, err %v; want none", unused, err)
 	}

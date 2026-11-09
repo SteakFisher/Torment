@@ -7,15 +7,26 @@ There are two kinds of failure. A **request** fails when the whole thing is reje
 
 ## Request failures
 
-The response is `{"error": "<message>"}` with one of these statuses:
+The response has this shape:
 
-| Status | Meaning | What to do |
-|---|---|---|
-| 400 | malformed JSON, an unknown field or an invalid value | fix the request. Retrying won't help |
-| 401 | missing or wrong API key | fix the `Authorization` header |
-| 404 | an account, currency or wallet doesn't exist | register it, or fix the name |
-| 409 | the input clashes with something already stored, such as an account registered with a different type | use the stored values, or a new name |
-| 500 | something failed inside Torment, and it was logged | retry the same request |
+```json
+{"error": {"code": "currency_not_found", "message": "not found: currency \"EUR\" is not registered"}}
+```
+
+Match on `code`, which is stable. `message` explains the problem to a person and may change.
+
+| Status | `code` | Meaning | What to do |
+|---|---|---|---|
+| 400 | `invalid_request` | malformed JSON, an unknown field or an invalid value | fix the request. Retrying won't help |
+| 400 | `pattern_too_broad` | an address pattern matches more wallets than allowed (1000 for balances, 100 for transfers) | narrow the pattern |
+| 401 | `unauthorized` | missing or wrong API key | fix the `Authorization` header |
+| 404 | `account_not_found` | no account has the address | register the account, or fix the address |
+| 404 | `currency_not_found` | the currency is not registered | register the currency, or fix the name |
+| 409 | `conflict` | the input clashes with something already stored, such as an account registered with a different type | use the stored values, or a new name |
+| 500 | `internal` | something failed inside Torment, and it was logged. The message is always `internal error` | retry the same request |
+| 503 | `not_ready` | from `GET /readyz` only: Postgres or TigerBeetle didn't answer | wait, and check again |
+
+When a request names both a missing account and a missing currency, either 404 code may come back.
 
 For `POST /transfers`, a 400 or 404 means nothing was applied. A 500, a timeout or a lost connection means you don't know: some postings may have been applied. Resend the **same request with the same ids**. Each posting then comes back `created` or `exists`, so nothing is applied twice.
 

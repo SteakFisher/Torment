@@ -34,7 +34,7 @@ func TestGetBalances(t *testing.T) {
 			wantBody:   `{"address":"rider:1:wallet","balances":[{"currency":"USD","precision":2,"amount":"-18446744073709551617"}]}`,
 		},
 		{name: "no wallets", balances: []ledger.Balance{}, wantStatus: http.StatusOK, wantBody: `{"address":"rider:1:wallet","balances":[]}`},
-		{name: "not found", err: ledger.ErrNotFound, wantStatus: http.StatusNotFound},
+		{name: "not found", err: ledger.ErrAccountNotFound, wantStatus: http.StatusNotFound},
 		{name: "currency", query: "?currency=USD", wantCurrency: "USD", balances: []ledger.Balance{}, wantStatus: http.StatusOK},
 		{name: "at", query: "?at=2026-10-31T23:59:59.5%2B04:00", wantAt: time.Date(2026, 10, 31, 19, 59, 59, 5e8, time.UTC), balances: []ledger.Balance{}, wantStatus: http.StatusOK},
 		{name: "bad at", query: "?at=yesterday", wantStatus: http.StatusBadRequest, noCall: true},
@@ -93,7 +93,7 @@ func TestGetPatternBalances(t *testing.T) {
 		},
 		{name: "none", path: "/accounts/nobody:*/balances", empty: true, wantArgs: "nobody:*  0001-01-01T00:00:00Z", wantStatus: http.StatusOK, wantBody: `{"address":"nobody:*","totals":[],"accounts":[]}`},
 		{name: "bad at", path: "/accounts/*/balances?at=x", wantStatus: http.StatusBadRequest},
-		{name: "too many wallets", path: "/accounts/*/balances", err: ledger.ErrInvalid, wantArgs: "*  0001-01-01T00:00:00Z", wantStatus: http.StatusBadRequest},
+		{name: "too many wallets", path: "/accounts/*/balances", err: ledger.ErrPatternTooBroad, wantArgs: "*  0001-01-01T00:00:00Z", wantStatus: http.StatusBadRequest},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

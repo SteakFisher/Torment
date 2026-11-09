@@ -79,7 +79,7 @@ func newTransferJSON(ctx context.Context, t ledger.Transfer) transferJSON {
 }
 
 // postTransfer handles POST /transfers. It responds 200 with a result for each posting, 400 for invalid
-// input, or 404 for a missing wallet.
+// input, or 404 for an unregistered account or currency.
 func postTransfer(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {

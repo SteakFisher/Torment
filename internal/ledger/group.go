@@ -9,9 +9,6 @@ import (
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 )
 
-// maxGroupTransfers is the most transfers TigerBeetle returns from one query.
-const maxGroupTransfers = 8189
-
 // TransferRecord is a committed transfer. Amount is in minor units of Currency. Timestamp is when
 // TigerBeetle committed the transfer.
 type TransferRecord struct {
@@ -24,21 +21,51 @@ type TransferRecord struct {
 	Timestamp   time.Time
 }
 
-// GroupTransfers returns the transfers whose group id is groupID, newest first. An unused group id has no
-// transfers. It returns ErrInvalid when groupID is not a base-10 integer greater than zero that fits in
-// 128 bits.
-func (s *Service) GroupTransfers(ctx context.Context, groupID string) ([]TransferRecord, error) {
-	group, ok := parseUint128(groupID)
+// GroupTransfersParams is the input to GroupTransfers. A zero Cursor starts at the newest transfer, and a
+// zero Limit means defaultListLimit.
+type GroupTransfersParams struct {
+	GroupID string
+	Cursor  time.Time
+	Limit   int
+}
+
+// GroupTransfers returns up to p.Limit transfers whose group id is p.GroupID, committed before p.Cursor,
+// newest first. more reports whether older transfers remain; passing the last Timestamp as Cursor gets
+// the next page. An unused group id has no transfers. It returns ErrInvalid when the group id is not a
+// base-10 integer greater than zero that fits in 128 bits, for a limit outside 0 to maxListLimit, or for
+// a cursor outside TigerBeetle's range.
+func (s *Service) GroupTransfers(ctx context.Context, p GroupTransfersParams) (transfers []TransferRecord, more bool, err error) {
+	group, ok := parseUint128(p.GroupID)
 	if !ok {
-		return nil, fmt.Errorf("%w: group_id %q must be a base-10 integer greater than zero that fits in 128 bits", ErrInvalid, groupID)
+		return nil, false, fmt.Errorf("%w: group_id %q must be a base-10 integer greater than zero that fits in 128 bits", ErrInvalid, p.GroupID)
 	}
-	// ponytail: returns only the newest maxGroupTransfers transfers of a group.
-	filter := tb.QueryFilter{UserData128: group, Limit: maxGroupTransfers, Flags: tb.QueryFilterFlags{Reversed: true}.ToUint32()}
+	if p.Limit < 0 || p.Limit > maxListLimit {
+		return nil, false, fmt.Errorf("%w: limit %d must be between 1 and %d", ErrInvalid, p.Limit, maxListLimit)
+	}
+	if p.Limit == 0 {
+		p.Limit = defaultListLimit
+	}
+	if err := validateAt(p.Cursor); err != nil {
+		return nil, false, err
+	}
+
+	// One extra transfer tells whether another page exists.
+	filter := tb.QueryFilter{UserData128: group, Limit: uint32(p.Limit + 1), Flags: tb.QueryFilterFlags{Reversed: true}.ToUint32()}
+	if !p.Cursor.IsZero() {
+		if p.Cursor.UnixNano() <= 0 {
+			return []TransferRecord{}, false, nil
+		}
+		filter.TimestampMax = uint64(p.Cursor.UnixNano()) - 1
+	}
 	found, err := tbCall(ctx, func() ([]tb.Transfer, error) { return s.reads.QueryTransfers(filter) })
 	if err != nil {
-		return nil, fmt.Errorf("error querying tigerbeetle transfers: %w", err)
+		return nil, false, fmt.Errorf("error querying tigerbeetle transfers: %w", err)
 	}
-	return s.transferRecords(ctx, found)
+	if len(found) > p.Limit {
+		found, more = found[:p.Limit], true
+	}
+	transfers, err = s.transferRecords(ctx, found)
+	return transfers, more, err
 }
 
 // transferRecords returns found as TransferRecords in the same order, with TigerBeetle account ids

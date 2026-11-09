@@ -35,8 +35,8 @@ type Transfer struct {
 // Transfer posts each posting as a TigerBeetle transfer that debits the source wallet and credits the
 // destination wallet, and returns an outcome for each posting in the shape of chains. Each chain is
 // applied atomically and chains independently. It is idempotent per posting id. The returned error
-// covers only failures before anything is written: ErrInvalid for malformed input, ErrNotFound when an
-// account or currency is not registered, or another error. Each outcome's Err is ErrInsufficientFunds,
+// covers only failures before anything is written: ErrInvalid for malformed input, ErrAccountNotFound
+// or ErrCurrencyNotFound when an account or currency is not registered, or another error. Each outcome's Err is ErrInsufficientFunds,
 // ErrConflict, ErrIDAlreadyFailed, ErrChainFailed or another error.
 func (s *Service) Transfer(ctx context.Context, chains [][]Posting) ([][]Transfer, error) {
 	batch, err := validateChains(chains)
@@ -124,8 +124,8 @@ func parsePosting(p Posting) (tb.Transfer, error) {
 }
 
 // resolveWallets sets the accounts and ledger of each transfer in batch from the wallets of the posting
-// at the same position in chains, creating any wallet that does not exist. It returns ErrNotFound when an
-// account or currency is not registered.
+// at the same position in chains, creating any wallet that does not exist. It returns ErrAccountNotFound
+// or ErrCurrencyNotFound when an account or currency is not registered.
 func (s *Service) resolveWallets(ctx context.Context, chains [][]Posting, batch []tb.Transfer) error {
 	var keys []WalletKey
 	seen := make(map[WalletKey]bool)

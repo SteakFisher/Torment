@@ -88,7 +88,7 @@ Most of a write's cost is the HTTP request around it, not TigerBeetle. Benchmark
 `GET /groups/{group_id}/transfers`: a read only. TigerBeetle `query_transfers` on `user_data_128`, then one Postgres query maps the account ids to addresses. Newest first, like account transfers.
 
 - **An unknown group returns 200 with an empty list.** TigerBeetle keeps no list of groups, so an unused id and an empty group look the same.
-- **At most 8189 transfers**, the newest, the most one TigerBeetle query returns.
+- **Paged by timestamp.** Each page is one query for the transfers committed before the cursor, so every page costs the same however large the group. TigerBeetle gives every transfer a unique timestamp, so no transfer is skipped or repeated between pages.
 - **A TigerBeetle account with no wallet row returns 500.** Every TigerBeetle account is created from a Postgres row first, so this means the data is broken.
 
 ## Queries

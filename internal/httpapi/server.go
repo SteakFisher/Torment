@@ -19,7 +19,7 @@ type Ledger interface {
 	Account(ctx context.Context, address string) (ledger.Account, error)
 	Balances(ctx context.Context, address, currency string, at time.Time) ([]ledger.Balance, error)
 	Transfer(ctx context.Context, chains [][]ledger.Posting) ([][]ledger.Transfer, error)
-	GroupTransfers(ctx context.Context, groupID string) ([]ledger.TransferRecord, error)
+	GroupTransfers(ctx context.Context, p ledger.GroupTransfersParams) ([]ledger.TransferRecord, bool, error)
 	ListAccounts(ctx context.Context, pattern, after string, limit int) ([]ledger.Account, bool, error)
 	PatternBalances(ctx context.Context, pattern, currency string, at time.Time) ([]ledger.TypeTotal, []ledger.AccountBalances, error)
 	AccountTransfers(ctx context.Context, p ledger.AccountTransfersParams) ([]ledger.TransferRecord, bool, error)
@@ -39,7 +39,7 @@ func New(l Ledger, apiKeys []string) http.Handler {
 	mux.Handle("GET /readyz", withTimeout(requestTimeout, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := l.Ready(r.Context()); err != nil {
 			slog.Error("not ready", "request_id", requestID(r.Context()), "err", err)
-			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "not ready"})
+			writeErrorBody(w, http.StatusServiceUnavailable, "not_ready", "not ready")
 			return
 		}
 		w.Write([]byte("ok\n"))

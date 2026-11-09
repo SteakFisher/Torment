@@ -19,35 +19,54 @@ import (
 func TestGetGroupTransfers(t *testing.T) {
 	tests := []struct {
 		name       string
+		query      string
 		transfers  []ledger.TransferRecord
+		more       bool
 		err        error
+		wantParams ledger.GroupTransfersParams
 		wantStatus int
 		wantBody   string
 	}{
 		{
+			name:       "page with more",
+			query:      "?cursor=1970-01-01T00:00:02Z&limit=1",
+			transfers:  []ledger.TransferRecord{{ID: tb.ToUint128(5), GroupID: tb.ToUint128(9), Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: big.NewInt(100), Timestamp: time.Unix(1, 500).UTC()}},
+			more:       true,
+			wantParams: ledger.GroupTransfersParams{GroupID: "9", Cursor: time.Unix(2, 0), Limit: 1},
+			wantStatus: http.StatusOK,
+			wantBody: `{"group_id":"9","transfers":[{"id":"5","group_id":"9","source":"world","destination":"rider:1:wallet","currency":"USD","amount":"100","timestamp":"1970-01-01T00:00:01.0000005Z"}],` +
+				`"next":"1970-01-01T00:00:01.0000005Z"}`,
+		},
+		{name: "malformed cursor", query: "?cursor=yesterday", wantStatus: http.StatusBadRequest},
+		{name: "malformed limit", query: "?limit=x", wantStatus: http.StatusBadRequest},
+		{
 			name:       "transfers",
 			transfers:  []ledger.TransferRecord{{ID: tb.ToUint128(5), GroupID: tb.ToUint128(9), Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: big.NewInt(100), Timestamp: time.Unix(1, 500).UTC()}},
+			wantParams: ledger.GroupTransfersParams{GroupID: "9"},
 			wantStatus: http.StatusOK,
 			wantBody:   `{"group_id":"9","transfers":[{"id":"5","group_id":"9","source":"world","destination":"rider:1:wallet","currency":"USD","amount":"100","timestamp":"1970-01-01T00:00:01.0000005Z"}]}`,
 		},
-		{name: "no transfers", transfers: []ledger.TransferRecord{}, wantStatus: http.StatusOK, wantBody: `{"group_id":"9","transfers":[]}`},
-		{name: "invalid", err: ledger.ErrInvalid, wantStatus: http.StatusBadRequest},
-		{name: "unexpected", err: errors.New("boom"), wantStatus: http.StatusInternalServerError},
+		{name: "no transfers", transfers: []ledger.TransferRecord{}, wantParams: ledger.GroupTransfersParams{GroupID: "9"}, wantStatus: http.StatusOK, wantBody: `{"group_id":"9","transfers":[]}`},
+		{name: "invalid", err: ledger.ErrInvalid, wantParams: ledger.GroupTransfersParams{GroupID: "9"}, wantStatus: http.StatusBadRequest},
+		{name: "unexpected", err: errors.New("boom"), wantParams: ledger.GroupTransfersParams{GroupID: "9"}, wantStatus: http.StatusInternalServerError},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var gotGroup string
-			l := fakeLedger{groupTransfers: func(_ context.Context, groupID string) ([]ledger.TransferRecord, error) {
-				gotGroup = groupID
+			var got ledger.GroupTransfersParams
+			l := fakeLedger{groupTransfers: func(_ context.Context, p ledger.GroupTransfersParams) ([]ledger.TransferRecord, bool, error) {
+				got = p
 				if tt.err != nil {
-					return nil, fmt.Errorf("wrapped: %w", tt.err)
+					return nil, false, fmt.Errorf("wrapped: %w", tt.err)
 				}
-				return tt.transfers, nil
+				return tt.transfers, tt.more, nil
 			}}
 			rec := httptest.NewRecorder()
-			routes(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/groups/9/transfers", nil))
-			if rec.Code != tt.wantStatus || gotGroup != "9" {
-				t.Fatalf("status = %d, group %q; want %d (body %s)", rec.Code, gotGroup, tt.wantStatus, rec.Body)
+			routes(l).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/groups/9/transfers"+tt.query, nil))
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d (body %s)", rec.Code, tt.wantStatus, rec.Body)
+			}
+			if got.GroupID != tt.wantParams.GroupID || !got.Cursor.Equal(tt.wantParams.Cursor) || got.Limit != tt.wantParams.Limit {
+				t.Fatalf("params = %+v, want %+v", got, tt.wantParams)
 			}
 			if tt.wantBody != "" && strings.TrimSpace(rec.Body.String()) != tt.wantBody {
 				t.Fatalf("body = %s, want %s", rec.Body, tt.wantBody)
@@ -80,7 +99,7 @@ func TestGetAccountTransfers(t *testing.T) {
 		{name: "last page", wantParams: ledger.AccountTransfersParams{Address: "rider:1:wallet"}, wantStatus: http.StatusOK},
 		{name: "bad before", query: "?before=x", wantStatus: http.StatusBadRequest},
 		{name: "bad limit", query: "?limit=x", wantStatus: http.StatusBadRequest},
-		{name: "not found", err: ledger.ErrNotFound, wantParams: ledger.AccountTransfersParams{Address: "rider:1:wallet"}, wantStatus: http.StatusNotFound},
+		{name: "not found", err: ledger.ErrAccountNotFound, wantParams: ledger.AccountTransfersParams{Address: "rider:1:wallet"}, wantStatus: http.StatusNotFound},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

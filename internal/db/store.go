@@ -122,7 +122,7 @@ func toAccount(row sqlc.Account) ledger.Account {
 func (s *Store) AccountWallets(ctx context.Context, address, currency string) (ledger.Account, error) {
 	row, err := s.q.GetAccount(ctx, address)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return ledger.Account{}, fmt.Errorf("%w: account %q", ledger.ErrNotFound, address)
+		return ledger.Account{}, fmt.Errorf("%w: account %q", ledger.ErrAccountNotFound, address)
 	}
 	if err != nil {
 		return ledger.Account{}, fmt.Errorf("error getting account: %w", err)

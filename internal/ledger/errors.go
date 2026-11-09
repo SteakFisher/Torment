@@ -1,6 +1,9 @@
 package ledger
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // Service errors are wrapped with detail; match them with errors.Is.
 var (
@@ -8,6 +11,14 @@ var (
 	ErrInvalid = errors.New("invalid")
 	// ErrNotFound means the requested data does not exist.
 	ErrNotFound = errors.New("not found")
+	// ErrAccountNotFound means no account has the address. It matches ErrNotFound and reads "not found".
+	ErrAccountNotFound = fmt.Errorf("%w", ErrNotFound)
+	// ErrCurrencyNotFound means the currency is not registered. It matches ErrNotFound and reads "not
+	// found".
+	ErrCurrencyNotFound = fmt.Errorf("%w", ErrNotFound)
+	// ErrPatternTooBroad means an address pattern matches more wallets than allowed. It matches ErrInvalid
+	// and reads "invalid".
+	ErrPatternTooBroad = fmt.Errorf("%w", ErrInvalid)
 	// ErrConflict means the input clashes with data that already exists.
 	ErrConflict = errors.New("conflict")
 	// ErrInsufficientFunds means a posting would take an account below zero when the account does not

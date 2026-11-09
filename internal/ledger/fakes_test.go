@@ -105,6 +105,15 @@ func newWalletStore() *walletStore {
 // store returns a fakeStore whose wallet methods run against w.
 func (w *walletStore) store() *fakeStore {
 	return &fakeStore{
+		currencies: func(_ context.Context, names []string) (map[string]Currency, error) {
+			out := make(map[string]Currency)
+			for _, n := range names {
+				if l, ok := w.ledgers[n]; ok {
+					out[n] = Currency{Name: n, Precision: 2, Ledger: l}
+				}
+			}
+			return out, nil
+		},
 		storedWallets: func(_ context.Context, keys []WalletKey) (map[WalletKey]StoredWallet, error) {
 			w.gets++
 			out := make(map[WalletKey]StoredWallet)

@@ -34,20 +34,35 @@ func newTransferRecordsJSON(transfers []ledger.TransferRecord) []transferRecordJ
 	return out
 }
 
-// getGroupTransfers handles GET /groups/{group_id}/transfers. It responds 200 with the group's transfers,
-// newest first, or 400 when the group id is malformed.
+// getGroupTransfers handles GET /groups/{group_id}/transfers?cursor=&limit=. It responds 200 with the
+// group's transfers, newest first, and next set to the last timestamp when older ones remain; or 400 for
+// a malformed group id or query.
 func getGroupTransfers(l Ledger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		groupID := r.PathValue("group_id")
-		transfers, err := l.GroupTransfers(r.Context(), groupID)
+		p := ledger.GroupTransfersParams{GroupID: r.PathValue("group_id")}
+		var err error
+		if p.Cursor, err = parseTime(r, "cursor"); err != nil {
+			writeError(w, r, err)
+			return
+		}
+		if p.Limit, err = parseLimit(r); err != nil {
+			writeError(w, r, err)
+			return
+		}
+		transfers, more, err := l.GroupTransfers(r.Context(), p)
 		if err != nil {
 			writeError(w, r, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, struct {
+		out := struct {
 			GroupID   string               `json:"group_id"`
 			Transfers []transferRecordJSON `json:"transfers"`
-		}{groupID, newTransferRecordsJSON(transfers)})
+			Next      *time.Time           `json:"next,omitempty"`
+		}{GroupID: p.GroupID, Transfers: newTransferRecordsJSON(transfers)}
+		if more {
+			out.Next = &transfers[len(transfers)-1].Timestamp
+		}
+		writeJSON(w, http.StatusOK, out)
 	}
 }
 

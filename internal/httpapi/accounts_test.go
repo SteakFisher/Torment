@@ -41,6 +41,7 @@ func TestPostAccount(t *testing.T) {
 		{name: "unknown field", body: `{"address":"a","type":"asset","x":1}`, wantStatus: http.StatusBadRequest},
 		{name: "invalid", body: `{"address":"a","type":"nope"}`, err: ledger.ErrInvalid, wantStatus: http.StatusBadRequest},
 		{name: "conflict", body: `{"address":"a","type":"asset"}`, err: ledger.ErrConflict, wantStatus: http.StatusConflict},
+		{name: "unknown currency", body: `{"address":"a","type":"asset","currencies":["EUR"]}`, err: ledger.ErrCurrencyNotFound, wantStatus: http.StatusNotFound},
 		{name: "unexpected", body: `{"address":"a","type":"asset"}`, err: errors.New("boom"), wantStatus: http.StatusInternalServerError},
 	}
 	for _, tt := range tests {
@@ -139,7 +140,7 @@ func TestGetAccount(t *testing.T) {
 			wantStatus: http.StatusOK,
 			wantBody:   `{"address":"rider:1:wallet","type":"liability","allow_negative":false,"created_at":"2026-01-02T03:04:05Z","wallets":[{"currency":"USD","precision":2}]}`,
 		},
-		{name: "not found", err: ledger.ErrNotFound, wantStatus: http.StatusNotFound},
+		{name: "not found", err: ledger.ErrAccountNotFound, wantStatus: http.StatusNotFound},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

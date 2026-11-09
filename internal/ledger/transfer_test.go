@@ -81,9 +81,9 @@ func TestTransferRejects(t *testing.T) {
 		{name: "non-numeric amount", chains: edited(func(p *Posting) { p.Amount = "ten" }), wantErr: ErrInvalid},
 		{name: "amount over 128 bits", chains: edited(func(p *Posting) { p.Amount = "340282366920938463463374607431768211456" }), wantErr: ErrInvalid},
 		{name: "bad group id", chains: edited(func(p *Posting) { p.GroupID = "0" }), wantErr: ErrInvalid},
-		{name: "unknown source account", chains: testChains(2, 1), missing: "world", wantErr: ErrNotFound},
-		{name: "unknown destination account", chains: testChains(2, 1), missing: "rider:1:wallet", wantErr: ErrNotFound},
-		{name: "unknown currency", chains: edited(func(p *Posting) { p.Currency = "AED" }), wantErr: ErrNotFound},
+		{name: "unknown source account", chains: testChains(2, 1), missing: "world", wantErr: ErrAccountNotFound},
+		{name: "unknown destination account", chains: testChains(2, 1), missing: "rider:1:wallet", wantErr: ErrAccountNotFound},
+		{name: "unknown currency", chains: edited(func(p *Posting) { p.Currency = "AED" }), wantErr: ErrCurrencyNotFound},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -28,7 +28,7 @@ func TestPostCurrency(t *testing.T) {
 		{name: "ledger is not accepted", body: `{"code":"USD/2","ledger":1}`, wantStatus: http.StatusBadRequest},
 		{name: "conflict", body: `{"code":"USD/2"}`, err: ledger.ErrConflict, wantStatus: http.StatusConflict},
 		{name: "invalid", body: `{"code":"usd"}`, err: ledger.ErrInvalid, wantStatus: http.StatusBadRequest},
-		{name: "unexpected", body: `{"code":"USD/2"}`, err: errors.New("boom"), wantStatus: http.StatusInternalServerError, wantBody: `{"error":"internal error"}`},
+		{name: "unexpected", body: `{"code":"USD/2"}`, err: errors.New("boom"), wantStatus: http.StatusInternalServerError, wantBody: `{"error":{"code":"internal","message":"internal error"}}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -65,7 +65,7 @@ func TestGetCurrencies(t *testing.T) {
 			wantStatus: http.StatusOK,
 			wantBody:   `{"currencies":[{"name":"EUR","precision":2},{"name":"USD","precision":2}]}`,
 		},
-		{name: "unexpected", err: errors.New("boom"), wantStatus: http.StatusInternalServerError, wantBody: `{"error":"internal error"}`},
+		{name: "unexpected", err: errors.New("boom"), wantStatus: http.StatusInternalServerError, wantBody: `{"error":{"code":"internal","message":"internal error"}}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

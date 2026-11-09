@@ -31,12 +31,16 @@ posting() {
 	printf '{"postings":[{"id":"%s","source":"%s","destination":"%s","currency":"%s","amount":"%s","group_id":"%s"}]}' "$1" "$2" "$3" "$4" "$5" "${6:-}"
 }
 
-expect "no key is rejected" "$(curl -sS -w ' %{http_code}' "$BASE_URL/accounts")" ' 401$'
+expect "no key is rejected" "$(curl -sS -w ' %{http_code}' "$BASE_URL/accounts")" '^\{"error":\{"code":"unauthorized",.* 401$'
 expect "register USD" "$(post /currencies '{"code":"USD/2"}')" ' (200|201)$'
 expect "register EUR" "$(post /currencies '{"code":"EUR/2"}')" ' (200|201)$'
 expect "list currencies" "$(get /currencies)" '"name":"EUR","precision":2\}.*"name":"USD","precision":2\}.* 200$'
 expect "register world" "$(post /accounts '{"address":"world","type":"equity","allow_negative":true}')" ' (200|201)$'
 expect "register rider" "$(post /accounts "$(printf '{"address":"%s","type":"liability"}' "$rider")")" ' 201$'
+expect "account in an unregistered currency" "$(post /accounts "$(printf '{"address":"%s","type":"liability","currencies":["NOPE"]}' "$bonus")")" '"code":"currency_not_found".* 404$'
+expect "transfer in an unregistered currency" "$(post /transfers "$(posting "$pay" world "$rider" NOPE 1)")" '"code":"currency_not_found".* 404$'
+expect "transfer from an unregistered account" "$(post /transfers "$(posting "$pay" "nobody:$run" "$rider" USD 1)")" '"code":"account_not_found".* 404$'
+expect "unknown account" "$(get "/accounts/nobody:$run")" '"code":"account_not_found".* 404$'
 
 expect "pay 100 USD" "$(post /transfers "$(posting "$pay" world "$rider" USD 10000)")" '"status":"created".* 200$'
 expect "rider has 100 USD" "$(get "/accounts/$rider/balances")" '"currency":"USD","precision":2,"amount":"10000".* 200$'

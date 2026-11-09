@@ -26,7 +26,7 @@ func TestBalances(t *testing.T) {
 		wantUSD    int64
 		wantLookup bool
 	}{
-		{name: "unknown address", missing: true, wantErr: ErrNotFound},
+		{name: "unknown address", missing: true, wantErr: ErrAccountNotFound},
 		{name: "no wallets", typ: TypeLiability},
 		{name: "credit-normal", typ: TypeLiability, wallets: wallets, wantN: 2, wantUSD: 70, wantLookup: true},
 		{name: "debit-normal", typ: TypeAsset, wallets: wallets, wantN: 2, wantUSD: -70, wantLookup: true},
@@ -37,7 +37,7 @@ func TestBalances(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			store := &fakeStore{accountWallets: func(_ context.Context, address, currency string) (Account, error) {
 				if tt.missing {
-					return Account{}, ErrNotFound
+					return Account{}, ErrAccountNotFound
 				}
 				acct := Account{Address: address, Type: tt.typ}
 				for _, w := range tt.wallets {

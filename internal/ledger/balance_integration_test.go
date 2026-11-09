@@ -82,7 +82,7 @@ func TestIntegrationBalances(t *testing.T) {
 		}
 	}
 
-	if _, err := s.Balances(ctx, "nobody", "", time.Time{}); !errors.Is(err, ledger.ErrNotFound) {
-		t.Fatalf("unknown address err = %v, want ErrNotFound", err)
+	if _, err := s.Balances(ctx, "nobody", "", time.Time{}); !errors.Is(err, ledger.ErrAccountNotFound) {
+		t.Fatalf("unknown address err = %v, want ErrAccountNotFound", err)
 	}
 }

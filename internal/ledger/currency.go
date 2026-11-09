@@ -61,7 +61,7 @@ func (s *Service) Currencies(ctx context.Context) ([]Currency, error) {
 }
 
 // lookupCurrencies returns each named currency, keyed by name. It returns
-// ErrInvalid naming the first currency that is not registered.
+// ErrCurrencyNotFound naming the first currency that is not registered.
 func (s *Service) lookupCurrencies(ctx context.Context, names []string) (map[string]Currency, error) {
 	if len(names) == 0 {
 		return nil, nil
@@ -72,7 +72,7 @@ func (s *Service) lookupCurrencies(ctx context.Context, names []string) (map[str
 	}
 	for _, name := range names {
 		if _, ok := currencies[name]; !ok {
-			return nil, fmt.Errorf("%w: currency %q is not registered", ErrInvalid, name)
+			return nil, fmt.Errorf("%w: currency %q is not registered", ErrCurrencyNotFound, name)
 		}
 	}
 	return currencies, nil

@@ -177,8 +177,8 @@ func TestAccountWallets(t *testing.T) {
 		},
 	}}
 	ctx := context.Background()
-	if _, err := s.AccountWallets(ctx, "nobody", ""); !errors.Is(err, ledger.ErrNotFound) {
-		t.Fatalf("unknown address err = %v, want ErrNotFound", err)
+	if _, err := s.AccountWallets(ctx, "nobody", ""); !errors.Is(err, ledger.ErrAccountNotFound) {
+		t.Fatalf("unknown address err = %v, want ErrAccountNotFound", err)
 	}
 	acct, err := s.AccountWallets(ctx, "rider:1:wallet", "")
 	want := []ledger.Wallet{{Currency: "AED", Precision: 2, ID: aed}, {Currency: "USD", Precision: 3, ID: usd}}

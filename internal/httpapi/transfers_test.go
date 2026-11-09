@@ -86,7 +86,8 @@ func TestPostTransferErrors(t *testing.T) {
 		{name: "unknown field in a posting", body: `{"postings":[{"id":"1","x":1}]}`, wantStatus: http.StatusBadRequest},
 		{name: "unknown field in a chained posting", body: `{"postings":[[{"id":"1"},{"id":"2","x":1}]]}`, wantStatus: http.StatusBadRequest},
 		{name: "invalid", body: body, err: ledger.ErrInvalid, wantStatus: http.StatusBadRequest},
-		{name: "not found", body: body, err: ledger.ErrNotFound, wantStatus: http.StatusNotFound},
+		{name: "account not found", body: body, err: ledger.ErrAccountNotFound, wantStatus: http.StatusNotFound},
+		{name: "currency not found", body: body, err: ledger.ErrCurrencyNotFound, wantStatus: http.StatusNotFound},
 		{name: "unexpected", body: body, err: errors.New("boom"), wantStatus: http.StatusInternalServerError},
 	}
 	for _, tt := range tests {

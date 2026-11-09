@@ -72,7 +72,7 @@ That's what support needs when a user asks "what happened to my order?": every f
 - **A group isn't a chain.** The chain decides what happens together. The group only decides what you can find together.
 - **Without a `group_id`,** a posting's group is its own id.
 
-A group returns at most 8,189 transfers, the newest. That's plenty for an order. For something with more postings, see [Dividends](/brokerage/dividends/).
+A group comes back 100 transfers at a time by default. That's plenty for an order. For bigger groups, see [Dividends](/brokerage/dividends/).
 
 ## Where this leaves us
 

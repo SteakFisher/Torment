@@ -16,11 +16,10 @@ description: Every size limit in Torment, and why each exists.
 | Page size (`limit`) | default 100, max 1,000 | 400 | |
 | Wallets in a pattern balance query | 1,000 | 400, asking you to narrow the pattern | each read covers every wallet at once |
 | Wallets in a pattern history query | 100 | 400, asking you to narrow the pattern | each wallet is one query to TigerBeetle |
-| Transfers in a group | 8,189, the newest | the rest aren't returned | TigerBeetle's largest query result |
 
 ## Paging
 
-Lists don't have a total limit, only a page size. `GET /accounts` and history queries return `next` when more results remain: pass it back as `after` for accounts, or `before` for transfers. Each page costs the same, however deep you go.
+Lists don't have a total limit, only a page size. `GET /accounts`, history queries and group reads return `next` when more results remain: pass it back as `after` for accounts, `before` for history, or `cursor` for groups. Each page costs the same, however deep you go.
 
 ## Things with no limit
 

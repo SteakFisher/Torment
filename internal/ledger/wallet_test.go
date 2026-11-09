@@ -55,7 +55,7 @@ func TestRegisterAccountWallets(t *testing.T) {
 		wantSent     []string // currencies sent to CreateAccounts
 	}{
 		{name: "no currencies"},
-		{name: "unknown currency", currencies: []string{"USD", "EUR"}, wantErr: ErrInvalid},
+		{name: "unknown currency", currencies: []string{"USD", "EUR"}, wantErr: ErrCurrencyNotFound},
 		{name: "new wallets", currencies: []string{"AED", "USD"}, wantCurrency: []string{"AED", "USD"}, wantSent: []string{"AED", "USD"}},
 		{name: "duplicates", currencies: []string{"USD", "AED", "USD"}, wantCurrency: []string{"USD", "AED"}, wantSent: []string{"USD", "AED"}},
 		{name: "existing wallet", currencies: []string{"USD", "AED"}, existing: &fakeWallet{created: true}, wantCurrency: []string{"USD", "AED"}, wantSent: []string{"AED"}},
@@ -72,15 +72,6 @@ func TestRegisterAccountWallets(t *testing.T) {
 			}
 			insertedAccount := false
 			fs := store.store()
-			fs.currencies = func(_ context.Context, names []string) (map[string]Currency, error) {
-				found := map[string]Currency{}
-				for _, n := range names {
-					if l, ok := ledgers[n]; ok {
-						found[n] = Currency{Name: n, Precision: 2, Ledger: l}
-					}
-				}
-				return found, nil
-			}
 			fs.insertAccount = func(_ context.Context, address string, typ AccountType, _ bool) (Account, bool, error) {
 				insertedAccount = true
 				store.accounts[address] = fakeAccount{id: 7, typ: typ}

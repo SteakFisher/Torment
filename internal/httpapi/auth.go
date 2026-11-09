@@ -24,7 +24,7 @@ func requireAPIKey(keys []string, next http.Handler) http.Handler {
 		}
 		if !ok || match == 0 {
 			w.Header().Set("WWW-Authenticate", "Bearer")
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+			writeErrorBody(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
 			return
 		}
 		next.ServeHTTP(w, r)

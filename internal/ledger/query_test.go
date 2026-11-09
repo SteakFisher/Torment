@@ -147,8 +147,8 @@ func TestPatternBalances(t *testing.T) {
 	store.patternWallets = func(context.Context, string, string, int) ([]AddressWallet, bool, error) {
 		return nil, true, nil
 	}
-	if _, _, err := New(store, tbc, tbc).PatternBalances(context.Background(), "*", "", time.Time{}); !errors.Is(err, ErrInvalid) {
-		t.Fatalf("too many wallets err = %v, want ErrInvalid", err)
+	if _, _, err := New(store, tbc, tbc).PatternBalances(context.Background(), "*", "", time.Time{}); !errors.Is(err, ErrPatternTooBroad) {
+		t.Fatalf("too many wallets err = %v, want ErrPatternTooBroad", err)
 	}
 	for _, c := range []struct {
 		pattern string
@@ -174,7 +174,7 @@ func TestAccountTransfers(t *testing.T) {
 	store := &fakeStore{
 		accountWallets: func(_ context.Context, address, currency string) (Account, error) {
 			if address != "rider:1:wallet" {
-				return Account{}, ErrNotFound
+				return Account{}, ErrAccountNotFound
 			}
 			acct := Account{Address: address, Type: TypeLiability}
 			for _, w := range []Wallet{{Currency: "AED", ID: aed}, {Currency: "USD", ID: usd}} {
@@ -207,7 +207,7 @@ func TestAccountTransfers(t *testing.T) {
 			wantFilter: tb.AccountFilter{TimestampMin: 20, TimestampMax: 40, Limit: 6},
 		},
 		{name: "empty range", p: AccountTransfersParams{Address: "rider:1:wallet", From: time.Unix(0, 30), Before: time.Unix(0, 30)}, wantTimes: []int64{}},
-		{name: "unknown account", p: AccountTransfersParams{Address: "nobody"}, wantErr: ErrNotFound},
+		{name: "unknown account", p: AccountTransfersParams{Address: "nobody"}, wantErr: ErrAccountNotFound},
 		{name: "bad limit", p: AccountTransfersParams{Address: "rider:1:wallet", Limit: maxListLimit + 1}, wantErr: ErrInvalid},
 		{name: "bad time", p: AccountTransfersParams{Address: "rider:1:wallet", Before: time.Unix(-1, 0)}, wantErr: ErrInvalid},
 	}
@@ -269,7 +269,7 @@ func TestAccountTransfersPattern(t *testing.T) {
 		wantErr   error
 	}{
 		{name: "merged once", wantIDs: []string{"2", "1"}, wantLimit: maxPatternTransferWallets},
-		{name: "too many wallets", tooMany: true, wantErr: ErrInvalid},
+		{name: "too many wallets", tooMany: true, wantErr: ErrPatternTooBroad},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

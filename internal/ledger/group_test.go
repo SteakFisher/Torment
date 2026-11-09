@@ -17,24 +17,36 @@ func TestGroupTransfers(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		groupID   string
+		params    GroupTransfersParams
 		found     []tb.Transfer
 		wantErr   error
 		wantOther bool // any error other than wantErr
 		want      []TransferRecord
+		wantMore  bool
 		wantQuery bool
+		// wantLimit and wantMax are the TigerBeetle filter's Limit and TimestampMax
+		wantLimit uint32
+		wantMax   uint64
 	}{
-		{name: "malformed", groupID: "x", wantErr: ErrInvalid},
-		{name: "zero", groupID: "0", wantErr: ErrInvalid},
-		{name: "no transfers", groupID: "9", want: []TransferRecord{}},
+		{name: "malformed", params: GroupTransfersParams{GroupID: "x"}, wantErr: ErrInvalid},
+		{name: "zero", params: GroupTransfersParams{GroupID: "0"}, wantErr: ErrInvalid},
+		{name: "limit too big", params: GroupTransfersParams{GroupID: "9", Limit: maxListLimit + 1}, wantErr: ErrInvalid},
+		{name: "no transfers", params: GroupTransfersParams{GroupID: "9"}, want: []TransferRecord{}, wantLimit: defaultListLimit + 1},
 		{
-			name: "transfers", groupID: "9", found: []tb.Transfer{pay, refund}, wantQuery: true,
+			name: "page with more", params: GroupTransfersParams{GroupID: "9", Cursor: time.Unix(3, 0), Limit: 1},
+			found: []tb.Transfer{refund, pay}, wantQuery: true, wantMore: true, wantLimit: 2, wantMax: 3_000_000_000 - 1,
+			want: []TransferRecord{
+				{ID: refund.ID, Source: "rider:1:wallet", Destination: "world", Currency: "USD", Amount: refund.Amount.BigInt(), Timestamp: time.Unix(2, 0).UTC()},
+			},
+		},
+		{
+			name: "transfers", params: GroupTransfersParams{GroupID: "9"}, found: []tb.Transfer{pay, refund}, wantQuery: true, wantLimit: defaultListLimit + 1,
 			want: []TransferRecord{
 				{ID: pay.ID, Source: "world", Destination: "rider:1:wallet", Currency: "USD", Amount: pay.Amount.BigInt(), Timestamp: time.Unix(1, 0).UTC()},
 				{ID: refund.ID, Source: "rider:1:wallet", Destination: "world", Currency: "USD", Amount: refund.Amount.BigInt(), Timestamp: time.Unix(2, 0).UTC()},
 			},
 		},
-		{name: "account with no wallet", groupID: "9", found: []tb.Transfer{{ID: tb.ID(), DebitAccountID: orphan, CreditAccountID: rider}}, wantQuery: true, wantOther: true},
+		{name: "account with no wallet", params: GroupTransfersParams{GroupID: "9"}, found: []tb.Transfer{{ID: tb.ID(), DebitAccountID: orphan, CreditAccountID: rider}}, wantQuery: true, wantOther: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -49,7 +61,7 @@ func TestGroupTransfers(t *testing.T) {
 				return wallets, nil
 			}}
 
-			got, err := New(store, tbc, tbc).GroupTransfers(context.Background(), tt.groupID)
+			got, more, err := New(store, tbc, tbc).GroupTransfers(context.Background(), tt.params)
 			if tt.wantOther {
 				if err == nil {
 					t.Fatal("err = nil, want an error")
@@ -63,8 +75,11 @@ func TestGroupTransfers(t *testing.T) {
 			if err != nil {
 				return
 			}
-			if filter.UserData128 != tb.ToUint128(9) || filter.Limit != maxGroupTransfers || filter.Flags != (tb.QueryFilterFlags{Reversed: true}).ToUint32() {
-				t.Fatalf("filter = %+v; want user data 128 = 9, limit %d, reversed", filter, maxGroupTransfers)
+			if filter.UserData128 != tb.ToUint128(9) || filter.Limit != tt.wantLimit || filter.TimestampMax != tt.wantMax || filter.Flags != (tb.QueryFilterFlags{Reversed: true}).ToUint32() {
+				t.Fatalf("filter = %+v; want user data 128 = 9, limit %d, timestamp max %d, reversed", filter, tt.wantLimit, tt.wantMax)
+			}
+			if more != tt.wantMore {
+				t.Fatalf("more = %v, want %v", more, tt.wantMore)
 			}
 			if len(got) != len(tt.want) {
 				t.Fatalf("got %d transfers, want %d", len(got), len(tt.want))

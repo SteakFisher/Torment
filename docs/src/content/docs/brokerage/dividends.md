@@ -47,7 +47,7 @@ The same idea works for live traffic, such as order fills from the market. Keep 
 
 ## Finding the payments again
 
-`group_id` is the dividend's id, so `GET /groups/6000/transfers` lists the payments. A group returns at most 8,189 transfers, so for a dividend paid to more users, your own payment records are the full list. Use the group to look up a sample, not to count every payment.
+`group_id` is the dividend's id, so `GET /groups/6000/transfers` lists the payments. A group is read a page at a time, so for a dividend paid to thousands of users, follow `next` until it is gone to see every payment.
 
 ## Where this leaves us
 

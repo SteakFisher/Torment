@@ -93,7 +93,7 @@ type TypeTotal struct {
 // their balances by currency, and totals by type code then currency. A zero at means now; otherwise
 // balances are as of at, as in Balances. Accounts with no wallet in scope are left out. Totals and
 // accounts come from the same read, so they agree. It returns ErrInvalid for a malformed pattern or at,
-// or when more than maxPatternWallets wallets match.
+// and ErrPatternTooBroad when more than maxPatternWallets wallets match.
 func (s *Service) PatternBalances(ctx context.Context, pattern, currency string, at time.Time) ([]TypeTotal, []AccountBalances, error) {
 	re, err := patternRegex(pattern)
 	if err != nil {
@@ -107,7 +107,7 @@ func (s *Service) PatternBalances(ctx context.Context, pattern, currency string,
 		return nil, nil, err
 	}
 	if tooMany {
-		return nil, nil, fmt.Errorf("%w: address pattern %q matches more than %d wallets; narrow it", ErrInvalid, pattern, maxPatternWallets)
+		return nil, nil, fmt.Errorf("%w: address pattern %q matches more than %d wallets; narrow it", ErrPatternTooBroad, pattern, maxPatternWallets)
 	}
 	if len(wallets) == 0 {
 		return []TypeTotal{}, []AccountBalances{}, nil
@@ -166,9 +166,9 @@ type AccountTransfersParams struct {
 // it is a pattern, committed at or after p.From and before p.Before, newest first. A transfer between two
 // matching accounts is returned once. more reports whether older transfers remain; passing the last
 // Timestamp as Before gets the next page. It makes one TigerBeetle request per wallet in scope. It returns
-// ErrNotFound when no account has the exact address, and ErrInvalid for a malformed pattern, a pattern
-// matching more than maxPatternTransferWallets wallets, a limit outside 0 to maxListLimit or a time
-// outside TigerBeetle's range.
+// ErrAccountNotFound when no account has the exact address, ErrPatternTooBroad for a pattern matching
+// more than maxPatternTransferWallets wallets, and ErrInvalid for a malformed pattern, a limit outside 0
+// to maxListLimit or a time outside TigerBeetle's range.
 func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams) (transfers []TransferRecord, more bool, err error) {
 	if p.Limit < 0 || p.Limit > maxListLimit {
 		return nil, false, fmt.Errorf("%w: limit %d must be between 1 and %d", ErrInvalid, p.Limit, maxListLimit)
@@ -238,8 +238,8 @@ func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams
 
 // transferWalletIDs returns the TigerBeetle ids of the wallets in currency, or in every currency when it
 // is empty, of the account at address or of every account matching it when it is a pattern. It returns
-// ErrNotFound when no account has the exact address, and ErrInvalid for a malformed pattern or one
-// matching more than maxPatternTransferWallets wallets.
+// ErrAccountNotFound when no account has the exact address, ErrPatternTooBroad for a pattern matching
+// more than maxPatternTransferWallets wallets, and ErrInvalid for a malformed pattern.
 func (s *Service) transferWalletIDs(ctx context.Context, address, currency string) ([]tb.Uint128, error) {
 	var wallets []Wallet
 	if IsPattern(address) {
@@ -252,7 +252,7 @@ func (s *Service) transferWalletIDs(ctx context.Context, address, currency strin
 			return nil, err
 		}
 		if tooMany {
-			return nil, fmt.Errorf("%w: address pattern %q matches more than %d wallets; narrow it", ErrInvalid, address, maxPatternTransferWallets)
+			return nil, fmt.Errorf("%w: address pattern %q matches more than %d wallets; narrow it", ErrPatternTooBroad, address, maxPatternTransferWallets)
 		}
 		for _, w := range matched {
 			wallets = append(wallets, w.Wallet)

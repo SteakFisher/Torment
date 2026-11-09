@@ -46,7 +46,8 @@ type AddressWallet struct {
 
 // ensureWallets returns the wallet for each of keys, which must be distinct. It inserts the wallets that
 // do not exist with new ids, then creates and marks as created every TigerBeetle account not yet marked.
-// It returns ErrNotFound naming the first key whose account or currency is not registered.
+// For the first key whose account or currency is not registered, it returns ErrCurrencyNotFound when
+// the currency is missing and ErrAccountNotFound otherwise.
 func (s *Service) ensureWallets(ctx context.Context, keys []WalletKey) (map[WalletKey]StoredWallet, error) {
 	if len(keys) == 0 {
 		return nil, nil
@@ -59,7 +60,7 @@ func (s *Service) ensureWallets(ctx context.Context, keys []WalletKey) (map[Wall
 	for _, k := range keys {
 		w, ok := wallets[k]
 		if !ok {
-			return nil, fmt.Errorf("%w: account %q or currency %q is not registered", ErrNotFound, k.Address, k.Currency)
+			return nil, s.missingWallet(ctx, k)
 		}
 		if w.ID == (tb.Uint128{}) {
 			missing = append(missing, NewWallet{AccountID: w.AccountID, Currency: k.Currency, ID: tb.ID()})
@@ -93,4 +94,13 @@ func (s *Service) ensureWallets(ctx context.Context, keys []WalletKey) (map[Wall
 		}
 	}
 	return wallets, nil
+}
+
+// missingWallet returns the error for a key StoredWallets left out: ErrCurrencyNotFound when k.Currency
+// is not registered, and ErrAccountNotFound otherwise.
+func (s *Service) missingWallet(ctx context.Context, k WalletKey) error {
+	if _, err := s.lookupCurrencies(ctx, []string{k.Currency}); err != nil {
+		return err
+	}
+	return fmt.Errorf("%w: account %q is not registered", ErrAccountNotFound, k.Address)
 }
