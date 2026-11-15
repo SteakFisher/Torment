@@ -20,7 +20,7 @@
     {"name": "torment.events", "vhost": "torment", "type": "topic", "durable": true, "auto_delete": false, "internal": false, "arguments": {}}
   ],
   "queues": [
-    {"name": "torment.cdc", "vhost": "tigerbeetle", "durable": true, "auto_delete": false, "arguments": {"x-queue-type": "quorum", "x-delivery-limit": -1}}
+    {"name": "torment.cdc", "vhost": "tigerbeetle", "durable": true, "auto_delete": false, "arguments": {"x-queue-type": "quorum", "x-delivery-limit": -1, "x-single-active-consumer": true}}
   ],
   "bindings": [
     {"source": "tigerbeetle.cdc", "vhost": "tigerbeetle", "destination": "torment.cdc", "destination_type": "queue", "routing_key": "", "arguments": {}}

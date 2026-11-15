@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -24,19 +25,33 @@ type transferRecordJSON struct {
 func newTransferRecordsJSON(transfers []ledger.TransferRecord) []transferRecordJSON {
 	out := make([]transferRecordJSON, 0, len(transfers))
 	for _, t := range transfers {
-		out = append(out, transferRecordJSON{
-			ID:        ledger.FormatID(t.ID),
-			GroupID:   ledger.FormatID(t.GroupID),
-			Debit:     t.Debit,
-			Credit:    t.Credit,
-			Currency:  t.Currency,
-			Precision: t.Precision,
-			Amount:    t.Amount.String(),
-			Kind:      t.Kind,
-			Timestamp: t.Timestamp,
-		})
+		out = append(out, newTransferRecordJSON(t))
 	}
 	return out
+}
+
+func newTransferRecordJSON(t ledger.TransferRecord) transferRecordJSON {
+	return transferRecordJSON{
+		ID:        ledger.FormatID(t.ID),
+		GroupID:   ledger.FormatID(t.GroupID),
+		Debit:     t.Debit,
+		Credit:    t.Credit,
+		Currency:  t.Currency,
+		Precision: t.Precision,
+		Amount:    t.Amount.String(),
+		Kind:      t.Kind,
+		Timestamp: t.Timestamp,
+	}
+}
+
+// MarshalEvent returns e as the JSON of an exported event: the fields of a transfer in the API, then
+// debit_balance and credit_balance as decimal strings.
+func MarshalEvent(e ledger.Event) ([]byte, error) {
+	return json.Marshal(struct {
+		transferRecordJSON
+		DebitBalance  string `json:"debit_balance"`
+		CreditBalance string `json:"credit_balance"`
+	}{newTransferRecordJSON(e.TransferRecord), e.DebitBalance.String(), e.CreditBalance.String()})
 }
 
 // getGroupTransfers handles GET /groups/{group_id}/transfers?kind=&cursor=&limit=. It responds 200 with

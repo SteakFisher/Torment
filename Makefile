@@ -2,11 +2,13 @@ export DATABASE_URL ?= postgres://torment:torment@localhost:5432/torment?sslmode
 export TB_ADDRESS ?= 3000
 export TEST_DATABASE_URL ?= postgres://torment:torment@localhost:5432/torment_test?sslmode=disable
 export TEST_TB_ADDRESS ?= 3000
+export CDC_SOURCE_URL ?= amqp://torment:torment@localhost:5672/tigerbeetle
+export CDC_EVENTS_URL ?= amqp://torment:torment@localhost:5672/torment
 # Dev only: run and e2e share this key.
 export API_KEYS ?= dev-key
 export API_KEY ?= dev-key
 
-.PHONY: up down run test e2e generate docs brokerage
+.PHONY: up down run cdc test e2e generate docs brokerage
 
 up:
 	docker compose up -d --wait
@@ -16,6 +18,10 @@ down:
 
 run:
 	go run ./cmd/torment
+
+# cdc exports events from TigerBeetle's CDC messages; run exactly one.
+cdc:
+	go run ./cmd/torment cdc
 
 test:
 	go test ./...

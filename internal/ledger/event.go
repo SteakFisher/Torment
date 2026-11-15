@@ -39,7 +39,7 @@ type cdcAccount struct {
 	CreditsPosted cdcUint `json:"credits_posted"`
 }
 
-// cdcUint is an unsigned integer of up to 128 bits in a CDC message. TigerBeetle writes it as a JSON
+// cdcUint is an unsigned integer of up to 128 bits in a CDC message. TigerBeetle's CDC job writes it as a JSON
 // number when it is small and as a string of digits when it is large.
 type cdcUint tb.Uint128
 

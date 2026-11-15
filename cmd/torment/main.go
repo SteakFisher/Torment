@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 
+	"torment/internal/cdc"
 	"torment/internal/db"
 	"torment/internal/httpapi"
 	"torment/internal/ledger"
@@ -27,12 +28,51 @@ func main() {
 	}
 }
 
-// run connects to Postgres and TigerBeetle, applies migrations and serves HTTP until the server fails or
-// the process gets SIGINT or SIGTERM, then waits up to 10 seconds for requests in flight to finish.
-// It reads DATABASE_URL, TB_ADDRESS and API_KEYS (required) and ADDR (default ":8080") from the environment.
+// run serves the API, or exports events when the first argument is "cdc", until the process gets SIGINT
+// or SIGTERM.
 func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	switch {
+	case len(os.Args) == 1:
+		return serve(ctx)
+	case os.Args[1] == "cdc":
+		return exportEvents(ctx)
+	}
+	return fmt.Errorf("unknown command %q: run with no command to serve the API, or with cdc to export events", os.Args[1])
+}
+
+// exportEvents connects to Postgres and runs the exporter until it fails or ctx ends. It reads
+// DATABASE_URL, CDC_SOURCE_URL and CDC_EVENTS_URL (required) from the environment.
+func exportEvents(ctx context.Context) error {
+	databaseURL, err := requireEnv("DATABASE_URL")
+	if err != nil {
+		return err
+	}
+	sourceURL, err := requireEnv("CDC_SOURCE_URL")
+	if err != nil {
+		return err
+	}
+	eventsURL, err := requireEnv("CDC_EVENTS_URL")
+	if err != nil {
+		return err
+	}
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		return fmt.Errorf("error opening postgres pool: %w", err)
+	}
+	defer pool.Close()
+	if err := pool.Ping(ctx); err != nil {
+		return fmt.Errorf("error pinging postgres: %w", err)
+	}
+	// Building events only reads Postgres, so the exporter takes no TigerBeetle client.
+	return cdc.Run(ctx, ledger.New(db.NewStore(pool), nil, nil), sourceURL, eventsURL)
+}
+
+// serve connects to Postgres and TigerBeetle, applies migrations and serves HTTP until the server fails
+// or ctx ends, then waits up to 10 seconds for requests in flight to finish. It reads DATABASE_URL,
+// TB_ADDRESS and API_KEYS (required) and ADDR (default ":8080") from the environment.
+func serve(ctx context.Context) error {
 
 	databaseURL, err := requireEnv("DATABASE_URL")
 	if err != nil {

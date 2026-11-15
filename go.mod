@@ -5,6 +5,7 @@ go 1.26.5
 require (
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/pressly/goose/v3 v3.29.0
+	github.com/rabbitmq/amqp091-go v1.16.0
 	github.com/tigerbeetle/tigerbeetle-go v0.17.10
 )
 
