@@ -14,7 +14,7 @@ func TestWalletCache(t *testing.T) {
 	created := WalletKey{"rider:1:wallet", "USD"}
 	uncreated := WalletKey{"rider:1:bonus", "USD"}
 	stored := map[WalletKey]StoredWallet{
-		created:   {ID: tb.ToUint128(1), Created: true, Ledger: 1},
+		created:   {ID: tb.ToUint128(1), Created: true, Ledger: 1, Precision: 2, Type: TypeLiability},
 		uncreated: {ID: tb.ToUint128(2), Ledger: 1},
 	}
 	var storedCalls, idCalls atomic.Int32
@@ -27,12 +27,12 @@ func TestWalletCache(t *testing.T) {
 			}
 			return out, nil
 		},
-		walletsByTBIDs: func(_ context.Context, ids []tb.Uint128) (map[tb.Uint128]WalletKey, error) {
+		walletsByTBIDs: func(_ context.Context, ids []tb.Uint128) (map[tb.Uint128]AddressWallet, error) {
 			idCalls.Add(1)
-			out := map[tb.Uint128]WalletKey{}
+			out := map[tb.Uint128]AddressWallet{}
 			for _, id := range ids {
 				if id == tb.ToUint128(2) {
-					out[id] = uncreated
+					out[id] = AddressWallet{Address: uncreated.Address, Wallet: Wallet{Currency: uncreated.Currency, ID: id}}
 				}
 			}
 			return out, nil
@@ -62,7 +62,10 @@ func TestWalletCache(t *testing.T) {
 
 	// id 1 is cached from StoredWallets, id 2 is read once, id 3 has no wallet
 	ids := []tb.Uint128{tb.ToUint128(1), tb.ToUint128(2), tb.ToUint128(3)}
-	want := map[tb.Uint128]WalletKey{tb.ToUint128(1): created, tb.ToUint128(2): uncreated}
+	want := map[tb.Uint128]AddressWallet{
+		tb.ToUint128(1): {Address: created.Address, Type: TypeLiability, Wallet: Wallet{Currency: "USD", Precision: 2, ID: tb.ToUint128(1)}},
+		tb.ToUint128(2): {Address: uncreated.Address, Wallet: Wallet{Currency: "USD", ID: tb.ToUint128(2)}},
+	}
 	for range 2 {
 		got, err := c.WalletsByTBIDs(ctx, ids)
 		if err != nil || !maps.Equal(got, want) {

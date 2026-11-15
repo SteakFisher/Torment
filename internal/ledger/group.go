@@ -18,6 +18,7 @@ type TransferRecord struct {
 	Debit     string
 	Credit    string
 	Currency  string
+	Precision int16
 	Amount    *big.Int
 	Kind      string
 	Timestamp time.Time
@@ -116,6 +117,7 @@ func (s *Service) transferRecords(ctx context.Context, found []tb.Transfer) ([]T
 			Debit:     debit.Address,
 			Credit:    credit.Address,
 			Currency:  debit.Currency,
+			Precision: debit.Precision,
 			Amount:    t.Amount.BigInt(),
 			Kind:      kind.Name,
 			Timestamp: time.Unix(0, int64(t.Timestamp)).UTC(),

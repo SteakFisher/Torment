@@ -22,7 +22,7 @@ type fakeStore struct {
 	accountWallets     func(ctx context.Context, address, currency string) (Account, error)
 	listAccounts       func(ctx context.Context, re, after string, limit int) ([]Account, bool, error)
 	patternWallets     func(ctx context.Context, re, currency string, limit int) ([]AddressWallet, bool, error)
-	walletsByTBIDs     func(ctx context.Context, ids []tb.Uint128) (map[tb.Uint128]WalletKey, error)
+	walletsByTBIDs     func(ctx context.Context, ids []tb.Uint128) (map[tb.Uint128]AddressWallet, error)
 	storedWallets      func(ctx context.Context, keys []WalletKey) (map[WalletKey]StoredWallet, error)
 	insertWallets      func(ctx context.Context, wallets []NewWallet) error
 	markWalletsCreated func(ctx context.Context, ids []tb.Uint128) error
@@ -101,7 +101,13 @@ func (f *fakeStore) PatternWallets(ctx context.Context, re, currency string, lim
 	return f.patternWallets(ctx, re, currency, limit)
 }
 
-func (f *fakeStore) WalletsByTBIDs(ctx context.Context, ids []tb.Uint128) (map[tb.Uint128]WalletKey, error) {
+// named returns the wallet of the account at address in currency, with precision 2, as WalletsByTBIDs
+// reports it.
+func named(address, currency string) AddressWallet {
+	return AddressWallet{Address: address, Wallet: Wallet{Currency: currency, Precision: 2}}
+}
+
+func (f *fakeStore) WalletsByTBIDs(ctx context.Context, ids []tb.Uint128) (map[tb.Uint128]AddressWallet, error) {
 	return f.walletsByTBIDs(ctx, ids)
 }
 

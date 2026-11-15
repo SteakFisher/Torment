@@ -239,14 +239,14 @@ Query parameters:
 - `limit`: page size, default 100, at most 1000.
 - `cursor`: the `next` value from the previous page.
 
-When more transfers remain, the response has `next`. Pass it back as `cursor` for the next page. With no `next`, you have them all.
+When more transfers remain, the response has `next`. Pass it back as `cursor` for the next page. With no `next`, you have them all. Each transfer carries its currency's `precision`, so `amount` can be shown without looking the currency up.
 
 ```json
 {
   "group_id": "00000000-0000-0000-0000-000000001001",
   "transfers": [
-    {"id": "00000000-0000-0000-0000-000000001004", "group_id": "00000000-0000-0000-0000-000000001001", "debit": "rider:123:wallet", "credit": "world", "currency": "USD", "amount": "3000", "kind": "refund", "timestamp": "2026-11-06T10:05:00.123456789Z"},
-    {"id": "00000000-0000-0000-0000-000000001001", "group_id": "00000000-0000-0000-0000-000000001001", "debit": "world", "credit": "rider:123:wallet", "currency": "USD", "amount": "10000", "kind": "top_up", "timestamp": "2026-11-06T10:00:00.123456789Z"}
+    {"id": "00000000-0000-0000-0000-000000001004", "group_id": "00000000-0000-0000-0000-000000001001", "debit": "rider:123:wallet", "credit": "world", "currency": "USD", "precision": 2, "amount": "3000", "kind": "refund", "timestamp": "2026-11-06T10:05:00.123456789Z"},
+    {"id": "00000000-0000-0000-0000-000000001001", "group_id": "00000000-0000-0000-0000-000000001001", "debit": "world", "credit": "rider:123:wallet", "currency": "USD", "precision": 2, "amount": "10000", "kind": "top_up", "timestamp": "2026-11-06T10:00:00.123456789Z"}
   ]
 }
 ```

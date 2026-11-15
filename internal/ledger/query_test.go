@@ -184,8 +184,8 @@ func TestAccountTransfers(t *testing.T) {
 			}
 			return acct, nil
 		},
-		walletsByTBIDs: func(context.Context, []tb.Uint128) (map[tb.Uint128]WalletKey, error) {
-			return map[tb.Uint128]WalletKey{usd: {"rider:1:wallet", "USD"}, aed: {"rider:1:wallet", "AED"}, world: {"world", "USD"}}, nil
+		walletsByTBIDs: func(context.Context, []tb.Uint128) (map[tb.Uint128]AddressWallet, error) {
+			return map[tb.Uint128]AddressWallet{usd: named("rider:1:wallet", "USD"), aed: named("rider:1:wallet", "AED"), world: named("world", "USD")}, nil
 		},
 	})
 
@@ -288,8 +288,8 @@ func TestAccountTransfersPattern(t *testing.T) {
 						{Address: "rider:1:wallet", Type: TypeLiability, Wallet: Wallet{Currency: "USD", ID: wallet}},
 					}, false, nil
 				},
-				walletsByTBIDs: func(context.Context, []tb.Uint128) (map[tb.Uint128]WalletKey, error) {
-					return map[tb.Uint128]WalletKey{wallet: {"rider:1:wallet", "USD"}, bonus: {"rider:1:bonus", "USD"}, world: {"world", "USD"}}, nil
+				walletsByTBIDs: func(context.Context, []tb.Uint128) (map[tb.Uint128]AddressWallet, error) {
+					return map[tb.Uint128]AddressWallet{wallet: named("rider:1:wallet", "USD"), bonus: named("rider:1:bonus", "USD"), world: named("world", "USD")}, nil
 				},
 			})
 			tbc := &fakeTB{accountTransfers: func(f tb.AccountFilter) ([]tb.Transfer, error) { return inTB[f.AccountID], nil }}

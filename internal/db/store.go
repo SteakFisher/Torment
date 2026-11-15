@@ -246,18 +246,18 @@ func (s *Store) PatternWallets(ctx context.Context, re, currency string, limit i
 	return wallets, false, nil
 }
 
-func (s *Store) WalletsByTBIDs(ctx context.Context, ids []tb.Uint128) (map[tb.Uint128]ledger.WalletKey, error) {
+func (s *Store) WalletsByTBIDs(ctx context.Context, ids []tb.Uint128) (map[tb.Uint128]ledger.AddressWallet, error) {
 	rows, err := s.q.GetWalletsByTBIDs(ctx, idsToBytes(ids))
 	if err != nil {
 		return nil, fmt.Errorf("error getting wallets: %w", err)
 	}
-	wallets := make(map[tb.Uint128]ledger.WalletKey, len(rows))
+	wallets := make(map[tb.Uint128]ledger.AddressWallet, len(rows))
 	for _, r := range rows {
 		id, err := idFromBytes(r.TbID)
 		if err != nil {
 			return nil, err
 		}
-		wallets[id] = ledger.WalletKey{Address: r.Address, Currency: r.Currency}
+		wallets[id] = ledger.AddressWallet{Address: r.Address, Type: ledger.AccountType(r.Type), Wallet: ledger.Wallet{Currency: r.Currency, Precision: r.Precision, ID: id}}
 	}
 	return wallets, nil
 }

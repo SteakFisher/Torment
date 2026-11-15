@@ -18,7 +18,7 @@ type Querier interface {
 	// Returns one row for each (address, currency) pair whose account and currency are registered; pairs are
 	// matched by position in the two arrays. tb_id is null and tb_created false when the pair has no wallet.
 	GetWallets(ctx context.Context, arg GetWalletsParams) ([]GetWalletsRow, error)
-	// Returns the address and currency of each wallet whose tb_id is in the array.
+	// Returns the address, account type, currency and precision of each wallet whose tb_id is in the array.
 	GetWalletsByTBIDs(ctx context.Context, tbIds [][]byte) ([]GetWalletsByTBIDsRow, error)
 	// Returns no rows when the account already exists.
 	InsertAccount(ctx context.Context, arg InsertAccountParams) (Account, error)

@@ -55,7 +55,7 @@ GET /accounts/user:42:*/transfers?from=2026-11-01T00:00:00Z&cursor=2026-12-01T00
 {
   "address": "user:42:*",
   "transfers": [
-    { "id": "00000000-0000-0000-0000-000000007012", "group_id": "00000000-0000-0000-0000-000000007010", "debit": "transit:withdrawals", "credit": "user:42:cash", "currency": "USD", "amount": "5000", "kind": "withdrawal", "timestamp": "2026-11-06T12:41:09.6Z" },
+    { "id": "00000000-0000-0000-0000-000000007012", "group_id": "00000000-0000-0000-0000-000000007010", "debit": "transit:withdrawals", "credit": "user:42:cash", "currency": "USD", "precision": 2, "amount": "5000", "kind": "withdrawal", "timestamp": "2026-11-06T12:41:09.6Z" },
     ...
   ],
   "next": "2026-11-06T12:41:09.21Z"
@@ -82,7 +82,7 @@ GET /accounts/user:42:*/transfers?kind=dividend
 {
   "address": "user:42:*",
   "transfers": [
-    { "id": "00000000-0000-0000-0000-000000006001", "group_id": "00000000-0000-0000-0000-000000006000", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "amount": "150", "kind": "dividend", "timestamp": "2026-11-06T12:41:09.4Z" }
+    { "id": "00000000-0000-0000-0000-000000006001", "group_id": "00000000-0000-0000-0000-000000006000", "debit": "bank:client-money", "credit": "user:42:cash", "currency": "USD", "precision": 2, "amount": "150", "kind": "dividend", "timestamp": "2026-11-06T12:41:09.4Z" }
   ]
 }
 ```

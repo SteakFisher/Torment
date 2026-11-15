@@ -67,19 +67,22 @@ func (q *Queries) GetWallets(ctx context.Context, arg GetWalletsParams) ([]GetWa
 }
 
 const getWalletsByTBIDs = `-- name: GetWalletsByTBIDs :many
-select w.tb_id, a.address, w.currency
+select w.tb_id, a.address, a.type, w.currency, c.precision
 from wallets w
 join accounts a on a.id = w.account_id
+join currencies c on c.name = w.currency
 where w.tb_id = any($1::bytea[])
 `
 
 type GetWalletsByTBIDsRow struct {
-	TbID     []byte
-	Address  string
-	Currency string
+	TbID      []byte
+	Address   string
+	Type      AccountType
+	Currency  string
+	Precision int16
 }
 
-// Returns the address and currency of each wallet whose tb_id is in the array.
+// Returns the address, account type, currency and precision of each wallet whose tb_id is in the array.
 func (q *Queries) GetWalletsByTBIDs(ctx context.Context, tbIds [][]byte) ([]GetWalletsByTBIDsRow, error) {
 	rows, err := q.db.Query(ctx, getWalletsByTBIDs, tbIds)
 	if err != nil {
@@ -89,7 +92,13 @@ func (q *Queries) GetWalletsByTBIDs(ctx context.Context, tbIds [][]byte) ([]GetW
 	var items []GetWalletsByTBIDsRow
 	for rows.Next() {
 		var i GetWalletsByTBIDsRow
-		if err := rows.Scan(&i.TbID, &i.Address, &i.Currency); err != nil {
+		if err := rows.Scan(
+			&i.TbID,
+			&i.Address,
+			&i.Type,
+			&i.Currency,
+			&i.Precision,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

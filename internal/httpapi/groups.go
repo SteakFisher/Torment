@@ -15,6 +15,7 @@ type transferRecordJSON struct {
 	Debit     string    `json:"debit"`
 	Credit    string    `json:"credit"`
 	Currency  string    `json:"currency"`
+	Precision int16     `json:"precision"`
 	Amount    string    `json:"amount"`
 	Kind      string    `json:"kind"`
 	Timestamp time.Time `json:"timestamp"`
@@ -29,6 +30,7 @@ func newTransferRecordsJSON(transfers []ledger.TransferRecord) []transferRecordJ
 			Debit:     t.Debit,
 			Credit:    t.Credit,
 			Currency:  t.Currency,
+			Precision: t.Precision,
 			Amount:    t.Amount.String(),
 			Kind:      t.Kind,
 			Timestamp: t.Timestamp,

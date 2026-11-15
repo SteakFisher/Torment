@@ -9,20 +9,20 @@ import (
 
 // walletCache is a Store that keeps the wallets it reads in memory and passes every other call to the
 // Store it wraps. A wallet never changes once its TigerBeetle account is marked created, so StoredWallets
-// keeps only created wallets; a wallet's key never changes once inserted, so WalletsByTBIDs keeps every
-// key it finds.
+// keeps only created wallets; a wallet's address, type, currency and precision never change once inserted,
+// so WalletsByTBIDs keeps every wallet it finds.
 type walletCache struct {
 	Store
 	mu    sync.RWMutex
 	byKey map[WalletKey]StoredWallet
-	byID  map[tb.Uint128]WalletKey
+	byID  map[tb.Uint128]AddressWallet
 }
 
 var _ Store = (*walletCache)(nil)
 
 // ponytail: unbounded, holds every wallet read since start.
 func newWalletCache(s Store) *walletCache {
-	return &walletCache{Store: s, byKey: map[WalletKey]StoredWallet{}, byID: map[tb.Uint128]WalletKey{}}
+	return &walletCache{Store: s, byKey: map[WalletKey]StoredWallet{}, byID: map[tb.Uint128]AddressWallet{}}
 }
 
 func (c *walletCache) StoredWallets(ctx context.Context, keys []WalletKey) (map[WalletKey]StoredWallet, error) {
@@ -51,19 +51,19 @@ func (c *walletCache) StoredWallets(ctx context.Context, keys []WalletKey) (map[
 		out[k] = w
 		if w.Created {
 			c.byKey[k] = w
-			c.byID[w.ID] = k
+			c.byID[w.ID] = AddressWallet{Address: k.Address, Type: w.Type, Wallet: Wallet{Currency: k.Currency, Precision: w.Precision, ID: w.ID}}
 		}
 	}
 	return out, nil
 }
 
-func (c *walletCache) WalletsByTBIDs(ctx context.Context, ids []tb.Uint128) (map[tb.Uint128]WalletKey, error) {
-	out := make(map[tb.Uint128]WalletKey, len(ids))
+func (c *walletCache) WalletsByTBIDs(ctx context.Context, ids []tb.Uint128) (map[tb.Uint128]AddressWallet, error) {
+	out := make(map[tb.Uint128]AddressWallet, len(ids))
 	var misses []tb.Uint128
 	c.mu.RLock()
 	for _, id := range ids {
-		if k, ok := c.byID[id]; ok {
-			out[id] = k
+		if w, ok := c.byID[id]; ok {
+			out[id] = w
 		} else {
 			misses = append(misses, id)
 		}
@@ -79,9 +79,9 @@ func (c *walletCache) WalletsByTBIDs(ctx context.Context, ids []tb.Uint128) (map
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for id, k := range found {
-		out[id] = k
-		c.byID[id] = k
+	for id, w := range found {
+		out[id] = w
+		c.byID[id] = w
 	}
 	return out, nil
 }

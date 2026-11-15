@@ -55,9 +55,9 @@ GET /groups/00000000-0000-0000-0000-000000003000/transfers
 {
   "group_id": "00000000-0000-0000-0000-000000003000",
   "transfers": [
-    { "id": "00000000-0000-0000-0000-000000003007", "group_id": "00000000-0000-0000-0000-000000003000", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "amount": "100", "kind": "commission", "timestamp": "2026-11-06T12:41:09.206050152Z" },
-    { "id": "00000000-0000-0000-0000-000000003006", "group_id": "00000000-0000-0000-0000-000000003000", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "amount": "1000000", "kind": "trade", "timestamp": "2026-11-06T12:41:09.206050151Z" },
-    { "id": "00000000-0000-0000-0000-000000003005", "group_id": "00000000-0000-0000-0000-000000003000", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "amount": "19975", "kind": "trade", "timestamp": "2026-11-06T12:41:09.20605015Z" },
+    { "id": "00000000-0000-0000-0000-000000003007", "group_id": "00000000-0000-0000-0000-000000003000", "debit": "user:42:cash", "credit": "revenue:commissions", "currency": "USD", "precision": 2, "amount": "100", "kind": "commission", "timestamp": "2026-11-06T12:41:09.206050152Z" },
+    { "id": "00000000-0000-0000-0000-000000003006", "group_id": "00000000-0000-0000-0000-000000003000", "debit": "custodian:positions", "credit": "user:42:holdings", "currency": "TSLA", "precision": 6, "amount": "1000000", "kind": "trade", "timestamp": "2026-11-06T12:41:09.206050151Z" },
+    { "id": "00000000-0000-0000-0000-000000003005", "group_id": "00000000-0000-0000-0000-000000003000", "debit": "user:42:cash", "credit": "bank:client-money", "currency": "USD", "precision": 2, "amount": "19975", "kind": "trade", "timestamp": "2026-11-06T12:41:09.20605015Z" },
     ...
   ]
 }

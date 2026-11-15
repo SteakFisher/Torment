@@ -73,9 +73,9 @@ type Store interface {
 	// wallets match, it returns none and tooMany true.
 	PatternWallets(ctx context.Context, re, currency string, limit int) (wallets []AddressWallet, tooMany bool, err error)
 
-	// WalletsByTBIDs returns the key of each wallet whose TigerBeetle account is in ids, by that id. Ids
-	// with no wallet are left out.
-	WalletsByTBIDs(ctx context.Context, ids []tb.Uint128) (map[tb.Uint128]WalletKey, error)
+	// WalletsByTBIDs returns each wallet whose TigerBeetle account is in ids, by that id. Ids with no
+	// wallet are left out.
+	WalletsByTBIDs(ctx context.Context, ids []tb.Uint128) (map[tb.Uint128]AddressWallet, error)
 
 	// StoredWallets returns the stored wallet for each of keys whose account and currency are registered,
 	// by key. A key whose account has no wallet in the currency gets a StoredWallet with a zero ID and

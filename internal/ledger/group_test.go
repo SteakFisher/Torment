@@ -13,7 +13,7 @@ func TestGroupTransfers(t *testing.T) {
 	world, rider, orphan := tb.ID(), tb.ID(), tb.ID()
 	pay := tb.Transfer{ID: tb.ID(), DebitAccountID: world, CreditAccountID: rider, Amount: tb.ToUint128(100), Code: 5, Timestamp: 1_000_000_000}
 	refund := tb.Transfer{ID: tb.ID(), DebitAccountID: rider, CreditAccountID: world, Amount: tb.ToUint128(30), Code: 6, Timestamp: 2_000_000_000}
-	wallets := map[tb.Uint128]WalletKey{world: {"world", "USD"}, rider: {"rider:1:wallet", "USD"}}
+	wallets := map[tb.Uint128]AddressWallet{world: named("world", "USD"), rider: named("rider:1:wallet", "USD")}
 
 	tests := []struct {
 		name      string
@@ -37,14 +37,14 @@ func TestGroupTransfers(t *testing.T) {
 			name: "page with more", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009", Cursor: time.Unix(3, 0), Limit: 1},
 			found: []tb.Transfer{refund, pay}, wantQuery: true, wantMore: true, wantLimit: 2, wantMax: 3_000_000_000 - 1,
 			want: []TransferRecord{
-				{ID: refund.ID, Debit: "rider:1:wallet", Credit: "world", Currency: "USD", Amount: refund.Amount.BigInt(), Kind: "refund", Timestamp: time.Unix(2, 0).UTC()},
+				{ID: refund.ID, Debit: "rider:1:wallet", Credit: "world", Currency: "USD", Precision: 2, Amount: refund.Amount.BigInt(), Kind: "refund", Timestamp: time.Unix(2, 0).UTC()},
 			},
 		},
 		{
 			name: "one kind", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009", Kind: "deposit"},
 			found: []tb.Transfer{pay}, wantQuery: true, wantLimit: defaultListLimit + 1, wantCode: 5,
 			want: []TransferRecord{
-				{ID: pay.ID, Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: pay.Amount.BigInt(), Kind: "deposit", Timestamp: time.Unix(1, 0).UTC()},
+				{ID: pay.ID, Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Precision: 2, Amount: pay.Amount.BigInt(), Kind: "deposit", Timestamp: time.Unix(1, 0).UTC()},
 			},
 		},
 		{name: "unknown kind", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009", Kind: "payout"}, wantErr: ErrKindNotFound},
@@ -52,8 +52,8 @@ func TestGroupTransfers(t *testing.T) {
 		{
 			name: "transfers", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009"}, found: []tb.Transfer{pay, refund}, wantQuery: true, wantLimit: defaultListLimit + 1,
 			want: []TransferRecord{
-				{ID: pay.ID, Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Amount: pay.Amount.BigInt(), Kind: "deposit", Timestamp: time.Unix(1, 0).UTC()},
-				{ID: refund.ID, Debit: "rider:1:wallet", Credit: "world", Currency: "USD", Amount: refund.Amount.BigInt(), Kind: "refund", Timestamp: time.Unix(2, 0).UTC()},
+				{ID: pay.ID, Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Precision: 2, Amount: pay.Amount.BigInt(), Kind: "deposit", Timestamp: time.Unix(1, 0).UTC()},
+				{ID: refund.ID, Debit: "rider:1:wallet", Credit: "world", Currency: "USD", Precision: 2, Amount: refund.Amount.BigInt(), Kind: "refund", Timestamp: time.Unix(2, 0).UTC()},
 			},
 		},
 		{name: "account with no wallet", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009"}, found: []tb.Transfer{{ID: tb.ID(), DebitAccountID: orphan, CreditAccountID: rider, Code: 5}}, wantQuery: true, wantOther: true},
@@ -66,7 +66,7 @@ func TestGroupTransfers(t *testing.T) {
 				return tt.found, nil
 			}}
 			queried := false
-			store := withKinds(&fakeStore{walletsByTBIDs: func(context.Context, []tb.Uint128) (map[tb.Uint128]WalletKey, error) {
+			store := withKinds(&fakeStore{walletsByTBIDs: func(context.Context, []tb.Uint128) (map[tb.Uint128]AddressWallet, error) {
 				queried = true
 				return wallets, nil
 			}})

@@ -25,10 +25,11 @@ on conflict (account_id, currency) do nothing;
 update wallets set tb_created = true where tb_id = any(@tb_ids::bytea[]);
 
 -- name: GetWalletsByTBIDs :many
--- Returns the address and currency of each wallet whose tb_id is in the array.
-select w.tb_id, a.address, w.currency
+-- Returns the address, account type, currency and precision of each wallet whose tb_id is in the array.
+select w.tb_id, a.address, a.type, w.currency, c.precision
 from wallets w
 join accounts a on a.id = w.account_id
+join currencies c on c.name = w.currency
 where w.tb_id = any(@tb_ids::bytea[]);
 
 -- name: ListWalletsByPattern :many

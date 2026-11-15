@@ -45,7 +45,7 @@ func TestIntegrationGroupTransfers(t *testing.T) {
 	}
 	for i, want := range []ledger.Posting{refund, pay} {
 		g := transfers[i]
-		if ledger.FormatID(g.ID) != want.ID || g.Debit != want.Debit || g.Credit != want.Credit || g.Currency != "USD" || g.Amount.String() != want.Amount {
+		if ledger.FormatID(g.ID) != want.ID || g.Debit != want.Debit || g.Credit != want.Credit || g.Currency != "USD" || g.Precision != 2 || g.Amount.String() != want.Amount {
 			t.Fatalf("transfer %d = %+v, want %+v", i, g, want)
 		}
 	}
