@@ -32,6 +32,24 @@ services:
     cap_add:
       - IPC_LOCK
 
+  # The integration tests' cluster, on port 3001. Tests never clean TigerBeetle, so they get their own
+  # cluster and leave no transfers in dev without wallets, which would stop the exporter.
+  tigerbeetle-test:
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.17.9
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        [ -f /data/0_0.tigerbeetle ] || ./tigerbeetle format --cluster=0 --replica=0 --replica-count=1 --development /data/0_0.tigerbeetle
+        exec ./tigerbeetle start --addresses=0.0.0.0:3000 --development /data/0_0.tigerbeetle
+    ports:
+      - "3001:3000"
+    volumes:
+      - tbtestdata:/data
+    security_opt:
+      - seccomp=unconfined
+    cap_add:
+      - IPC_LOCK
+
   # Dev users (password = name): admin (management UI on :15672), tigerbeetle, torment.
   rabbitmq:
     image: rabbitmq:4.1.4-management
@@ -70,4 +88,5 @@ services:
 volumes:
   pgdata:
   tbdata:
+  tbtestdata:
   rabbitmqdata:
