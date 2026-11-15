@@ -32,6 +32,42 @@ services:
     cap_add:
       - IPC_LOCK
 
+  # Dev users (password = name): admin (management UI on :15672), tigerbeetle, torment.
+  rabbitmq:
+    image: rabbitmq:4.1.4-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmqdata:/var/lib/rabbitmq
+      - ./rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+      - ./rabbitmq/definitions.conf:/etc/rabbitmq/conf.d/90-definitions.conf:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 2s
+      retries: 30
+
+  # TigerBeetle's CDC job: publishes every transfer to the tigerbeetle.cdc exchange. It takes IP addresses
+  # only, so it looks up the services by name first. It exits on any connection error, so it is restarted.
+  tigerbeetle-cdc:
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.17.9
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        tb=$$(getent ahostsv4 tigerbeetle | head -1 | cut -d' ' -f1)
+        mq=$$(getent ahostsv4 rabbitmq | head -1 | cut -d' ' -f1)
+        exec ./tigerbeetle amqp --addresses=$$tb:3000 --cluster=0 --host=$$mq \
+          --vhost=tigerbeetle --user=tigerbeetle --password=tigerbeetle --publish-exchange=tigerbeetle.cdc
+    depends_on:
+      tigerbeetle:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - seccomp=unconfined
+
 volumes:
   pgdata:
   tbdata:
+  rabbitmqdata:

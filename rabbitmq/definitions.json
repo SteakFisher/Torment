@@ -1,0 +1,28 @@
+{
+  "users": [
+    {"name": "admin", "password_hash": "KgiWbykZhi1wBJ57zwz74uhnjtW07f5lYJ3tn9UzD1IfvGiC", "hashing_algorithm": "rabbit_password_hashing_sha256", "tags": ["administrator"]},
+    {"name": "tigerbeetle", "password_hash": "uKev032Ik3ow928V2c2d3NCSkKg1LsMTi1i2aZvFMDJWViNo", "hashing_algorithm": "rabbit_password_hashing_sha256", "tags": []},
+    {"name": "torment", "password_hash": "+PNUKIRj8S6aeewtBtRkewq0P0yHp/o1aueivnFXvnOwOAq1", "hashing_algorithm": "rabbit_password_hashing_sha256", "tags": []}
+  ],
+  "vhosts": [
+    {"name": "tigerbeetle"},
+    {"name": "torment"}
+  ],
+  "permissions": [
+    {"user": "admin", "vhost": "tigerbeetle", "configure": ".*", "write": ".*", "read": ".*"},
+    {"user": "admin", "vhost": "torment", "configure": ".*", "write": ".*", "read": ".*"},
+    {"user": "tigerbeetle", "vhost": "tigerbeetle", "configure": "^tigerbeetle\\.internal\\.", "write": "^(tigerbeetle\\.cdc|amq\\.default)$|^tigerbeetle\\.internal\\.", "read": "^tigerbeetle\\.internal\\."},
+    {"user": "torment", "vhost": "tigerbeetle", "configure": "^$", "write": "^$", "read": "^torment\\.cdc$"},
+    {"user": "torment", "vhost": "torment", "configure": "^$", "write": "^torment\\.events$", "read": "^$"}
+  ],
+  "exchanges": [
+    {"name": "tigerbeetle.cdc", "vhost": "tigerbeetle", "type": "fanout", "durable": true, "auto_delete": false, "internal": false, "arguments": {}},
+    {"name": "torment.events", "vhost": "torment", "type": "topic", "durable": true, "auto_delete": false, "internal": false, "arguments": {}}
+  ],
+  "queues": [
+    {"name": "torment.cdc", "vhost": "tigerbeetle", "durable": true, "auto_delete": false, "arguments": {"x-queue-type": "quorum", "x-delivery-limit": -1}}
+  ],
+  "bindings": [
+    {"source": "tigerbeetle.cdc", "vhost": "tigerbeetle", "destination": "torment.cdc", "destination_type": "queue", "routing_key": "", "arguments": {}}
+  ]
+}
