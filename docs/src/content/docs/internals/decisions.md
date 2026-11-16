@@ -20,7 +20,7 @@ Registering the same name with a different precision returns 409.
 - **Cached for good:** a kind never changes, so each instance keeps every kind it has read in memory, by name and by code. A warm transfer looks up no kind in Postgres. An unregistered name is read from Postgres each time, since it may be registered later.
 - **Filtering is TigerBeetle's:** `?kind=` sets `code` on the TigerBeetle query, so TigerBeetle uses its own index and doesn't scan an account's whole history for a rare kind. Paging works the same as without it.
 - **A transfer whose code has no kinds row returns 500**, like a TigerBeetle account with no wallet: the data is broken.
-- **No totals by kind.** "How much commission this month" is analytics: export through TigerBeetle CDC to something like ClickHouse.
+- **No totals by kind.** "How much commission this month" is analytics: consume the [event export](/reference/events/) into something like ClickHouse.
 
 ## Accounts
 `POST /accounts`: the account is an address, a type and `allow_negative`. Accounts are never created implicitly.
@@ -103,7 +103,7 @@ Most of a write's cost is the HTTP request around it, not TigerBeetle. Benchmark
 ## Queries
 - **Patterns go in the path:** `GET /accounts/{address}`, `GET /accounts/{address}/balances` and `GET /accounts/{address}/transfers` treat an address containing `*` as a pattern, since a valid address never contains `*`. Each route returns one shape: an exact address is a list of one account, or totals and balances for one account, so clients parse a single response either way. `GET /accounts` lists every account.
 - **Pattern transfers are capped at 100 wallets**, not 1000: each page costs one TigerBeetle request per wallet. The use is one user's pots in one timeline (`rider:123:*`); a feed across many users is an analytics or export query. A transfer between two matching accounts is returned once.
-- **Pattern balances are capped at 1000 wallets**; more returns 400 asking to narrow the pattern. The ledger answers operational queries (one user's pots, a few system accounts). Totals across all users are analytics: export through TigerBeetle CDC to something like ClickHouse. That export is not built.
+- **Pattern balances are capped at 1000 wallets**; more returns 400 asking to narrow the pattern. The ledger answers operational queries (one user's pots, a few system accounts). Totals across all users are analytics: consume the [event export](/reference/events/) into something like ClickHouse.
 - **Patterns:** `*` matches exactly one segment. In Postgres, a pattern becomes an anchored regex.
 - **`at` reads a past balance**: the last TigerBeetle snapshot at or before `at`. A wallet with none (created later, or no transfers yet) reads as zero and is still listed, not hidden.
 - **Pattern balances return the totals and each account's balance**, one total per (type, currency). Different types are never summed together. Both come from the same TigerBeetle read, so they always agree.
@@ -112,6 +112,19 @@ Most of a write's cost is the HTTP request around it, not TigerBeetle. Benchmark
 - **Writes and reads use separate clients.** A client has at most one request in flight, and calls of different kinds queue one after another. On a shared client, every slow read delays the writes queued behind it. The compiler enforces the split: `tbWriter` has only the create calls and the transfer lookup that settles a failed chain, and `tbReader` has the rest.
 - **Two sessions per instance.** A cluster allows 64 client sessions by default, so up to 32 Torment instances.
 - **Reads that query one account at a time send their queries at once** (history, balances at a time). TigerBeetle's API takes one account per history or balance query, but the client merges concurrent calls of the same kind into one request. Measured locally for 21 wallets: 75 ms one after another, 7 ms at once.
+
+## Export
+Every committed transfer is published as an [event](/reference/events/): TigerBeetle's own CDC job → RabbitMQ (vhost `tigerbeetle`) → `torment cdc` adds names → RabbitMQ (vhost `torment`, exchange `torment.events`).
+
+- **One destination-agnostic stream, no exporters per database.** Users bind their own queues and plug in anything that reads AMQP. ClickHouse, Kafka or a data lake is their choice, not code in Torment.
+- **TigerBeetle's CDC job, not polling.** It reads TigerBeetle's own change log with the balances after each transfer, tracks its progress in RabbitMQ, and replays from any timestamp. Polling `query_transfers` would rebuild all of that.
+- **Events hold only what the API shows.** Addresses, currency and kind names, never TigerBeetle ids, ledgers, codes or flags, so TigerBeetle's encoding stays private and can change. The event is the API's transfer record plus each account's balance after it, and both are encoded by the same code.
+- **Names are added at publish time from Postgres.** That is safe because every TigerBeetle account and kind is written to Postgres before TigerBeetle sees it, and names never change. A transfer whose account has no wallet is broken data: the exporter stops on it rather than skip it.
+- **The raw stream is internal.** The CDC job's messages (with TigerBeetle ids) live on their own vhost that consumers can't reach; the public vhost holds only events.
+- **At least once.** A message is acknowledged after RabbitMQ confirms its event, so a crash between the two exports it again. Consumers drop duplicates by `id`. Exactly once would need a store of published ids on the hot path; deduplicating downstream is cheaper.
+- **One active exporter.** `torment.cdc` is a single-active-consumer queue, so events leave in commit order and a second exporter is a standby. It exports in batches of up to 500 with one Postgres lookup per batch, mostly served from the wallet cache.
+- **Two URLs, one broker by default.** `CDC_SOURCE_URL` and `CDC_EVENTS_URL` default to two vhosts on one broker. A memory or disk alarm blocks every publisher on a broker, so a slow consumer could stall the CDC job; pointing `CDC_EVENTS_URL` at a second broker isolates them with no code change.
+- **The exporter takes no TigerBeetle client.** Everything it needs is in the CDC message and Postgres, so it adds no TigerBeetle session.
 
 ## Shutdown
 SIGINT or SIGTERM stops new connections and waits up to 10 seconds for requests in flight. A request cut off after that is the crash row under Transfers: retry with the same ids.

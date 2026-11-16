@@ -2,7 +2,8 @@
   "users": [
     {"name": "admin", "password_hash": "KgiWbykZhi1wBJ57zwz74uhnjtW07f5lYJ3tn9UzD1IfvGiC", "hashing_algorithm": "rabbit_password_hashing_sha256", "tags": ["administrator"]},
     {"name": "tigerbeetle", "password_hash": "uKev032Ik3ow928V2c2d3NCSkKg1LsMTi1i2aZvFMDJWViNo", "hashing_algorithm": "rabbit_password_hashing_sha256", "tags": []},
-    {"name": "torment", "password_hash": "+PNUKIRj8S6aeewtBtRkewq0P0yHp/o1aueivnFXvnOwOAq1", "hashing_algorithm": "rabbit_password_hashing_sha256", "tags": []}
+    {"name": "torment", "password_hash": "+PNUKIRj8S6aeewtBtRkewq0P0yHp/o1aueivnFXvnOwOAq1", "hashing_algorithm": "rabbit_password_hashing_sha256", "tags": []},
+    {"name": "consumer", "password_hash": "T0md9wH7ofa6VFNeb7AlwpdxKLuXsswxDz2tMRGJiHrxFoh0", "hashing_algorithm": "rabbit_password_hashing_sha256", "tags": ["management"]}
   ],
   "vhosts": [
     {"name": "tigerbeetle"},
@@ -13,7 +14,8 @@
     {"user": "admin", "vhost": "torment", "configure": ".*", "write": ".*", "read": ".*"},
     {"user": "tigerbeetle", "vhost": "tigerbeetle", "configure": "^tigerbeetle\\.internal\\.", "write": "^(tigerbeetle\\.cdc|amq\\.default)$|^tigerbeetle\\.internal\\.", "read": "^tigerbeetle\\.internal\\."},
     {"user": "torment", "vhost": "tigerbeetle", "configure": "^$", "write": "^$", "read": "^torment\\.cdc$"},
-    {"user": "torment", "vhost": "torment", "configure": "^$", "write": "^torment\\.events$", "read": "^$"}
+    {"user": "torment", "vhost": "torment", "configure": "^$", "write": "^torment\\.events$", "read": "^$"},
+    {"user": "consumer", "vhost": "torment", "configure": "^consumer\\.", "write": "^consumer\\.", "read": "^(torment\\.events$|consumer\\.)"}
   ],
   "exchanges": [
     {"name": "tigerbeetle.cdc", "vhost": "tigerbeetle", "type": "fanout", "durable": true, "auto_delete": false, "internal": false, "arguments": {}},

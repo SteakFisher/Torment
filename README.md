@@ -11,10 +11,11 @@ A ledger service on top of [TigerBeetle](https://tigerbeetle.com). Callers name 
 You need Go 1.26 and Docker.
 
 ```sh
-make up      # Postgres 17 and a single-replica TigerBeetle 0.17.9
+make up      # Postgres 17, TigerBeetle 0.17.9 (dev and test clusters), RabbitMQ and TigerBeetle's CDC job
 make run     # migrates the database, then serves on :8080 with the API key dev-key
 make test    # unit and integration tests; integration tests use the torment_test database and the tigerbeetle-test cluster
-make e2e     # runs the curl flow in scripts/e2e.sh against the running server
+make cdc     # runs the event exporter (torment cdc)
+make e2e     # runs the curl flow in scripts/e2e.sh against the running server and exporter
 make docs    # the docs site at localhost:4321 (needs Bun)
 make down
 ```
@@ -29,6 +30,7 @@ Without the containers, run only the unit tests: `TEST_DATABASE_URL= go test ./.
 | `TB_ADDRESS` | TigerBeetle address, such as `3000` or `10.0.0.1:3000`. Required |
 | `API_KEYS` | comma-separated API keys. Required. Several keys let you rotate one without downtime |
 | `ADDR` | listen address. Default `:8080` |
+| `CDC_SOURCE_URL`, `CDC_EVENTS_URL` | RabbitMQ vhosts the exporter reads from and publishes to. Required by `torment cdc` only |
 
 The Makefile sets all of these for development. The `Dockerfile` builds a production image.
 
@@ -38,6 +40,8 @@ cmd/torment        wiring: config, Postgres, TigerBeetle clients, HTTP server
 internal/ledger    the domain: accounts, wallets, transfers, queries
 internal/db        Postgres store, migrations, sqlc queries
 internal/httpapi   routes, JSON and the mapping from errors to statuses
+internal/cdc       the event exporter: TigerBeetle CDC messages in, named events out
+rabbitmq           RabbitMQ vhosts, users, exchanges and queues
 scripts            e2e flow, test database setup
 docs               the docs site (Astro Starlight)
 ```

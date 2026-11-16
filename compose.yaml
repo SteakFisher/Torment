@@ -50,7 +50,8 @@ services:
     cap_add:
       - IPC_LOCK
 
-  # Dev users (password = name): admin (management UI on :15672), tigerbeetle, torment.
+  # Dev users (password = name): admin (management UI on :15672), tigerbeetle, torment, and consumer, which
+  # may declare and read queues named consumer.* bound to torment.events.
   rabbitmq:
     image: rabbitmq:4.1.4-management
     ports:

@@ -3,7 +3,7 @@ title: Configuration
 description: Environment variables, API keys and the Docker image.
 ---
 
-Torment is one binary, configured entirely by environment variables.
+Torment is one binary, configured entirely by environment variables. With no arguments it serves the API; `torment cdc` runs the [event exporter](/operating/production/#export) instead.
 
 | Variable | Required | Meaning |
 |---|---|---|
@@ -12,7 +12,15 @@ Torment is one binary, configured entirely by environment variables.
 | `API_KEYS` | yes | comma-separated API keys |
 | `ADDR` | no | address to listen on. Default `:8080` |
 
-On startup, Torment connects to Postgres, applies any new database migrations, and connects to TigerBeetle. If any of these fail, it exits with an error.
+The exporter reads only these:
+
+| Variable | Required | Meaning |
+|---|---|---|
+| `DATABASE_URL` | yes | the same Postgres as the API |
+| `CDC_SOURCE_URL` | yes | the RabbitMQ vhost holding the queue `torment.cdc`, such as `amqp://torment:pass@10.0.0.2:5672/tigerbeetle` |
+| `CDC_EVENTS_URL` | yes | the RabbitMQ vhost holding the exchange `torment.events`, such as `amqp://torment:pass@10.0.0.2:5672/torment` |
+
+On startup, the API connects to Postgres, applies any new database migrations, and connects to TigerBeetle. If any of these fail, it exits with an error.
 
 ## API keys
 
@@ -55,4 +63,6 @@ Torment logs to stderr as `key=value` lines, through Go's standard `log/slog`. E
 
 ## Shutdown
 
-On SIGINT or SIGTERM, Torment stops accepting connections and waits up to 10 seconds for requests in flight to finish. A request cut off after that is like any other failed request: the caller retries it with the same ids.
+On SIGINT or SIGTERM, the API stops accepting connections and waits up to 10 seconds for requests in flight to finish. A request cut off after that is like any other failed request: the caller retries it with the same ids.
+
+The exporter stops at once. Messages it hasn't acknowledged go back to the queue, and the next exporter exports them again.

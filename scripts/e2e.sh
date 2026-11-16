@@ -2,11 +2,14 @@
 # Runs the main API flow against a running server at BASE_URL (default http://localhost:8080), sending
 # API_KEY (required) as the bearer token, and exits
 # non-zero at the first failed check. Each run uses a new rider and new transfer ids, so it can be rerun
-# against the same databases.
+# against the same databases. When RABBITMQ_API is set (the RabbitMQ management API, with the credentials of
+# a user that may declare consumer.* queues), it also checks the exported events, so the exporter must be
+# running; those checks need jq.
 set -eu
 
 BASE_URL=${BASE_URL:-http://localhost:8080}
 API_KEY=${API_KEY:?API_KEY is not set}
+RABBITMQ_API=${RABBITMQ_API:-}
 run=$(date +%s)
 rider="rider:$run:wallet"
 bonus="rider:$run:bonus"
@@ -17,6 +20,10 @@ pay=$(id 1) overspend=$(id 2) refund=$(id 3) eur=$(id 4) move=$(id 5)
 # post PATH BODY and get PATH print the response body, a space and the status code, on one line.
 post() { curl -sS -H "Authorization: Bearer $API_KEY" -X POST -H 'Content-Type: application/json' -d "$2" -w ' %{http_code}' "$BASE_URL$1" | tr -d '\n'; }
 get() { curl -sS -H "Authorization: Bearer $API_KEY" -w ' %{http_code}' "$BASE_URL$1" | tr -d '\n'; }
+
+# mq ARGS... calls the RabbitMQ management API and prints the response body, a space and the status code.
+mq() { curl -sS -H 'Content-Type: application/json' -w ' %{http_code}' "$@" | tr -d '\n'; }
+queue="consumer.e2e.$run"
 
 # expect NAME OUTPUT PATTERN fails unless OUTPUT matches the extended regex PATTERN.
 expect() {
@@ -54,6 +61,12 @@ expect "unknown route" "$(get /nope)" '^\{"error":\{"code":"route_not_found",.* 
 expect "wrong method" "$(curl -sS -H "Authorization: Bearer $API_KEY" -X DELETE -w ' %{http_code}' "$BASE_URL/currencies" | tr -d '\n')" '^\{"error":\{"code":"method_not_allowed",.* 405$'
 expect "decimal id is rejected" "$(post /transfers "$(posting 1 world "$rider" USD 1 top_up)")" '"code":"invalid_request","message":"chain 0 posting 0: id \\"1\\" must be a UUID.* 400$'
 expect "unknown account" "$(get "/accounts/nobody:$run")" '"code":"account_not_found".* 404$'
+
+# Events published before a queue is bound are dropped, so the queue is bound before the first transfer.
+if [ -n "$RABBITMQ_API" ]; then
+	expect "declare an event queue" "$(mq -X PUT -d '{"durable":false,"arguments":{"x-expires":300000}}' "$RABBITMQ_API/api/queues/torment/$queue")" ' 201$'
+	expect "bind it to every event" "$(mq -X POST -d '{"routing_key":"#"}' "$RABBITMQ_API/api/bindings/torment/e/torment.events/q/$queue")" ' 201$'
+fi
 
 expect "pay 100 USD" "$(post /transfers "$(posting "$pay" world "$rider" USD 10000 top_up)")" '"status":"created".* 200$'
 expect "rider has 100 USD" "$(get "/accounts/$rider/balances")" "^\\{\"address\":\"$rider\",\"totals\":\\[\\{\"type\":\"liability\",\"currency\":\"USD\",\"precision\":2,\"amount\":\"10000\"\\}\\],\"accounts\":\\[\\{\"address\":\"$rider\",\"type\":\"liability\",\"balances\":\\[\\{\"currency\":\"USD\",\"precision\":2,\"amount\":\"10000\"\\}\\]\\}\\]\\} 200\$"
@@ -96,3 +109,22 @@ refunds=$(get "/accounts/rider:$run:*/transfers?kind=refund")
 expect "the rider's refunds are the refund only" "$refunds" "^\\{\"address\":\"rider:$run:\\*\",\"transfers\":\\[\\{\"id\":\"$refund\"[^}]*\"kind\":\"refund\"[^}]*\\}\\]\\} 200\$"
 expect "account filter by an unregistered kind" "$(get "/accounts/$rider/transfers?kind=nope")" '"code":"kind_not_found".* 404$'
 expect "move between pots appears once" "$(printf '%s' "$pots" | grep -o "\"id\":\"$move\"" | wc -l | tr -d ' ')" '^1$'
+
+if [ -n "$RABBITMQ_API" ]; then
+	# events holds this run's events as "<routing key> <body>" lines, read until the move, the last
+	# transfer, arrives or 10 seconds pass.
+	events=""
+	for _ in $(seq 1 20); do
+		events="$events
+$(curl -sS -X POST -H 'Content-Type: application/json' -d '{"count":1000,"ackmode":"ack_requeue_false","encoding":"auto"}' \
+	"$RABBITMQ_API/api/queues/torment/$queue/get" | jq -r '.[] | .routing_key + " " + .payload')"
+		printf '%s' "$events" | grep -q "\"id\":\"$move\"" && break
+		sleep 0.5
+	done
+	expect "pay is exported (is the exporter running?)" "$events" "^USD\.top_up \{\"id\":\"$pay\",\"group_id\":\"$pay\",\"debit\":\"world\",\"credit\":\"$rider\",\"currency\":\"USD\",\"precision\":2,\"amount\":\"10000\",\"kind\":\"top_up\",\"timestamp\":\"[^\"]+\",\"debit_balance\":\"-[0-9]+\",\"credit_balance\":\"10000\"\}\$"
+	expect "refund is exported in the pay group" "$events" "^USD\.refund \{\"id\":\"$refund\",\"group_id\":\"$pay\",\"debit\":\"$rider\",\"credit\":\"world\",[^}]*\"debit_balance\":\"7000\","
+	expect "EUR pay is exported" "$events" "^EUR\.top_up \{\"id\":\"$eur\",[^}]*\"credit_balance\":\"500\"\}\$"
+	expect "move is exported with both balances" "$events" "^USD\.move \{\"id\":\"$move\",[^}]*\"debit_balance\":\"6000\",\"credit_balance\":\"1000\"\}\$"
+	expect "failed overspend is not exported" "$(printf '%s' "$events" | grep -c "\"id\":\"$overspend\"" || true)" '^0$'
+	expect "delete the event queue" "$(mq -X DELETE "$RABBITMQ_API/api/queues/torment/$queue")" ' 204$'
+fi

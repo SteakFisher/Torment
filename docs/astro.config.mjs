@@ -26,7 +26,7 @@ export default defineConfig({
             'brokerage/mistakes',
           ],
         },
-        { label: 'Reference', items: ['reference/api', 'reference/errors', 'reference/limits'] },
+        { label: 'Reference', items: ['reference/api', 'reference/errors', 'reference/limits', 'reference/events'] },
         { label: 'Operating', items: ['operating/configuration', 'operating/production'] },
         { label: 'Internals', items: ['internals/decisions', 'internals/performance'] },
       ],
