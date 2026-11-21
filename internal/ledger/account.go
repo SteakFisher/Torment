@@ -2,7 +2,6 @@ package ledger
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 	"time"
 )
@@ -34,7 +33,7 @@ const maxAddressLen = 255
 // validateAddress returns ErrInvalid unless address matches addressRE and is at most maxAddressLen bytes.
 func validateAddress(address string) error {
 	if len(address) > maxAddressLen || !addressRE.MatchString(address) {
-		return fmt.Errorf("%w: address %q must be colon-separated segments of [a-zA-Z0-9_-], at most %d bytes", ErrInvalid, address, maxAddressLen)
+		return Errorf(ErrInvalid, "address %q must be colon-separated segments of [a-zA-Z0-9_-], at most %d bytes", address, maxAddressLen)
 	}
 	return nil
 }
@@ -62,7 +61,7 @@ func (s *Service) RegisterAccount(ctx context.Context, p RegisterAccountParams) 
 		return Account{}, false, err
 	}
 	if !created && (acct.Type != typ || acct.AllowNegative != p.AllowNegative) {
-		return Account{}, false, fmt.Errorf("%w: account %q already exists with different fields", ErrConflict, p.Address)
+		return Account{}, false, Errorf(ErrConflict, "account %q already exists with different fields", p.Address)
 	}
 
 	keys := make([]WalletKey, len(names))
@@ -100,4 +99,22 @@ func dedupe(ss []string) []string {
 		}
 	}
 	return out
+}
+
+// ListAccounts returns the accounts whose address matches pattern (see patternRegex) and sorts after
+// cursor, ordered by address, with their wallets in currency order. Wallet IDs are not set. limit 0 means
+// defaultListLimit; more reports whether further accounts match. It returns ErrInvalid for a malformed
+// pattern or a limit outside 0 to maxListLimit.
+func (s *Service) ListAccounts(ctx context.Context, pattern, cursor string, limit int) (accounts []Account, more bool, err error) {
+	re, err := patternRegex(pattern)
+	if err != nil {
+		return nil, false, err
+	}
+	if limit < 0 || limit > maxListLimit {
+		return nil, false, Errorf(ErrInvalid, "limit %d must be between 1 and %d", limit, maxListLimit)
+	}
+	if limit == 0 {
+		limit = defaultListLimit
+	}
+	return s.store.ListAccounts(ctx, re, cursor, limit)
 }

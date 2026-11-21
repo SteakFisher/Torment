@@ -2,7 +2,6 @@ package ledger
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 )
 
@@ -19,7 +18,7 @@ var kindNameRE = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
 // validateKindName returns ErrInvalid when name is not a valid kind name.
 func validateKindName(name string) error {
 	if !kindNameRE.MatchString(name) {
-		return fmt.Errorf("%w: kind %q must be 1 to 63 lowercase letters, digits or underscores, starting with a letter", ErrInvalid, name)
+		return Errorf(ErrInvalid, "kind %q must be 1 to 63 lowercase letters, digits or underscores, starting with a letter", name)
 	}
 	return nil
 }
@@ -48,7 +47,7 @@ func (s *Service) lookupKinds(ctx context.Context, names []string) (map[string]K
 	}
 	for _, name := range names {
 		if _, ok := kinds[name]; !ok {
-			return nil, fmt.Errorf("%w: kind %q is not registered", ErrKindNotFound, name)
+			return nil, Errorf(ErrKindNotFound, "kind %q is not registered", name)
 		}
 	}
 	return kinds, nil

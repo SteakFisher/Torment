@@ -48,7 +48,7 @@ func tbCall[T any](ctx context.Context, f func() (T, error)) (T, error) {
 	select {
 	case r := <-done:
 		if errors.Is(r.err, tb.ErrTooMuchData) {
-			return r.v, fmt.Errorf("%w: the request holds more than the tigerbeetle cluster accepts in one batch; split it", ErrBatchTooLarge)
+			return r.v, Errorf(ErrBatchTooLarge, "the request holds more than the tigerbeetle cluster accepts in one batch; split it")
 		}
 		return r.v, r.err
 	case <-ctx.Done():

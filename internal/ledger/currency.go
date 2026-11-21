@@ -2,7 +2,6 @@ package ledger
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 	"strconv"
 )
@@ -24,12 +23,12 @@ var currencyCodeRE = regexp.MustCompile(`^([A-Z][A-Z0-9_]*)(?:/(0|[1-9][0-9]*))?
 func ParseCurrencyCode(code string) (name string, precision int16, err error) {
 	m := currencyCodeRE.FindStringSubmatch(code)
 	if m == nil {
-		return "", 0, fmt.Errorf("%w: currency code %q must look like USD/2", ErrInvalid, code)
+		return "", 0, Errorf(ErrInvalid, "currency code %q must look like USD/2", code)
 	}
 	if m[2] != "" {
 		p, err := strconv.Atoi(m[2])
 		if err != nil || p > 18 {
-			return "", 0, fmt.Errorf("%w: currency precision in %q must be 0..18", ErrInvalid, code)
+			return "", 0, Errorf(ErrInvalid, "currency precision in %q must be 0..18", code)
 		}
 		precision = int16(p)
 	}
@@ -50,7 +49,7 @@ func (s *Service) RegisterCurrency(ctx context.Context, code string) (c Currency
 		return Currency{}, false, err
 	}
 	if !created && c.Precision != precision {
-		return Currency{}, false, fmt.Errorf("%w: currency %q already exists with precision %d", ErrConflict, name, c.Precision)
+		return Currency{}, false, Errorf(ErrConflict, "currency %q already exists with precision %d", name, c.Precision)
 	}
 	return c, created, nil
 }
@@ -72,7 +71,7 @@ func (s *Service) lookupCurrencies(ctx context.Context, names []string) (map[str
 	}
 	for _, name := range names {
 		if _, ok := currencies[name]; !ok {
-			return nil, fmt.Errorf("%w: currency %q is not registered", ErrCurrencyNotFound, name)
+			return nil, Errorf(ErrCurrencyNotFound, "currency %q is not registered", name)
 		}
 	}
 	return currencies, nil

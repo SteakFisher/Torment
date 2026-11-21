@@ -35,7 +35,7 @@ Sending a posting again with the same id but a different amount doesn't change i
 ```json title="200 OK"
 {
   "chains": [
-    [{ "id": "00000000-0000-0000-0000-000000001001", "group_id": "00000000-0000-0000-0000-000000001001", "status": "failed", "error": "conflict", "message": "conflict: transfer 00000000-0000-0000-0000-000000001001 exists with different fields: TransferExistsWithDifferentAmount" }]
+    [{ "id": "00000000-0000-0000-0000-000000001001", "group_id": "00000000-0000-0000-0000-000000001001", "status": "failed", "error": "conflict", "message": "transfer 00000000-0000-0000-0000-000000001001 exists with different fields: TransferExistsWithDifferentAmount" }]
   ]
 }
 ```

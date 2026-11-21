@@ -148,3 +148,52 @@ func TestTBCodeAndFlags(t *testing.T) {
 		})
 	}
 }
+
+func TestListAccounts(t *testing.T) {
+	stored := []Account{
+		{Address: "rider:1:bonus", Type: TypeLiability},
+		{Address: "rider:1:wallet", Type: TypeLiability, Wallets: []Wallet{{Currency: "AED", Precision: 2}, {Currency: "USD", Precision: 3}}},
+		{Address: "rider:2:wallet", Type: TypeLiability},
+	}
+	tests := []struct {
+		name      string
+		limit     int
+		wantLimit int
+		wantMore  bool
+		wantN     int
+		wantErr   error
+	}{
+		{name: "default limit", limit: 0, wantLimit: defaultListLimit, wantN: 3},
+		{name: "more", limit: 2, wantLimit: 2, wantMore: true, wantN: 2},
+		{name: "exact", limit: 3, wantLimit: 3, wantN: 3},
+		{name: "negative", limit: -1, wantErr: ErrInvalid},
+		{name: "too large", limit: maxListLimit + 1, wantErr: ErrInvalid},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotRE, gotAfter string
+			var gotLimit int
+			store := &fakeStore{listAccounts: func(_ context.Context, re, after string, limit int) ([]Account, bool, error) {
+				gotRE, gotAfter, gotLimit = re, after, limit
+				return stored[:min(len(stored), limit)], len(stored) > limit, nil
+			}}
+			accounts, more, err := New(store, nil, nil).ListAccounts(context.Background(), "rider:*:*", "rider:0", tt.limit)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			if err != nil {
+				return
+			}
+			if gotRE != "^rider:[^:]+:[^:]+$" || gotAfter != "rider:0" || gotLimit != tt.wantLimit {
+				t.Fatalf("store got re %q, after %q, limit %d", gotRE, gotAfter, gotLimit)
+			}
+			if len(accounts) != tt.wantN || more != tt.wantMore {
+				t.Fatalf("got %d accounts, more %v; want %d, %v", len(accounts), more, tt.wantN, tt.wantMore)
+			}
+			w := accounts[1].Wallets
+			if len(w) != 2 || w[0] != (Wallet{Currency: "AED", Precision: 2}) || w[1] != (Wallet{Currency: "USD", Precision: 3}) {
+				t.Fatalf("wallets = %+v", w)
+			}
+		})
+	}
+}

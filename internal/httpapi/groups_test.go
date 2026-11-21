@@ -49,7 +49,7 @@ func TestGetGroupTransfers(t *testing.T) {
 		{name: "no transfers", transfers: []ledger.TransferRecord{}, wantParams: ledger.GroupTransfersParams{GroupID: "00000000-0000-0000-0000-00000000000A"}, wantStatus: http.StatusOK, wantBody: `{"group_id":"00000000-0000-0000-0000-00000000000a","transfers":[]}`},
 		{name: "invalid", err: ledger.ErrInvalid, wantParams: ledger.GroupTransfersParams{GroupID: "00000000-0000-0000-0000-00000000000A"}, wantStatus: http.StatusBadRequest},
 		{name: "kind not found", query: "?kind=nope", err: ledger.ErrKindNotFound, wantParams: ledger.GroupTransfersParams{GroupID: "00000000-0000-0000-0000-00000000000A", Kind: "nope"}, wantStatus: http.StatusNotFound,
-			wantBody: `{"error":{"code":"kind_not_found","message":"wrapped: not found"}}`},
+			wantBody: `{"error":{"code":"kind_not_found","message":"wrapped: kind_not_found"}}`},
 		{name: "unexpected", err: errors.New("boom"), wantParams: ledger.GroupTransfersParams{GroupID: "00000000-0000-0000-0000-00000000000A"}, wantStatus: http.StatusInternalServerError},
 	}
 	for _, tt := range tests {
@@ -104,7 +104,7 @@ func TestGetAccountTransfers(t *testing.T) {
 		{name: "bad limit", query: "?limit=x", wantStatus: http.StatusBadRequest},
 		{name: "not found", err: ledger.ErrAccountNotFound, wantParams: ledger.AccountTransfersParams{Address: "rider:1:wallet"}, wantStatus: http.StatusNotFound},
 		{name: "kind not found", query: "?kind=nope", err: ledger.ErrKindNotFound, wantParams: ledger.AccountTransfersParams{Address: "rider:1:wallet", Kind: "nope"}, wantStatus: http.StatusNotFound,
-			wantBody: `{"error":{"code":"kind_not_found","message":"wrapped: not found"}}`},
+			wantBody: `{"error":{"code":"kind_not_found","message":"wrapped: kind_not_found"}}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

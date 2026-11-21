@@ -1,57 +1,20 @@
 package httpapi
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
+	"torment/internal/apijson"
 
 	"torment/internal/ledger"
 )
 
-// transferRecordJSON is one committed transfer. ID and GroupID are UUIDs; Amount is a decimal string.
-type transferRecordJSON struct {
-	ID        string    `json:"id"`
-	GroupID   string    `json:"group_id"`
-	Debit     string    `json:"debit"`
-	Credit    string    `json:"credit"`
-	Currency  string    `json:"currency"`
-	Precision int16     `json:"precision"`
-	Amount    string    `json:"amount"`
-	Kind      string    `json:"kind"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
-func newTransferRecordsJSON(transfers []ledger.TransferRecord) []transferRecordJSON {
-	out := make([]transferRecordJSON, 0, len(transfers))
+func newTransferRecordsJSON(transfers []ledger.TransferRecord) []apijson.TransferRecord {
+	out := make([]apijson.TransferRecord, 0, len(transfers))
 	for _, t := range transfers {
-		out = append(out, newTransferRecordJSON(t))
+		out = append(out, apijson.NewTransferRecord(t))
 	}
 	return out
-}
-
-func newTransferRecordJSON(t ledger.TransferRecord) transferRecordJSON {
-	return transferRecordJSON{
-		ID:        ledger.FormatID(t.ID),
-		GroupID:   ledger.FormatID(t.GroupID),
-		Debit:     t.Debit,
-		Credit:    t.Credit,
-		Currency:  t.Currency,
-		Precision: t.Precision,
-		Amount:    t.Amount.String(),
-		Kind:      t.Kind,
-		Timestamp: t.Timestamp,
-	}
-}
-
-// MarshalEvent returns e as the JSON of an exported event: the fields of a transfer in the API, then
-// debit_balance and credit_balance as decimal strings.
-func MarshalEvent(e ledger.Event) ([]byte, error) {
-	return json.Marshal(struct {
-		transferRecordJSON
-		DebitBalance  string `json:"debit_balance"`
-		CreditBalance string `json:"credit_balance"`
-	}{newTransferRecordJSON(e.TransferRecord), e.DebitBalance.String(), e.CreditBalance.String()})
 }
 
 // getGroupTransfers handles GET /groups/{group_id}/transfers?kind=&cursor=&limit=. It responds 200 with
@@ -75,9 +38,9 @@ func getGroupTransfers(l Ledger) http.HandlerFunc {
 			return
 		}
 		out := struct {
-			GroupID   string               `json:"group_id"`
-			Transfers []transferRecordJSON `json:"transfers"`
-			Next      *time.Time           `json:"next,omitempty"`
+			GroupID   string                   `json:"group_id"`
+			Transfers []apijson.TransferRecord `json:"transfers"`
+			Next      *time.Time               `json:"next,omitempty"`
 		}{GroupID: strings.ToLower(p.GroupID), Transfers: newTransferRecordsJSON(transfers)}
 		if more {
 			out.Next = &transfers[len(transfers)-1].Timestamp
@@ -112,9 +75,9 @@ func getAccountTransfers(l Ledger) http.HandlerFunc {
 			return
 		}
 		out := struct {
-			Address   string               `json:"address"`
-			Transfers []transferRecordJSON `json:"transfers"`
-			Next      *time.Time           `json:"next,omitempty"`
+			Address   string                   `json:"address"`
+			Transfers []apijson.TransferRecord `json:"transfers"`
+			Next      *time.Time               `json:"next,omitempty"`
 		}{Address: p.Address, Transfers: newTransferRecordsJSON(transfers)}
 		if more {
 			out.Next = &transfers[len(transfers)-1].Timestamp

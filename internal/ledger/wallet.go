@@ -2,7 +2,6 @@ package ledger
 
 import (
 	"context"
-	"fmt"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 )
@@ -102,5 +101,5 @@ func (s *Service) missingWallet(ctx context.Context, k WalletKey) error {
 	if _, err := s.lookupCurrencies(ctx, []string{k.Currency}); err != nil {
 		return err
 	}
-	return fmt.Errorf("%w: account %q is not registered", ErrAccountNotFound, k.Address)
+	return Errorf(ErrAccountNotFound, "account %q is not registered", k.Address)
 }

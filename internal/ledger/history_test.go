@@ -10,153 +10,98 @@ import (
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 )
 
-func TestPatternRegex(t *testing.T) {
-	tests := []struct {
-		pattern string
-		want    string
-		wantErr bool
-	}{
-		{pattern: "", want: ""},
-		{pattern: "world", want: "^world$"},
-		{pattern: "rider:*:wallet", want: "^rider:[^:]+:wallet$"},
-		{pattern: "rider:123:*", want: "^rider:123:[^:]+$"},
-		{pattern: "*", want: "^[^:]+$"},
-		{pattern: "rider:**", wantErr: true},
-		{pattern: "rider:.*", wantErr: true},
-		{pattern: "rider::wallet", wantErr: true},
-		{pattern: "rider:", wantErr: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.pattern, func(t *testing.T) {
-			got, err := patternRegex(tt.pattern)
-			if tt.wantErr {
-				if !errors.Is(err, ErrInvalid) {
-					t.Fatalf("err = %v, want ErrInvalid", err)
-				}
-				return
-			}
-			if err != nil || got != tt.want {
-				t.Fatalf("patternRegex = %q, err %v; want %q", got, err, tt.want)
-			}
-		})
-	}
-}
+func TestGroupTransfers(t *testing.T) {
+	world, rider, orphan := tb.ID(), tb.ID(), tb.ID()
+	pay := tb.Transfer{ID: tb.ID(), DebitAccountID: world, CreditAccountID: rider, Amount: tb.ToUint128(100), Code: 5, Timestamp: 1_000_000_000}
+	refund := tb.Transfer{ID: tb.ID(), DebitAccountID: rider, CreditAccountID: world, Amount: tb.ToUint128(30), Code: 6, Timestamp: 2_000_000_000}
+	wallets := map[tb.Uint128]AddressWallet{world: named("world", "USD"), rider: named("rider:1:wallet", "USD")}
 
-func TestListAccounts(t *testing.T) {
-	stored := []Account{
-		{Address: "rider:1:bonus", Type: TypeLiability},
-		{Address: "rider:1:wallet", Type: TypeLiability, Wallets: []Wallet{{Currency: "AED", Precision: 2}, {Currency: "USD", Precision: 3}}},
-		{Address: "rider:2:wallet", Type: TypeLiability},
-	}
 	tests := []struct {
 		name      string
-		limit     int
-		wantLimit int
-		wantMore  bool
-		wantN     int
+		params    GroupTransfersParams
+		found     []tb.Transfer
 		wantErr   error
+		wantOther bool // any error other than wantErr
+		want      []TransferRecord
+		wantMore  bool
+		wantQuery bool
+		// wantLimit, wantMax and wantCode are the TigerBeetle filter's Limit, TimestampMax and Code
+		wantLimit uint32
+		wantMax   uint64
+		wantCode  uint16
 	}{
-		{name: "default limit", limit: 0, wantLimit: defaultListLimit, wantN: 3},
-		{name: "more", limit: 2, wantLimit: 2, wantMore: true, wantN: 2},
-		{name: "exact", limit: 3, wantLimit: 3, wantN: 3},
-		{name: "negative", limit: -1, wantErr: ErrInvalid},
-		{name: "too large", limit: maxListLimit + 1, wantErr: ErrInvalid},
+		{name: "malformed", params: GroupTransfersParams{GroupID: "x"}, wantErr: ErrInvalid},
+		{name: "zero", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000000"}, wantErr: ErrInvalid},
+		{name: "limit too big", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009", Limit: maxListLimit + 1}, wantErr: ErrInvalid},
+		{name: "no transfers", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009"}, want: []TransferRecord{}, wantLimit: defaultListLimit + 1},
+		{
+			name: "page with more", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009", Cursor: time.Unix(3, 0), Limit: 1},
+			found: []tb.Transfer{refund, pay}, wantQuery: true, wantMore: true, wantLimit: 2, wantMax: 3_000_000_000 - 1,
+			want: []TransferRecord{
+				{ID: refund.ID, Debit: "rider:1:wallet", Credit: "world", Currency: "USD", Precision: 2, Amount: refund.Amount.BigInt(), Kind: "refund", Timestamp: time.Unix(2, 0).UTC()},
+			},
+		},
+		{
+			name: "one kind", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009", Kind: "deposit"},
+			found: []tb.Transfer{pay}, wantQuery: true, wantLimit: defaultListLimit + 1, wantCode: 5,
+			want: []TransferRecord{
+				{ID: pay.ID, Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Precision: 2, Amount: pay.Amount.BigInt(), Kind: "deposit", Timestamp: time.Unix(1, 0).UTC()},
+			},
+		},
+		{name: "unknown kind", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009", Kind: "payout"}, wantErr: ErrKindNotFound},
+		{name: "code with no kind", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009"}, found: []tb.Transfer{{ID: tb.ID(), DebitAccountID: world, CreditAccountID: rider, Code: 9}}, wantQuery: true, wantOther: true},
+		{
+			name: "transfers", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009"}, found: []tb.Transfer{pay, refund}, wantQuery: true, wantLimit: defaultListLimit + 1,
+			want: []TransferRecord{
+				{ID: pay.ID, Debit: "world", Credit: "rider:1:wallet", Currency: "USD", Precision: 2, Amount: pay.Amount.BigInt(), Kind: "deposit", Timestamp: time.Unix(1, 0).UTC()},
+				{ID: refund.ID, Debit: "rider:1:wallet", Credit: "world", Currency: "USD", Precision: 2, Amount: refund.Amount.BigInt(), Kind: "refund", Timestamp: time.Unix(2, 0).UTC()},
+			},
+		},
+		{name: "account with no wallet", params: GroupTransfersParams{GroupID: "00000000-0000-0000-0000-000000000009"}, found: []tb.Transfer{{ID: tb.ID(), DebitAccountID: orphan, CreditAccountID: rider, Code: 5}}, wantQuery: true, wantOther: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var gotRE, gotAfter string
-			var gotLimit int
-			store := &fakeStore{listAccounts: func(_ context.Context, re, after string, limit int) ([]Account, bool, error) {
-				gotRE, gotAfter, gotLimit = re, after, limit
-				return stored[:min(len(stored), limit)], len(stored) > limit, nil
+			var filter tb.QueryFilter
+			tbc := &fakeTB{queryTransfers: func(f tb.QueryFilter) ([]tb.Transfer, error) {
+				filter = f
+				return tt.found, nil
 			}}
-			accounts, more, err := New(store, nil, nil).ListAccounts(context.Background(), "rider:*:*", "rider:0", tt.limit)
-			if !errors.Is(err, tt.wantErr) {
+			queried := false
+			store := withKinds(&fakeStore{walletsByTBIDs: func(context.Context, []tb.Uint128) (map[tb.Uint128]AddressWallet, error) {
+				queried = true
+				return wallets, nil
+			}})
+
+			got, more, err := New(store, tbc, tbc).GroupTransfers(context.Background(), tt.params)
+			if tt.wantOther {
+				if err == nil {
+					t.Fatal("err = nil, want an error")
+				}
+			} else if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			if queried != tt.wantQuery {
+				t.Fatalf("WalletsByTBIDs called = %v, want %v", queried, tt.wantQuery)
 			}
 			if err != nil {
 				return
 			}
-			if gotRE != "^rider:[^:]+:[^:]+$" || gotAfter != "rider:0" || gotLimit != tt.wantLimit {
-				t.Fatalf("store got re %q, after %q, limit %d", gotRE, gotAfter, gotLimit)
+			if filter.UserData128 != tb.ToUint128(9) || filter.Limit != tt.wantLimit || filter.TimestampMax != tt.wantMax || filter.Code != tt.wantCode || filter.Flags != (tb.QueryFilterFlags{Reversed: true}).ToUint32() {
+				t.Fatalf("filter = %+v; want user data 128 = 9, limit %d, timestamp max %d, code %d, reversed", filter, tt.wantLimit, tt.wantMax, tt.wantCode)
 			}
-			if len(accounts) != tt.wantN || more != tt.wantMore {
-				t.Fatalf("got %d accounts, more %v; want %d, %v", len(accounts), more, tt.wantN, tt.wantMore)
+			if more != tt.wantMore {
+				t.Fatalf("more = %v, want %v", more, tt.wantMore)
 			}
-			w := accounts[1].Wallets
-			if len(w) != 2 || w[0] != (Wallet{Currency: "AED", Precision: 2}) || w[1] != (Wallet{Currency: "USD", Precision: 3}) {
-				t.Fatalf("wallets = %+v", w)
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %d transfers, want %d", len(got), len(tt.want))
+			}
+			for i, g := range got {
+				w := tt.want[i]
+				if g.ID != w.ID || g.Debit != w.Debit || g.Credit != w.Credit || g.Currency != w.Currency || g.Amount.Cmp(w.Amount) != 0 || g.Kind != w.Kind || !g.Timestamp.Equal(w.Timestamp) {
+					t.Fatalf("transfer %d = %+v, want %+v", i, g, w)
+				}
 			}
 		})
-	}
-}
-
-func TestPatternBalances(t *testing.T) {
-	ids := []tb.Uint128{tb.ID(), tb.ID(), tb.ID(), tb.ID()}
-	wallets := []AddressWallet{
-		{Address: "rider:1:bonus", Type: TypeLiability, Wallet: Wallet{Currency: "USD", Precision: 2, ID: ids[0]}},
-		{Address: "rider:1:card", Type: TypeAsset, Wallet: Wallet{Currency: "USD", Precision: 2, ID: ids[1]}},
-		{Address: "rider:1:wallet", Type: TypeLiability, Wallet: Wallet{Currency: "AED", Precision: 2, ID: ids[2]}},
-		{Address: "rider:1:wallet", Type: TypeLiability, Wallet: Wallet{Currency: "USD", Precision: 2, ID: ids[3]}},
-	}
-	// every account has 10 debited and 40 credited, except AED which has no TigerBeetle account
-	inTB := []tb.Account{
-		{ID: ids[0], DebitsPosted: tb.ToUint128(10), CreditsPosted: tb.ToUint128(40)},
-		{ID: ids[1], DebitsPosted: tb.ToUint128(10), CreditsPosted: tb.ToUint128(40)},
-		{ID: ids[3], DebitsPosted: tb.ToUint128(10), CreditsPosted: tb.ToUint128(40)},
-	}
-	var gotRE, gotCurrency string
-	var gotLimit int
-	store := &fakeStore{patternWallets: func(_ context.Context, re, currency string, limit int) ([]AddressWallet, bool, error) {
-		gotRE, gotCurrency, gotLimit = re, currency, limit
-		return wallets, false, nil
-	}}
-	tbc := &fakeTB{lookupAccounts: func([]tb.Uint128) ([]tb.Account, error) { return inTB, nil }}
-
-	totals, accounts, err := New(store, tbc, tbc).Balances(context.Background(), "rider:1:*", "", time.Time{})
-	if err != nil {
-		t.Fatalf("err = %v", err)
-	}
-	if gotRE != "^rider:1:[^:]+$" || gotCurrency != "" || gotLimit != maxPatternWallets {
-		t.Fatalf("store got re %q, currency %q, limit %d", gotRE, gotCurrency, gotLimit)
-	}
-	// asset sorts before liability by type code; the asset nets to -30, liabilities to 30 each
-	wantTotals := []string{"asset USD -30", "liability AED 0", "liability USD 60"}
-	if len(totals) != len(wantTotals) {
-		t.Fatalf("totals = %+v", totals)
-	}
-	for i, tt := range totals {
-		if s := fmt.Sprintf("%s %s %s", tt.Type, tt.Currency, tt.Amount); s != wantTotals[i] {
-			t.Fatalf("total %d = %s, want %s", i, s, wantTotals[i])
-		}
-	}
-	wantAccounts := []string{"rider:1:bonus [USD 30]", "rider:1:card [USD -30]", "rider:1:wallet [AED 0 USD 30]"}
-	if len(accounts) != len(wantAccounts) {
-		t.Fatalf("accounts = %+v", accounts)
-	}
-	for i, a := range accounts {
-		var parts []string
-		for _, b := range a.Balances {
-			parts = append(parts, b.Currency, b.Amount.String())
-		}
-		if s := fmt.Sprintf("%s %v", a.Address, parts); s != wantAccounts[i] {
-			t.Fatalf("account %d = %s, want %s", i, s, wantAccounts[i])
-		}
-	}
-
-	store.patternWallets = func(context.Context, string, string, int) ([]AddressWallet, bool, error) {
-		return nil, true, nil
-	}
-	if _, _, err := New(store, tbc, tbc).Balances(context.Background(), "*", "", time.Time{}); !errors.Is(err, ErrPatternTooBroad) {
-		t.Fatalf("too many wallets err = %v, want ErrPatternTooBroad", err)
-	}
-	for _, c := range []struct {
-		pattern string
-		at      time.Time
-	}{{"rider:.*", time.Time{}}, {"rider", time.Unix(-1, 0)}} {
-		if _, _, err := New(store, tbc, tbc).Balances(context.Background(), c.pattern, "", c.at); !errors.Is(err, ErrInvalid) {
-			t.Fatalf("pattern %q at %v err = %v, want ErrInvalid", c.pattern, c.at, err)
-		}
 	}
 }
 
@@ -311,37 +256,5 @@ func TestAccountTransfersPattern(t *testing.T) {
 				t.Fatalf("ids = %v, wallet limit %d; want %v, %d", ids, gotLimit, tt.wantIDs, tt.wantLimit)
 			}
 		})
-	}
-}
-
-func TestScopeWalletsChecks(t *testing.T) {
-	store := &fakeStore{
-		accountWallets: func(_ context.Context, address, _ string) (Account, error) {
-			return Account{Address: address, Type: TypeLiability}, nil
-		},
-		patternWallets: func(context.Context, string, string, int) ([]AddressWallet, bool, error) { return nil, false, nil },
-		currencies: func(context.Context, []string) (map[string]Currency, error) {
-			return map[string]Currency{"USD": {Name: "USD"}}, nil
-		},
-	}
-	s := New(store, &fakeTB{}, &fakeTB{})
-	tests := []struct {
-		address, currency string
-		wantErr           error
-	}{
-		{"rider:1", "USD", nil},
-		{"rider:*", "USD", nil},
-		{"rider:1", "", nil},
-		{"rider:1", "EUR", ErrCurrencyNotFound},
-		{"rider:*", "EUR", ErrCurrencyNotFound},
-		{"rider.1", "", ErrInvalid},
-	}
-	for _, tt := range tests {
-		if _, err := s.scopeWallets(context.Background(), tt.address, tt.currency, 10); !errors.Is(err, tt.wantErr) {
-			t.Errorf("scopeWallets(%q, %q) err = %v, want %v", tt.address, tt.currency, err, tt.wantErr)
-		}
-	}
-	if _, err := s.Account(context.Background(), "rider 1"); !errors.Is(err, ErrInvalid) {
-		t.Errorf("Account with a space err = %v, want ErrInvalid", err)
 	}
 }

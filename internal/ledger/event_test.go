@@ -60,7 +60,7 @@ func TestEvents(t *testing.T) {
 					return map[uint16]Kind{}, nil
 				},
 			}
-			got, err := New(store, nil, nil).Events(context.Background(), [][]byte{tt.raw})
+			got, err := NewNames(store).Events(context.Background(), [][]byte{tt.raw})
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("err = %v, want an error: %v", err, tt.wantErr)
 			}

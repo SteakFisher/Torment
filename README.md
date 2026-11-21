@@ -39,7 +39,8 @@ The Makefile sets all of these for development. The `Dockerfile` builds a produc
 cmd/torment        wiring: config, Postgres, TigerBeetle clients, HTTP server
 internal/ledger    the domain: accounts, wallets, transfers, queries
 internal/db        Postgres store, migrations, sqlc queries
-internal/httpapi   routes, JSON and the mapping from errors to statuses
+internal/httpapi   routes, JSON and the mapping from error codes to statuses
+internal/apijson   the transfer JSON shared by the API and the event export
 internal/cdc       the event exporter: TigerBeetle CDC messages in, named events out
 rabbitmq           RabbitMQ vhosts, users, exchanges and queues
 scripts            e2e flow, test database setup

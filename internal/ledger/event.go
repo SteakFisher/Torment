@@ -56,7 +56,7 @@ func (u *cdcUint) UnmarshalJSON(b []byte) error {
 // Events returns the event for each of raw, the JSON messages of TigerBeetle's CDC job, in the same
 // order. It returns an error for a message that is malformed, is not a single-phase transfer, or has an
 // account with no wallet or a code with no kind.
-func (s *Service) Events(ctx context.Context, raw [][]byte) ([]Event, error) {
+func (n *Names) Events(ctx context.Context, raw [][]byte) ([]Event, error) {
 	parsed := make([]cdcEvent, len(raw))
 	transfers := make([]tb.Transfer, len(raw))
 	var ids []tb.Uint128
@@ -84,11 +84,11 @@ func (s *Service) Events(ctx context.Context, raw [][]byte) ([]Event, error) {
 		ids = append(ids, transfers[i].DebitAccountID, transfers[i].CreditAccountID)
 	}
 
-	records, err := s.transferRecords(ctx, transfers)
+	records, err := n.transferRecords(ctx, transfers)
 	if err != nil {
 		return nil, err
 	}
-	wallets, err := s.store.WalletsByTBIDs(ctx, ids)
+	wallets, err := n.store.WalletsByTBIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}

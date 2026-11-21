@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -120,7 +119,7 @@ func parseLimit(r *http.Request) (int, error) {
 	}
 	limit, err := strconv.Atoi(s)
 	if err != nil || limit < 1 {
-		return 0, fmt.Errorf("%w: limit %q must be a whole number from 1", ledger.ErrInvalid, s)
+		return 0, ledger.Errorf(ledger.ErrInvalid, "limit %q must be a whole number from 1", s)
 	}
 	return limit, nil
 }

@@ -1,51 +1,37 @@
 package httpapi
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"torment/internal/ledger"
 )
 
-// writeError responds with a status and code chosen from err, most specific first:
-// ledger.ErrBatchTooLarge → 400 batch_too_large, ledger.ErrPatternTooBroad → 400 pattern_too_broad, decodeError and ledger.ErrInvalid → 400
-// invalid_request, ledger.ErrCurrencyNotFound → 404 currency_not_found, ledger.ErrKindNotFound → 404
-// kind_not_found, ledger.ErrNotFound → 404 account_not_found, ledger.ErrConflict → 409 conflict, anything else → 500 internal with a generic
-// message, logging the real error. The message is err's text without the "<sentinel>: " it carries.
+// statuses maps the codes a request can fail with to their HTTP status. A code not listed is a bug and
+// responds 500.
+var statuses = map[*ledger.Code]int{
+	ledger.ErrInvalid:          http.StatusBadRequest,
+	ledger.ErrBatchTooLarge:    http.StatusBadRequest,
+	ledger.ErrPatternTooBroad:  http.StatusBadRequest,
+	ledger.ErrNotFound:         http.StatusNotFound,
+	ledger.ErrAccountNotFound:  http.StatusNotFound,
+	ledger.ErrCurrencyNotFound: http.StatusNotFound,
+	ledger.ErrKindNotFound:     http.StatusNotFound,
+	ledger.ErrConflict:         http.StatusConflict,
+}
+
+// writeError responds with the status of err's code from statuses and {"error": {"code", "message"}},
+// where the message is err's text. An error with no listed code is logged and responds 500 internal
+// with a generic message.
 func writeError(w http.ResponseWriter, r *http.Request, err error) {
-	status, code, msg := http.StatusInternalServerError, "internal", "internal error"
-	var sentinel error
-	var decodeErr decodeError
-	switch {
-	case errors.As(err, &decodeErr):
-		status, code = http.StatusBadRequest, "invalid_request"
-	case errors.Is(err, ledger.ErrBatchTooLarge):
-		status, code, sentinel = http.StatusBadRequest, "batch_too_large", ledger.ErrInvalid
-	case errors.Is(err, ledger.ErrPatternTooBroad):
-		status, code, sentinel = http.StatusBadRequest, "pattern_too_broad", ledger.ErrInvalid
-	case errors.Is(err, ledger.ErrInvalid):
-		status, code, sentinel = http.StatusBadRequest, "invalid_request", ledger.ErrInvalid
-	case errors.Is(err, ledger.ErrCurrencyNotFound):
-		status, code, sentinel = http.StatusNotFound, "currency_not_found", ledger.ErrNotFound
-	case errors.Is(err, ledger.ErrKindNotFound):
-		status, code, sentinel = http.StatusNotFound, "kind_not_found", ledger.ErrNotFound
-	case errors.Is(err, ledger.ErrNotFound):
-		status, code, sentinel = http.StatusNotFound, "account_not_found", ledger.ErrNotFound
-	case errors.Is(err, ledger.ErrConflict):
-		status, code, sentinel = http.StatusConflict, "conflict", ledger.ErrConflict
-	default:
+	code := ledger.CodeOf(err)
+	status, ok := statuses[code]
+	if !ok {
 		slog.Error("request failed", "request_id", requestID(r.Context()), "err", err)
+		writeErrorBody(w, http.StatusInternalServerError, "internal", "internal error")
+		return
 	}
-	if status != http.StatusInternalServerError {
-		msg = err.Error()
-	}
-	if sentinel != nil {
-		// The sentinel's text precedes any user input in the message, so the first match is the sentinel.
-		msg = strings.Replace(msg, sentinel.Error()+": ", "", 1)
-	}
-	writeErrorBody(w, status, code, msg)
+	writeErrorBody(w, status, code.Name(), err.Error())
 }
 
 // writeErrorBody responds with status and {"error": {"code": code, "message": msg}}.

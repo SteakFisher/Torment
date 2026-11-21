@@ -1,8 +1,6 @@
 package ledger
 
 import (
-	"fmt"
-
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 )
 
@@ -23,7 +21,7 @@ func ParseAccountType(s string) (AccountType, error) {
 	case TypeAsset, TypeExpense, TypeLiability, TypeEquity, TypeRevenue:
 		return t, nil
 	}
-	return "", fmt.Errorf("%w: account type %q must be one of asset, expense, liability, equity, revenue", ErrInvalid, s)
+	return "", Errorf(ErrInvalid, "account type %q must be one of asset, expense, liability, equity, revenue", s)
 }
 
 // debitNormal reports whether t's balance grows with debits; the other types grow with credits.

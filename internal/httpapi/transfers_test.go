@@ -44,7 +44,7 @@ func TestPostTransfer(t *testing.T) {
 		got = chains
 		return [][]ledger.Transfer{
 			{{ID: bigID, GroupID: tb.ToUint128(9), Created: true}},
-			{tr(2, false, fmt.Errorf("%w: detail", ledger.ErrChainFailed)), tr(3, false, ledger.ErrInsufficientFunds)},
+			{tr(2, false, ledger.Errorf(ledger.ErrChainFailed, "detail")), tr(3, false, ledger.ErrInsufficientFunds)},
 			{tr(4, false, nil)},
 			{tr(5, false, ledger.ErrConflict), tr(6, false, ledger.ErrIDAlreadyFailed), tr(7, false, errors.New("boom"))},
 			{tr(8, false, ledger.ErrOverflow)},
@@ -60,11 +60,11 @@ func TestPostTransfer(t *testing.T) {
 	}
 	wantBody := `{"chains":[` +
 		`[{"id":"00000000-0000-0001-0000-000000000001","group_id":"00000000-0000-0000-0000-000000000009","status":"created"}],` +
-		`[{"id":"00000000-0000-0000-0000-000000000002","group_id":"00000000-0000-0000-0000-000000000002","status":"failed","error":"chain_failed","message":"chain failed: detail"},` +
-		`{"id":"00000000-0000-0000-0000-000000000003","group_id":"00000000-0000-0000-0000-000000000003","status":"failed","error":"insufficient_funds","message":"insufficient funds"}],` +
+		`[{"id":"00000000-0000-0000-0000-000000000002","group_id":"00000000-0000-0000-0000-000000000002","status":"failed","error":"chain_failed","message":"detail"},` +
+		`{"id":"00000000-0000-0000-0000-000000000003","group_id":"00000000-0000-0000-0000-000000000003","status":"failed","error":"insufficient_funds","message":"insufficient_funds"}],` +
 		`[{"id":"00000000-0000-0000-0000-000000000004","group_id":"00000000-0000-0000-0000-000000000004","status":"exists"}],` +
 		`[{"id":"00000000-0000-0000-0000-000000000005","group_id":"00000000-0000-0000-0000-000000000005","status":"failed","error":"conflict","message":"conflict"},` +
-		`{"id":"00000000-0000-0000-0000-000000000006","group_id":"00000000-0000-0000-0000-000000000006","status":"failed","error":"id_already_failed","message":"id already failed"},` +
+		`{"id":"00000000-0000-0000-0000-000000000006","group_id":"00000000-0000-0000-0000-000000000006","status":"failed","error":"id_already_failed","message":"id_already_failed"},` +
 		`{"id":"00000000-0000-0000-0000-000000000007","group_id":"00000000-0000-0000-0000-000000000007","status":"failed","error":"internal","message":"internal error"}],` +
 		`[{"id":"00000000-0000-0000-0000-000000000008","group_id":"00000000-0000-0000-0000-000000000008","status":"failed","error":"overflow","message":"overflow"}]]}`
 	if strings.TrimSpace(rec.Body.String()) != wantBody {

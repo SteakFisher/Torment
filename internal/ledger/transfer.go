@@ -66,17 +66,17 @@ func (s *Service) Transfer(ctx context.Context, chains [][]Posting) ([][]Transfe
 // ErrInvalid naming the position of the first invalid posting.
 func validateChains(chains [][]Posting) ([]tb.Transfer, error) {
 	if len(chains) == 0 {
-		return nil, fmt.Errorf("%w: at least one chain is required", ErrInvalid)
+		return nil, Errorf(ErrInvalid, "at least one chain is required")
 	}
 	n := 0
 	for i, chain := range chains {
 		if len(chain) == 0 {
-			return nil, fmt.Errorf("%w: chain %d is empty", ErrInvalid, i)
+			return nil, Errorf(ErrInvalid, "chain %d is empty", i)
 		}
 		n += len(chain)
 	}
 	if n > maxPostings {
-		return nil, fmt.Errorf("%w: %d postings exceed the limit of %d", ErrInvalid, n, maxPostings)
+		return nil, Errorf(ErrInvalid, "%d postings exceed the limit of %d", n, maxPostings)
 	}
 	batch := make([]tb.Transfer, 0, n)
 	seen := make(map[tb.Uint128]bool, n)
@@ -87,7 +87,7 @@ func validateChains(chains [][]Posting) ([]tb.Transfer, error) {
 				return nil, fmt.Errorf("chain %d posting %d: %w", i, j, err)
 			}
 			if seen[t.ID] {
-				return nil, fmt.Errorf("%w: chain %d posting %d: id %s is used more than once", ErrInvalid, i, j, FormatID(t.ID))
+				return nil, Errorf(ErrInvalid, "chain %d posting %d: id %s is used more than once", i, j, FormatID(t.ID))
 			}
 			seen[t.ID] = true
 			if j < len(chain)-1 {
@@ -104,7 +104,7 @@ func validateChains(chains [][]Posting) ([]tb.Transfer, error) {
 func parsePosting(p Posting) (tb.Transfer, error) {
 	id, ok := parseID(p.ID)
 	if !ok {
-		return tb.Transfer{}, fmt.Errorf("%w: id %q must be a UUID other than the nil and max UUIDs", ErrInvalid, p.ID)
+		return tb.Transfer{}, Errorf(ErrInvalid, "id %q must be a UUID other than the nil and max UUIDs", p.ID)
 	}
 	if err := validateAddress(p.Debit); err != nil {
 		return tb.Transfer{}, err
@@ -113,22 +113,22 @@ func parsePosting(p Posting) (tb.Transfer, error) {
 		return tb.Transfer{}, err
 	}
 	if p.Kind == "" {
-		return tb.Transfer{}, fmt.Errorf("%w: kind is required", ErrInvalid)
+		return tb.Transfer{}, Errorf(ErrInvalid, "kind is required")
 	}
 	if err := validateKindName(p.Kind); err != nil {
 		return tb.Transfer{}, err
 	}
 	if p.Debit == p.Credit {
-		return tb.Transfer{}, fmt.Errorf("%w: debit and credit must differ, both are %q", ErrInvalid, p.Debit)
+		return tb.Transfer{}, Errorf(ErrInvalid, "debit and credit must differ, both are %q", p.Debit)
 	}
 	amount, ok := parseUint128(p.Amount)
 	if !ok {
-		return tb.Transfer{}, fmt.Errorf("%w: amount %q must be a base-10 integer greater than zero that fits in 128 bits", ErrInvalid, p.Amount)
+		return tb.Transfer{}, Errorf(ErrInvalid, "amount %q must be a base-10 integer greater than zero that fits in 128 bits", p.Amount)
 	}
 	group := id
 	if p.GroupID != "" {
 		if group, ok = parseID(p.GroupID); !ok {
-			return tb.Transfer{}, fmt.Errorf("%w: group_id %q must be a UUID other than the nil and max UUIDs", ErrInvalid, p.GroupID)
+			return tb.Transfer{}, Errorf(ErrInvalid, "group_id %q must be a UUID other than the nil and max UUIDs", p.GroupID)
 		}
 	}
 	return tb.Transfer{ID: id, Amount: amount, UserData128: group}, nil
@@ -274,7 +274,7 @@ func (s *Service) checkExistingChains(ctx context.Context, chains []existingChai
 			}
 		}
 		if !same {
-			failChain(c.out, c.failed, fmt.Errorf("%w: the chain differs from the one posted with these ids", ErrConflict))
+			failChain(c.out, c.failed, Errorf(ErrConflict, "the chain differs from the one posted with these ids"))
 		}
 	}
 }
@@ -282,7 +282,7 @@ func (s *Service) checkExistingChains(ctx context.Context, chains []existingChai
 // failChain sets err on chain[failed] and ErrChainFailed on every other posting of chain.
 func failChain(chain []Transfer, failed int, err error) {
 	for j := range chain {
-		chain[j].Err = fmt.Errorf("%w: transfer %s in the same chain failed", ErrChainFailed, FormatID(chain[failed].ID))
+		chain[j].Err = Errorf(ErrChainFailed, "transfer %s in the same chain failed", FormatID(chain[failed].ID))
 	}
 	chain[failed].Err = err
 }
@@ -291,7 +291,7 @@ func failChain(chain []Transfer, failed int, err error) {
 func statusError(p Posting, status tb.CreateTransferStatus) error {
 	switch status {
 	case tb.TransferExceedsCredits, tb.TransferExceedsDebits:
-		return fmt.Errorf("%w: %s %s debiting %q, crediting %q", ErrInsufficientFunds, p.Amount, p.Currency, p.Debit, p.Credit)
+		return Errorf(ErrInsufficientFunds, "%s %s debiting %q, crediting %q", p.Amount, p.Currency, p.Debit, p.Credit)
 	case tb.TransferExistsWithDifferentFlags,
 		tb.TransferExistsWithDifferentPendingID,
 		tb.TransferExistsWithDifferentTimeout,
@@ -303,13 +303,13 @@ func statusError(p Posting, status tb.CreateTransferStatus) error {
 		tb.TransferExistsWithDifferentUserData32,
 		tb.TransferExistsWithDifferentLedger,
 		tb.TransferExistsWithDifferentCode:
-		return fmt.Errorf("%w: transfer %s exists with different fields: %s", ErrConflict, p.ID, status)
+		return Errorf(ErrConflict, "transfer %s exists with different fields: %s", p.ID, status)
 	case tb.TransferOverflowsDebits, tb.TransferOverflowsCredits,
 		tb.TransferOverflowsDebitsPosted, tb.TransferOverflowsCreditsPosted,
 		tb.TransferOverflowsDebitsPending, tb.TransferOverflowsCreditsPending:
-		return fmt.Errorf("%w: %s %s debiting %q, crediting %q: %s", ErrOverflow, p.Amount, p.Currency, p.Debit, p.Credit, status)
+		return Errorf(ErrOverflow, "%s %s debiting %q, crediting %q: %s", p.Amount, p.Currency, p.Debit, p.Credit, status)
 	case tb.TransferIDAlreadyFailed:
-		return fmt.Errorf("%w: id %s belongs to a transfer that failed; use a new id", ErrIDAlreadyFailed, p.ID)
+		return Errorf(ErrIDAlreadyFailed, "id %s belongs to a transfer that failed; use a new id", p.ID)
 	default:
 		return fmt.Errorf("error creating tigerbeetle transfer %s: %s", p.ID, status)
 	}

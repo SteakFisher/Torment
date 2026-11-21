@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
@@ -79,7 +78,7 @@ func parseTime(r *http.Request, name string) (time.Time, error) {
 	}
 	t, err := time.Parse(time.RFC3339Nano, s)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("%w: %s %q must be an RFC 3339 time", ledger.ErrInvalid, name, s)
+		return time.Time{}, ledger.Errorf(ledger.ErrInvalid, "%s %q must be an RFC 3339 time", name, s)
 	}
 	return t, nil
 }

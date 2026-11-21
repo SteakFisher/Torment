@@ -65,8 +65,7 @@ func exportEvents(ctx context.Context) error {
 	if err := pool.Ping(ctx); err != nil {
 		return fmt.Errorf("error pinging postgres: %w", err)
 	}
-	// Building events only reads Postgres, so the exporter takes no TigerBeetle client.
-	return cdc.Run(ctx, ledger.New(db.NewStore(pool), nil, nil), sourceURL, eventsURL)
+	return cdc.Run(ctx, ledger.NewNames(db.NewStore(pool)), sourceURL, eventsURL)
 }
 
 // serve connects to Postgres and TigerBeetle, applies migrations and serves HTTP until the server fails

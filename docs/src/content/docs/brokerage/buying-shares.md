@@ -88,9 +88,9 @@ Now the user tries to buy 10 Tesla shares at $200, for $2,000. They have $774.
 {
   "chains": [
     [
-      { "id": "00000000-0000-0000-0000-000000002011", "group_id": "00000000-0000-0000-0000-000000002010", "status": "failed", "error": "insufficient_funds", "message": "insufficient funds: 200000 USD debiting \"user:42:cash\", crediting \"bank:client-money\"" },
-      { "id": "00000000-0000-0000-0000-000000002012", "group_id": "00000000-0000-0000-0000-000000002010", "status": "failed", "error": "chain_failed", "message": "chain failed: transfer 00000000-0000-0000-0000-000000002011 in the same chain failed" },
-      { "id": "00000000-0000-0000-0000-000000002013", "group_id": "00000000-0000-0000-0000-000000002010", "status": "failed", "error": "chain_failed", "message": "chain failed: transfer 00000000-0000-0000-0000-000000002011 in the same chain failed" }
+      { "id": "00000000-0000-0000-0000-000000002011", "group_id": "00000000-0000-0000-0000-000000002010", "status": "failed", "error": "insufficient_funds", "message": "200000 USD debiting \"user:42:cash\", crediting \"bank:client-money\"" },
+      { "id": "00000000-0000-0000-0000-000000002012", "group_id": "00000000-0000-0000-0000-000000002010", "status": "failed", "error": "chain_failed", "message": "transfer 00000000-0000-0000-0000-000000002011 in the same chain failed" },
+      { "id": "00000000-0000-0000-0000-000000002013", "group_id": "00000000-0000-0000-0000-000000002010", "status": "failed", "error": "chain_failed", "message": "transfer 00000000-0000-0000-0000-000000002011 in the same chain failed" }
     ]
   ]
 }

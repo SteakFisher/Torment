@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 
@@ -30,8 +29,7 @@ type transferJSON struct {
 	Message string `json:"message,omitempty"`
 }
 
-// newTransferJSON returns the response for t. An error it does not recognise is logged and reported as
-// "internal".
+// newTransferJSON returns the response for t. An error with no code is logged and reported as "internal".
 func newTransferJSON(ctx context.Context, t ledger.Transfer) transferJSON {
 	out := transferJSON{ID: ledger.FormatID(t.ID), GroupID: ledger.FormatID(t.GroupID), Status: "exists"}
 	switch {
@@ -40,18 +38,9 @@ func newTransferJSON(ctx context.Context, t ledger.Transfer) transferJSON {
 	case t.Err == nil:
 	default:
 		out.Status, out.Message = "failed", t.Err.Error()
-		switch {
-		case errors.Is(t.Err, ledger.ErrInsufficientFunds):
-			out.Error = "insufficient_funds"
-		case errors.Is(t.Err, ledger.ErrConflict):
-			out.Error = "conflict"
-		case errors.Is(t.Err, ledger.ErrIDAlreadyFailed):
-			out.Error = "id_already_failed"
-		case errors.Is(t.Err, ledger.ErrChainFailed):
-			out.Error = "chain_failed"
-		case errors.Is(t.Err, ledger.ErrOverflow):
-			out.Error = "overflow"
-		default:
+		if code := ledger.CodeOf(t.Err); code != nil {
+			out.Error = code.Name()
+		} else {
 			out.Error, out.Message = "internal", "internal error"
 			slog.Error("transfer failed", "request_id", requestID(ctx), "id", out.ID, "err", t.Err)
 		}

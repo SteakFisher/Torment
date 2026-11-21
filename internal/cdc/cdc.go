@@ -10,7 +10,7 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
-	"torment/internal/httpapi"
+	"torment/internal/apijson"
 	"torment/internal/ledger"
 )
 
@@ -28,8 +28,8 @@ type Ledger interface {
 	Events(ctx context.Context, raw [][]byte) ([]ledger.Event, error)
 }
 
-// Fails to compile when *ledger.Service no longer satisfies Ledger.
-var _ Ledger = (*ledger.Service)(nil)
+// Fails to compile when *ledger.Names no longer satisfies Ledger.
+var _ Ledger = (*ledger.Names)(nil)
 
 // Run exports messages from sourceQueue on the RabbitMQ vhost at sourceURL to eventsExchange on the
 // vhost at eventsURL until ctx ends, and then returns nil. A message is acknowledged only after RabbitMQ
@@ -139,7 +139,7 @@ func export(ctx context.Context, l Ledger, out *amqp.Channel, batch []amqp.Deliv
 // publishing returns the message for e and its routing key, "<currency>.<kind>". The message is
 // persistent JSON whose message id is the transfer's id.
 func publishing(e ledger.Event) (key string, msg amqp.Publishing, err error) {
-	body, err := httpapi.MarshalEvent(e)
+	body, err := apijson.MarshalEvent(e)
 	if err != nil {
 		return "", amqp.Publishing{}, fmt.Errorf("error encoding event %s: %w", ledger.FormatID(e.ID), err)
 	}
