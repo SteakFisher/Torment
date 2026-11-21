@@ -136,7 +136,8 @@ $(events "$queue")"
 	expect "move is exported with both balances" "$all" "^USD\.move $move 2 \{\"id\":\"$move\",[^}]*\"debit_balance\":\"6000\",\"credit_balance\":\"1000\"\}\$"
 	expect "failed overspend is not exported" "$(printf '%s' "$all" | grep -c "\"id\":\"$overspend\"" || true)" '^0$'
 	expect "resent pay is exported once" "$(printf '%s' "$all" | grep -c "\"id\":\"$pay\"" || true)" '^1$'
-	expect "four events in all" "$(printf '%s' "$all" | grep -c '^[A-Z]' || true)" '^4$'
+	# The queue also gets other writers' events, so only this run's ids are counted.
+	expect "four events in all" "$(printf '%s' "$all" | grep -c "^[^ ]* $(printf '%08x' "$run")-" || true)" '^4$'
 	expect "EUR queue gets only the EUR pay" "$(events "$eur_queue" | grep -o '^[^ ]* [^ ]*' | tr '\n' ' ')" "^EUR\.top_up $eur \$"
 	expect "delete the EUR event queue" "$(mq -X DELETE "$RABBITMQ_API/api/queues/torment/$eur_queue")" ' 204$'
 	expect "delete the event queue" "$(mq -X DELETE "$RABBITMQ_API/api/queues/torment/$queue")" ' 204$'

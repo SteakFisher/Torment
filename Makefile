@@ -33,7 +33,7 @@ test:
 e2e:
 	./scripts/e2e.sh
 
-# brokerage runs the tutorial's requests; it also needs the server running.
+# brokerage runs the tutorial's requests; it needs the server and, unless RABBITMQ_API= is set, the exporter.
 brokerage:
 	./scripts/brokerage.sh
 

@@ -24,6 +24,7 @@ export default defineConfig({
             'brokerage/withdrawals',
             'brokerage/statements',
             'brokerage/mistakes',
+            'brokerage/notifications',
           ],
         },
         { label: 'Reference', items: ['reference/api', 'reference/errors', 'reference/limits', 'reference/events'] },

@@ -23,5 +23,6 @@ By the end, you'll have used every part of the API and seen why each part exists
 7. **[Withdrawals](/brokerage/withdrawals/):** money that has left the user's wallet but not yet left the bank.
 8. **[Statements](/brokerage/statements/):** a user's history, their balance on any past date, and checking the books.
 9. **[Mistakes](/brokerage/mistakes/):** fixing a wrong transfer without editing anything.
+10. **[Notifications](/brokerage/notifications/):** emailing users when money arrives or leaves, from Torment's events.
 
 Every request in the tutorial is also in `scripts/brokerage.sh`. With Torment running, `make brokerage` sends them all and checks each response, so the tutorial stays true to the API.

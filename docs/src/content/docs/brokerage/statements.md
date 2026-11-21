@@ -115,8 +115,8 @@ The brokerage's own accounts all have two-part addresses, so `*:*` reads them in
 GET /accounts/*:*/balances?currency=USD
 ```
 
-The users' side is `GET /accounts/user:*:cash/balances?currency=USD`. That works for small numbers of users, but a pattern balance stops at 1,000 wallets and returns 400 beyond that. Checking every user's balance belongs in an analytics database fed from TigerBeetle, which Torment doesn't provide yet.
+The users' side is `GET /accounts/user:*:cash/balances?currency=USD`. That works for small numbers of users, but a pattern balance stops at 1,000 wallets and returns 400 beyond that. Checking every user's balance belongs in your own database, fed from Torment's [events](/reference/events/): each one carries both accounts' balances right after the transfer.
 
 ## Where this leaves us
 
-The user has a statement, and the brokerage can check its books. Last, what to do when something was recorded wrong.
+The user has a statement, and the brokerage can check its books. Next, what to do when something was recorded wrong.

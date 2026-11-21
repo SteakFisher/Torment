@@ -3,10 +3,14 @@
 # at BASE_URL (default http://localhost:8080), sending API_KEY (required) as the bearer token, and exits
 # non-zero at the first failed check. Each run uses new users and ids, so it can be rerun against the same
 # data. Balances are checked only on the run's own users, since the brokerage's accounts carry every run.
+# When RABBITMQ_API is set (the RabbitMQ management API, with the credentials of a user that may declare
+# consumer.* queues), it also checks the notification events of chapter 10, so the exporter must be
+# running; those checks need jq.
 set -eu
 
 BASE_URL=${BASE_URL:-http://localhost:8080}
 API_KEY=${API_KEY:?API_KEY is not set}
+RABBITMQ_API=${RABBITMQ_API:-}
 run=$(date +%s)
 user="user:$run"
 amira="user:${run}a" omar="user:${run}o"
@@ -47,6 +51,19 @@ transfer() {
 
 # amount ADDRESS CURRENCY prints the account's balance in currency.
 amount() { get "/accounts/$1/balances?currency=$2" | sed -E 's/.*"amount":"([^"]+)".*/\1/'; }
+
+# mq ARGS... calls the RabbitMQ management API and prints the response body, a space and the status code.
+mq() { curl -sS -H 'Content-Type: application/json' -w ' %{http_code}' "$@" | tr -d '\n'; }
+notifications="consumer.notifications.$run"
+
+# Chapter 10's queue is bound before the first transfer, since it gets only events published after.
+if [ -n "$RABBITMQ_API" ]; then
+	echo "# 10. Notifications: the queue"
+	expect "declare the notifications queue" "$(mq -X PUT -d '{"durable":false,"arguments":{"x-expires":300000}}' "$RABBITMQ_API/api/queues/torment/$notifications")" ' 201$'
+	for key in '*.deposit' '*.dividend' '*.withdrawal'; do
+		expect "bind it to $key" "$(mq -X POST -d "{\"routing_key\":\"$key\"}" "$RABBITMQ_API/api/bindings/torment/e/torment.events/q/$notifications")" ' 201$'
+	done
+fi
 
 echo "# 1. Chart of accounts"
 for code in USD/2 AAPL/6 TSLA/6; do
@@ -141,3 +158,27 @@ expect "fill 1 was really at 190: reverse it and post it again" "$(transfer "$(p
 expect "the user has 263.25 USD" "$(amount "$user:cash" USD)" '^26325$'
 expect "the order now has 9 transfers" "$(get "/groups/$order/transfers" | grep -o '"id":' | wc -l | tr -d ' ')" '^9$'
 expect "reusing an id with other fields is a conflict" "$(transfer "$(p "$(id 10)" bank:client-money "$user:cash" USD 999 deposit)")" '"error":"conflict".* 200$'
+
+if [ -n "$RABBITMQ_API" ]; then
+	echo "# 10. Notifications"
+	# got holds the queue's events as "<routing key> <id> <debit> <credit> <credit balance>" lines, read
+	# until the returned withdrawal, the run's last notification, arrives or 10 seconds pass.
+	got=""
+	for _ in $(seq 1 20); do
+		got="$got
+$(curl -sS -X POST -H 'Content-Type: application/json' -d '{"count":1000,"ackmode":"ack_requeue_false","encoding":"auto"}' \
+	"$RABBITMQ_API/api/queues/torment/$notifications/get" |
+	jq -r '.[] | .payload | fromjson | "\(.currency).\(.kind) \(.id) \(.debit) \(.credit) \(.credit_balance)"')"
+		printf '%s' "$got" | grep -q "^USD.withdrawal $(id 75) " && break
+		sleep 0.5
+	done
+	expect "the deposit arrives (is the exporter running?)" "$got" "^USD\.deposit $(id 10) bank:client-money $user:cash 100000\$"
+	expect "the AED deposit arrives" "$got" "^AED\.deposit $(id 50) bank:client-money $user:cash "
+	expect "the dividend carries the balance after it" "$got" "^USD\.dividend $(id 61) bank:client-money $user:cash 35325\$"
+	expect "the withdrawal request" "$got" "^USD\.withdrawal $(id 71) $user:cash transit:withdrawals "
+	expect "the payout names no user" "$got" "^USD\.withdrawal $(id 72) transit:withdrawals bank:client-money "
+	expect "the payout's group names the user" "$(get "/groups/$w1/transfers")" "\"id\":\"$(id 71)\",\"group_id\":\"$w1\",\"debit\":\"$user:cash\""
+	expect "the rejected withdrawal goes back" "$got" "^USD\.withdrawal $(id 75) transit:withdrawals $user:cash 25325\$"
+	expect "trades and commissions are not in the queue" "$(printf '%s' "$got" | grep -Ec '^[A-Z]+\.(trade|commission|fx|correction) ' || true)" '^0$'
+	expect "delete the notifications queue" "$(mq -X DELETE "$RABBITMQ_API/api/queues/torment/$notifications")" ' 204$'
+fi

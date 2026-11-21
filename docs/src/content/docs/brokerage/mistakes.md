@@ -49,8 +49,6 @@ Some choices are permanent:
 - **An account's type and `allow_negative`.** If an account was registered with the wrong type, register a new account with the right one, and move the balance across with a posting.
 - **A currency's precision.** Registering `USD` again with a different precision returns 409. Choose precisions carefully, including enough decimals for fractional shares.
 
-## The end
+## Where this leaves us
 
-User 42's ledger is complete: deposits, trades, partial fills, an exchange, a dividend, withdrawals, a statement and a correction. Every one of those was an ordinary posting or chain, and every balance can be explained line by line from the history.
-
-For every route and field, see the [API reference](/reference/api/).
+The books can be fixed without editing anything. Last, telling users when money moves.
