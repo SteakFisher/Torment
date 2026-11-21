@@ -3,11 +3,9 @@ package ledger
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"math/big"
 	"slices"
-	"sync"
 	"time"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
@@ -69,25 +67,18 @@ func (s *Service) postedNow(ctx context.Context, ids []tb.Uint128) (map[tb.Uint1
 }
 
 // postedAt returns the posted totals of the TigerBeetle accounts ids after their last transfer at or
-// before at, with one query per account. The queries run at once so the client sends them together in
-// one request. Accounts with no such transfer are left out.
+// before at, with one query per account sent together in one request. Accounts with no such transfer
+// are left out.
 func (s *Service) postedAt(ctx context.Context, ids []tb.Uint128, at time.Time) (map[tb.Uint128]posted, error) {
-	perAccount := make([][]tb.AccountBalance, len(ids))
-	errs := make([]error, len(ids))
-	var wg sync.WaitGroup
-	for i, id := range ids {
-		wg.Go(func() {
-			filter := tb.AccountFilter{
-				AccountID:    id,
-				TimestampMax: uint64(at.UnixNano()),
-				Limit:        1,
-				Flags:        tb.AccountFilterFlags{Debits: true, Credits: true, Reversed: true}.ToUint32(),
-			}
-			perAccount[i], errs[i] = tbCall(ctx, func() ([]tb.AccountBalance, error) { return s.reads.GetAccountBalances(filter) })
+	perAccount, err := tbCallEach(ctx, ids, func(id tb.Uint128) ([]tb.AccountBalance, error) {
+		return s.reads.GetAccountBalances(tb.AccountFilter{
+			AccountID:    id,
+			TimestampMax: uint64(at.UnixNano()),
+			Limit:        1,
+			Flags:        tb.AccountFilterFlags{Debits: true, Credits: true, Reversed: true}.ToUint32(),
 		})
-	}
-	wg.Wait()
-	if err := errors.Join(errs...); err != nil {
+	})
+	if err != nil {
 		return nil, fmt.Errorf("error getting tigerbeetle account balances: %w", err)
 	}
 

@@ -110,11 +110,8 @@ func (s *Service) ListAccounts(ctx context.Context, pattern, cursor string, limi
 	if err != nil {
 		return nil, false, err
 	}
-	if limit < 0 || limit > maxListLimit {
-		return nil, false, Errorf(ErrInvalid, "limit %d must be between 1 and %d", limit, maxListLimit)
-	}
-	if limit == 0 {
-		limit = defaultListLimit
+	if limit, err = listLimit(limit); err != nil {
+		return nil, false, err
 	}
 	return s.store.ListAccounts(ctx, re, cursor, limit)
 }

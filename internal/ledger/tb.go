@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 )
@@ -55,6 +56,22 @@ func tbCall[T any](ctx context.Context, f func() (T, error)) (T, error) {
 		var zero T
 		return zero, ctx.Err()
 	}
+}
+
+// tbCallEach runs f once for each of ids through tbCall and returns the results in the order of ids.
+// The calls run at once so the client sends them together in one request. The error joins every failed
+// call's error.
+func tbCallEach[T any](ctx context.Context, ids []tb.Uint128, f func(id tb.Uint128) ([]T, error)) ([][]T, error) {
+	out := make([][]T, len(ids))
+	errs := make([]error, len(ids))
+	var wg sync.WaitGroup
+	for i, id := range ids {
+		wg.Go(func() {
+			out[i], errs[i] = tbCall(ctx, func() ([]T, error) { return f(id) })
+		})
+	}
+	wg.Wait()
+	return out, errors.Join(errs...)
 }
 
 // newTBAccount returns the TigerBeetle account for a wallet with the given id on ledger, owned by an

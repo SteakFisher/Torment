@@ -20,7 +20,7 @@ The exporter reads only these:
 | `CDC_SOURCE_URL` | yes | the RabbitMQ vhost holding the queue `torment.cdc`, such as `amqp://torment:pass@10.0.0.2:5672/tigerbeetle` |
 | `CDC_EVENTS_URL` | yes | the RabbitMQ vhost holding the exchange `torment.events`, such as `amqp://torment:pass@10.0.0.2:5672/torment` |
 
-On startup, the API connects to Postgres, applies any new database migrations, and connects to TigerBeetle. If any of these fail, it exits with an error.
+On startup, the API connects to Postgres, applies any new database migrations, and connects to TigerBeetle. If any of these fail, it exits with an error. Instances starting together take turns on the migrations through a Postgres advisory lock, so each migration runs once.
 
 ## API keys
 

@@ -45,10 +45,11 @@ func (s *Service) Transfer(ctx context.Context, chains [][]Posting) ([][]Transfe
 	if err != nil {
 		return nil, err
 	}
-	if err := s.resolveKinds(ctx, chains, batch); err != nil {
+	postings := slices.Concat(chains...)
+	if err := s.resolveKinds(ctx, postings, batch); err != nil {
 		return nil, err
 	}
-	if err := s.resolveWallets(ctx, chains, batch); err != nil {
+	if err := s.resolveWallets(ctx, postings, batch); err != nil {
 		return nil, err
 	}
 	results, err := tbCall(ctx, func() ([]tb.CreateTransferResult, error) { return s.writes.CreateTransfers(batch) })
@@ -135,45 +136,37 @@ func parsePosting(p Posting) (tb.Transfer, error) {
 }
 
 // resolveKinds sets the code of each transfer in batch from the kind of the posting at the same position
-// in chains. It returns ErrKindNotFound when a kind is not registered.
-func (s *Service) resolveKinds(ctx context.Context, chains [][]Posting, batch []tb.Transfer) error {
+// in postings. It returns ErrKindNotFound when a kind is not registered.
+func (s *Service) resolveKinds(ctx context.Context, postings []Posting, batch []tb.Transfer) error {
 	var names []string
 	seen := make(map[string]bool)
-	for _, chain := range chains {
-		for _, p := range chain {
-			if !seen[p.Kind] {
-				seen[p.Kind] = true
-				names = append(names, p.Kind)
-			}
+	for _, p := range postings {
+		if !seen[p.Kind] {
+			seen[p.Kind] = true
+			names = append(names, p.Kind)
 		}
 	}
 	kinds, err := s.lookupKinds(ctx, names)
 	if err != nil {
 		return err
 	}
-	k := 0
-	for _, chain := range chains {
-		for _, p := range chain {
-			batch[k].Code = kinds[p.Kind].Code
-			k++
-		}
+	for k, p := range postings {
+		batch[k].Code = kinds[p.Kind].Code
 	}
 	return nil
 }
 
 // resolveWallets sets the accounts and ledger of each transfer in batch from the wallets of the posting
-// at the same position in chains, creating any wallet that does not exist. It returns ErrAccountNotFound
+// at the same position in postings, creating any wallet that does not exist. It returns ErrAccountNotFound
 // or ErrCurrencyNotFound when an account or currency is not registered.
-func (s *Service) resolveWallets(ctx context.Context, chains [][]Posting, batch []tb.Transfer) error {
+func (s *Service) resolveWallets(ctx context.Context, postings []Posting, batch []tb.Transfer) error {
 	var keys []WalletKey
 	seen := make(map[WalletKey]bool)
-	for _, chain := range chains {
-		for _, p := range chain {
-			for _, k := range []WalletKey{{p.Debit, p.Currency}, {p.Credit, p.Currency}} {
-				if !seen[k] {
-					seen[k] = true
-					keys = append(keys, k)
-				}
+	for _, p := range postings {
+		for _, k := range []WalletKey{{p.Debit, p.Currency}, {p.Credit, p.Currency}} {
+			if !seen[k] {
+				seen[k] = true
+				keys = append(keys, k)
 			}
 		}
 	}
@@ -181,15 +174,11 @@ func (s *Service) resolveWallets(ctx context.Context, chains [][]Posting, batch 
 	if err != nil {
 		return err
 	}
-	k := 0
-	for _, chain := range chains {
-		for _, p := range chain {
-			debit := wallets[WalletKey{p.Debit, p.Currency}]
-			batch[k].DebitAccountID = debit.ID
-			batch[k].CreditAccountID = wallets[WalletKey{p.Credit, p.Currency}].ID
-			batch[k].Ledger = uint32(debit.Ledger)
-			k++
-		}
+	for k, p := range postings {
+		debit := wallets[WalletKey{p.Debit, p.Currency}]
+		batch[k].DebitAccountID = debit.ID
+		batch[k].CreditAccountID = wallets[WalletKey{p.Credit, p.Currency}].ID
+		batch[k].Ledger = uint32(debit.Ledger)
 	}
 	return nil
 }

@@ -11,7 +11,7 @@ export RABBITMQ_API ?= http://consumer:consumer@localhost:15672
 export API_KEYS ?= dev-key
 export API_KEY ?= dev-key
 
-.PHONY: up down run cdc test e2e generate docs brokerage
+.PHONY: up down run cdc test bench bench-compare e2e generate docs brokerage
 
 up:
 	docker compose up -d --wait
@@ -28,6 +28,17 @@ cdc:
 
 test:
 	go test ./...
+
+# bench runs the ledger benchmarks against the test database and cluster and saves them to bench/new.txt.
+# Trust pg-queries/op and allocs/op; ns/op only compares before and after on the same laptop, since
+# Docker on macOS fakes fsync.
+bench:
+	mkdir -p bench
+	set -o pipefail; go test -run '^$$' -bench . -benchmem -count 6 ./internal/ledger | tee bench/new.txt
+
+# bench-compare compares bench/old.txt with bench/new.txt; copy new.txt to old.txt to set a baseline.
+bench-compare:
+	go run golang.org/x/perf/cmd/benchstat@v0.0.0-20261117185222-4febdb082b2c bench/old.txt bench/new.txt
 
 # e2e needs the server (make run) and the exporter (make cdc) running; RABBITMQ_API= skips the export checks.
 e2e:

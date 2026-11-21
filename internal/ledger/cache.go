@@ -26,64 +26,16 @@ func newWalletCache(s Store) *walletCache {
 }
 
 func (c *walletCache) StoredWallets(ctx context.Context, keys []WalletKey) (map[WalletKey]StoredWallet, error) {
-	out := make(map[WalletKey]StoredWallet, len(keys))
-	var misses []WalletKey
-	c.mu.RLock()
-	for _, k := range keys {
-		if w, ok := c.byKey[k]; ok {
-			out[k] = w
-		} else {
-			misses = append(misses, k)
-		}
-	}
-	c.mu.RUnlock()
-	if len(misses) == 0 {
-		return out, nil
-	}
-
-	found, err := c.Store.StoredWallets(ctx, misses)
-	if err != nil {
-		return nil, err
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for k, w := range found {
-		out[k] = w
+	return readThrough(ctx, &c.mu, keys, c.byKey, c.Store.StoredWallets, func(k WalletKey, w StoredWallet) {
 		if w.Created {
 			c.byKey[k] = w
 			c.byID[w.ID] = AddressWallet{Address: k.Address, Type: w.Type, Wallet: Wallet{Currency: k.Currency, Precision: w.Precision, ID: w.ID}}
 		}
-	}
-	return out, nil
+	})
 }
 
 func (c *walletCache) WalletsByTBIDs(ctx context.Context, ids []tb.Uint128) (map[tb.Uint128]AddressWallet, error) {
-	out := make(map[tb.Uint128]AddressWallet, len(ids))
-	var misses []tb.Uint128
-	c.mu.RLock()
-	for _, id := range ids {
-		if w, ok := c.byID[id]; ok {
-			out[id] = w
-		} else {
-			misses = append(misses, id)
-		}
-	}
-	c.mu.RUnlock()
-	if len(misses) == 0 {
-		return out, nil
-	}
-
-	found, err := c.Store.WalletsByTBIDs(ctx, misses)
-	if err != nil {
-		return nil, err
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for id, w := range found {
-		out[id] = w
-		c.byID[id] = w
-	}
-	return out, nil
+	return readThrough(ctx, &c.mu, ids, c.byID, c.Store.WalletsByTBIDs, func(id tb.Uint128, w AddressWallet) { c.byID[id] = w })
 }
 
 // kindCache is a Store that keeps every kind it reads or inserts in memory and passes every other call to
@@ -104,43 +56,42 @@ func newKindCache(s Store) *kindCache {
 func (c *kindCache) InsertKind(ctx context.Context, name string) (Kind, bool, error) {
 	k, created, err := c.Store.InsertKind(ctx, name)
 	if err == nil {
+		c.mu.Lock()
 		c.add(k)
+		c.mu.Unlock()
 	}
 	return k, created, err
 }
 
 func (c *kindCache) Kinds(ctx context.Context, names []string) (map[string]Kind, error) {
-	return cachedKinds(ctx, c, names, c.byName, c.Store.Kinds)
+	return readThrough(ctx, &c.mu, names, c.byName, c.Store.Kinds, func(_ string, k Kind) { c.add(k) })
 }
 
 func (c *kindCache) KindsByCodes(ctx context.Context, codes []uint16) (map[uint16]Kind, error) {
-	return cachedKinds(ctx, c, codes, c.byCode, c.Store.KindsByCodes)
+	return readThrough(ctx, &c.mu, codes, c.byCode, c.Store.KindsByCodes, func(_ uint16, k Kind) { c.add(k) })
 }
 
-// add caches every kind in kinds.
-func (c *kindCache) add(kinds ...Kind) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for _, k := range kinds {
-		c.byName[k.Name] = k
-		c.byCode[k.Code] = k
-	}
+// add caches k. The caller holds c.mu for writing.
+func (c *kindCache) add(k Kind) {
+	c.byName[k.Name] = k
+	c.byCode[k.Code] = k
 }
 
-// cachedKinds returns the kind for each of keys found in index, one of c's maps, reading the others with
-// load and caching what it finds. Keys with no kind are left out.
-func cachedKinds[K comparable](ctx context.Context, c *kindCache, keys []K, index map[K]Kind, load func(context.Context, []K) (map[K]Kind, error)) (map[K]Kind, error) {
-	out := make(map[K]Kind, len(keys))
+// readThrough returns the value for each of keys found in index, reading the others with load. It calls
+// keep with mu held for writing for each value load finds. mu guards index. Keys with no value are left
+// out.
+func readThrough[K comparable, V any](ctx context.Context, mu *sync.RWMutex, keys []K, index map[K]V, load func(context.Context, []K) (map[K]V, error), keep func(K, V)) (map[K]V, error) {
+	out := make(map[K]V, len(keys))
 	var misses []K
-	c.mu.RLock()
+	mu.RLock()
 	for _, key := range keys {
-		if k, ok := index[key]; ok {
-			out[key] = k
+		if v, ok := index[key]; ok {
+			out[key] = v
 		} else {
 			misses = append(misses, key)
 		}
 	}
-	c.mu.RUnlock()
+	mu.RUnlock()
 	if len(misses) == 0 {
 		return out, nil
 	}
@@ -148,9 +99,11 @@ func cachedKinds[K comparable](ctx context.Context, c *kindCache, keys []K, inde
 	if err != nil {
 		return nil, err
 	}
-	for key, k := range found {
-		out[key] = k
-		c.add(k)
+	mu.Lock()
+	defer mu.Unlock()
+	for key, v := range found {
+		out[key] = v
+		keep(key, v)
 	}
 	return out, nil
 }

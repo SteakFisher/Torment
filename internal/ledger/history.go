@@ -3,11 +3,9 @@ package ledger
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"math/big"
 	"slices"
-	"sync"
 	"time"
 
 	tb "github.com/tigerbeetle/tigerbeetle-go"
@@ -46,11 +44,8 @@ func (s *Service) GroupTransfers(ctx context.Context, p GroupTransfersParams) (t
 	if !ok {
 		return nil, false, Errorf(ErrInvalid, "group_id %q must be a UUID other than the nil and max UUIDs", p.GroupID)
 	}
-	if p.Limit < 0 || p.Limit > maxListLimit {
-		return nil, false, Errorf(ErrInvalid, "limit %d must be between 1 and %d", p.Limit, maxListLimit)
-	}
-	if p.Limit == 0 {
-		p.Limit = defaultListLimit
+	if p.Limit, err = listLimit(p.Limit); err != nil {
+		return nil, false, err
 	}
 	if err := validateAt(p.Cursor); err != nil {
 		return nil, false, err
@@ -99,11 +94,8 @@ type AccountTransfersParams struct {
 // ErrInvalid for a malformed pattern, a limit outside 0
 // to maxListLimit or a time outside TigerBeetle's range.
 func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams) (transfers []TransferRecord, more bool, err error) {
-	if p.Limit < 0 || p.Limit > maxListLimit {
-		return nil, false, Errorf(ErrInvalid, "limit %d must be between 1 and %d", p.Limit, maxListLimit)
-	}
-	if p.Limit == 0 {
-		p.Limit = defaultListLimit
+	if p.Limit, err = listLimit(p.Limit); err != nil {
+		return nil, false, err
 	}
 	if err := validateAt(p.From); err != nil {
 		return nil, false, err
@@ -135,19 +127,12 @@ func (s *Service) AccountTransfers(ctx context.Context, p AccountTransfersParams
 			return []TransferRecord{}, false, nil
 		}
 	}
-	// The calls run at once so the client sends them together in one request.
-	perWallet := make([][]tb.Transfer, len(ids))
-	errs := make([]error, len(ids))
-	var wg sync.WaitGroup
-	for i, id := range ids {
-		wg.Go(func() {
-			f := filter
-			f.AccountID = id
-			perWallet[i], errs[i] = tbCall(ctx, func() ([]tb.Transfer, error) { return s.reads.GetAccountTransfers(f) })
-		})
-	}
-	wg.Wait()
-	if err := errors.Join(errs...); err != nil {
+	perWallet, err := tbCallEach(ctx, ids, func(id tb.Uint128) ([]tb.Transfer, error) {
+		f := filter
+		f.AccountID = id
+		return s.reads.GetAccountTransfers(f)
+	})
+	if err != nil {
 		return nil, false, fmt.Errorf("error getting tigerbeetle account transfers: %w", err)
 	}
 

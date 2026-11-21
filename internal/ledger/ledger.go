@@ -48,3 +48,15 @@ const (
 	// maxPatternTransferWallets is the most wallets a transfer history query may cover.
 	maxPatternTransferWallets = 100
 )
+
+// listLimit returns limit, or defaultListLimit when it is 0. It returns ErrInvalid for a limit outside 0
+// to maxListLimit.
+func listLimit(limit int) (int, error) {
+	if limit < 0 || limit > maxListLimit {
+		return 0, Errorf(ErrInvalid, "limit %d must be between 1 and %d", limit, maxListLimit)
+	}
+	if limit == 0 {
+		return defaultListLimit, nil
+	}
+	return limit, nil
+}

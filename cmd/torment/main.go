@@ -57,14 +57,11 @@ func exportEvents(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	pool, err := pgxpool.New(ctx, databaseURL)
+	pool, err := connectPostgres(ctx, databaseURL)
 	if err != nil {
-		return fmt.Errorf("error opening postgres pool: %w", err)
+		return err
 	}
 	defer pool.Close()
-	if err := pool.Ping(ctx); err != nil {
-		return fmt.Errorf("error pinging postgres: %w", err)
-	}
 	return cdc.Run(ctx, ledger.NewNames(db.NewStore(pool)), sourceURL, eventsURL)
 }
 
@@ -90,14 +87,11 @@ func serve(ctx context.Context) error {
 		addr = ":8080"
 	}
 
-	pool, err := pgxpool.New(ctx, databaseURL)
+	pool, err := connectPostgres(ctx, databaseURL)
 	if err != nil {
-		return fmt.Errorf("error opening postgres pool: %w", err)
+		return err
 	}
 	defer pool.Close()
-	if err := pool.Ping(ctx); err != nil {
-		return fmt.Errorf("error pinging postgres: %w", err)
-	}
 	if err := db.Migrate(ctx, pool); err != nil {
 		return err
 	}
@@ -162,6 +156,19 @@ func parseAPIKeys(s string) ([]string, error) {
 		return nil, errors.New("API_KEYS is not set")
 	}
 	return keys, nil
+}
+
+// connectPostgres returns a Postgres pool for the database at url, once it answers a ping.
+func connectPostgres(ctx context.Context, url string) (*pgxpool.Pool, error) {
+	pool, err := pgxpool.New(ctx, url)
+	if err != nil {
+		return nil, fmt.Errorf("error opening postgres pool: %w", err)
+	}
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("error pinging postgres: %w", err)
+	}
+	return pool, nil
 }
 
 // connectTB returns a TigerBeetle client for the cluster at address, once it answers a ping within 5

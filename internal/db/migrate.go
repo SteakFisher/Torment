@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/lock"
 )
 
 // migrations holds the goose SQL files, compiled into the binary.
@@ -16,7 +17,8 @@ import (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
-// Migrate applies every migration in migrations/ that the database has not run yet.
+// Migrate applies every migration in migrations/ that the database has not run yet. It holds a Postgres
+// advisory lock meanwhile, so instances starting together apply each migration once.
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	fsys, err := fs.Sub(migrations, "migrations")
 	if err != nil {
@@ -24,7 +26,11 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	sqlDB := stdlib.OpenDBFromPool(pool)
 	defer sqlDB.Close()
-	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, fsys)
+	locker, err := lock.NewPostgresSessionLocker()
+	if err != nil {
+		return fmt.Errorf("error creating migration lock: %w", err)
+	}
+	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, fsys, goose.WithSessionLocker(locker))
 	if err != nil {
 		return fmt.Errorf("error creating migration provider: %w", err)
 	}
