@@ -13,7 +13,7 @@ You need Go 1.26 and Docker.
 ```sh
 make up      # Postgres 17, TigerBeetle 0.17.9 (dev and test clusters), RabbitMQ and TigerBeetle's CDC job
 make run     # migrates the database, then serves on :8080 with the API key dev-key
-make test    # unit and integration tests; integration tests use the torment_test database and the tigerbeetle-test cluster
+make test    # unit and integration tests; integration tests use the torment_test database, the tigerbeetle-test cluster and RabbitMQ's *-test vhosts
 make cdc     # runs the event exporter (torment cdc)
 make e2e     # runs the curl flow in scripts/e2e.sh against the running server and exporter
 make docs    # the docs site at localhost:4321 (needs Bun)

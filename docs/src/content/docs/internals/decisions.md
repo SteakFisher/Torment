@@ -124,6 +124,7 @@ Every committed transfer is published as an [event](/reference/events/): TigerBe
 - **At least once.** A message is acknowledged after RabbitMQ confirms its event, so a crash between the two exports it again. Consumers drop duplicates by `id`. Exactly once would need a store of published ids on the hot path; deduplicating downstream is cheaper.
 - **One active exporter.** `torment.cdc` is a single-active-consumer queue, so events leave in commit order and a second exporter is a standby. It exports in batches of up to 500 with one Postgres lookup per batch, mostly served from the wallet cache.
 - **Two URLs, one broker by default.** `CDC_SOURCE_URL` and `CDC_EVENTS_URL` default to two vhosts on one broker. A memory or disk alarm blocks every publisher on a broker, so a slow consumer could stall the CDC job; pointing `CDC_EVENTS_URL` at a second broker isolates them with no code change.
+- **Unrouted events are dropped.** The exporter publishes without `mandatory`, so an event no queue is bound for is confirmed and dropped. Consumers bind only what they want, so most unrouted events are ones nobody asked for, and RabbitMQ can't tell those from events whose queue is missing. Returning them would leave the exporter nothing to do but stop the whole export. Queues that must see everything are declared with the broker instead.
 - **The exporter takes no TigerBeetle client.** Everything it needs is in the CDC message and Postgres, so it adds no TigerBeetle session.
 
 ## Shutdown

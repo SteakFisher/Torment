@@ -57,10 +57,32 @@ A queue bound today doesn't get yesterday's events. To fill it, replay everythin
 
 Every queue already bound gets every event again, so their consumers must drop duplicates by `id`, as they already should. Deleting RabbitMQ's data also replays everything, since the CDC job's progress lives there.
 
+### Queues that must not lose events
+
+A consumer that declares its own queue, like the dev `consumer` user, can also delete or unbind it, and events published meanwhile are gone for it. For a consumer that must see every event, such as analytics:
+
+1. Declare its queue in `rabbitmq/definitions.json`, durable and quorum, bound to `torment.events`. It then exists before the first event and survives restarts.
+2. Give the consumer its own user that may only read that queue: `configure` and `write` set to `^$`, `read` to the queue's name. It can't delete or unbind it.
+3. Run RabbitMQ as a three-node cluster, so a quorum queue survives losing a node.
+
+If the queue is lost anyway, [replay](#replaying-events) refills it.
+
 ## Things to watch
 
 - **`POST /transfers` latency and 500s.** A rising 500 rate usually means TigerBeetle or Postgres is unreachable.
 - **Postings failing with `internal`.** These are logged and shouldn't happen in normal operation.
-- **`torment.cdc` depth.** It should stay near zero. A growing queue means the exporter is down, stuck on a broken message, or slower than the write rate.
-- **Consumer queue depth.** A queue nobody reads grows until RabbitMQ's alarms block publishing for everyone on that broker.
+- **The export.** See the alerts below.
 - **Slow history reads.** History reads for many different users can go to disk in TigerBeetle, and TigerBeetle handles one request at a time, so slow reads can delay writes. See [Performance](/internals/performance/).
+
+### Export alerts
+
+Most export failures lose nothing: events wait in a queue until the stuck part comes back. What they do is make consumers' data stale without anyone noticing, so alert on the queues. RabbitMQ's Prometheus plugin, on by default in the official image, serves per-queue numbers on port 15692 at `/metrics/detailed?family=queue_coarse_metrics&family=queue_consumer_count`:
+
+| Alert | Query | Means |
+|---|---|---|
+| Exporter stopped | `rabbitmq_detailed_queue_consumers{vhost="tigerbeetle",queue="torment.cdc"} == 0` for 2 minutes | no exporter is running |
+| Export behind | `rabbitmq_detailed_queue_messages{vhost="tigerbeetle",queue="torment.cdc"} > 10000` for 5 minutes | the exporter is stuck on a [broken message](#one-exporter), can't reach Postgres, or is slower than the write rate |
+| Consumer behind | `rabbitmq_detailed_queue_messages{vhost="torment",queue="<name>"}` above what that consumer normally holds, for 5 minutes | that consumer is down or slow. Its queue grows until RabbitMQ's alarms block publishing |
+| Broker blocked | `rabbitmq_alarms_memory_used_watermark == 1` or `rabbitmq_alarms_free_disk_space_watermark == 1` (on `/metrics`) | every publisher on the broker is blocked, including the CDC job |
+
+Pick the thresholds from your write rate: a few seconds' worth of transfers is normal. The CDC job runs under a supervisor, so watch its restarts there: one restarting in a loop shows up as "Export behind" with an exporter still connected.

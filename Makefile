@@ -2,6 +2,8 @@ export DATABASE_URL ?= postgres://torment:torment@localhost:5432/torment?sslmode
 export TB_ADDRESS ?= 3000
 export TEST_DATABASE_URL ?= postgres://torment:torment@localhost:5432/torment_test?sslmode=disable
 export TEST_TB_ADDRESS ?= 3001
+export TEST_CDC_SOURCE_URL ?= amqp://test:test@localhost:5672/tigerbeetle-test
+export TEST_CDC_EVENTS_URL ?= amqp://test:test@localhost:5672/torment-test
 export CDC_SOURCE_URL ?= amqp://torment:torment@localhost:5672/tigerbeetle
 export CDC_EVENTS_URL ?= amqp://torment:torment@localhost:5672/torment
 export RABBITMQ_API ?= http://consumer:consumer@localhost:15672

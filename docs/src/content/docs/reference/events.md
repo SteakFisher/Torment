@@ -77,3 +77,13 @@ curl -u consumer:consumer -X POST -H 'Content-Type: application/json' \
 Then consume `consumer.analytics` from `amqp://consumer:consumer@localhost:5672/torment`. Acknowledge each message after you store it, so a crash before then redelivers it.
 
 A durable quorum queue keeps events while your consumer is down. It grows without limit until you read it, so a consumer you abandon should have its queue deleted.
+
+## Not losing events
+
+Torment never drops a committed transfer before it reaches `torment.events`. From there, keeping it is your queue's job:
+
+- **Bind before you need events.** A queue gets events from the moment it's bound. Older ones need a [replay](/operating/production/#replaying-events).
+- **Use a durable quorum queue.** A non-durable queue, or one with `x-expires`, disappears with everything in it.
+- **Don't delete or unbind it.** Events published while it's missing are gone for it. For a consumer that must see everything, have the queue declared with the broker and give the consumer read-only access; see [Production](/operating/production/#queues-that-must-not-lose-events).
+- **Acknowledge after storing.** An event you ack and then fail to store is gone.
+- **Drop duplicates by `id`.** Redeliveries and replays send events again. In ClickHouse, a `ReplacingMergeTree` ordered by `id` does this.
