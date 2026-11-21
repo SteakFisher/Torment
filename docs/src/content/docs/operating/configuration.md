@@ -65,4 +65,4 @@ Torment logs to stderr as `key=value` lines, through Go's standard `log/slog`. E
 
 On SIGINT or SIGTERM, the API stops accepting connections and waits up to 10 seconds for requests in flight to finish. A request cut off after that is like any other failed request: the caller retries it with the same ids.
 
-The exporter stops at once. Messages it hasn't acknowledged go back to the queue, and the next exporter exports them again.
+The exporter finishes the batch it's exporting, waiting up to 10 seconds, and stops. Messages it hasn't acknowledged by then go back to the queue, and the next exporter exports them again.

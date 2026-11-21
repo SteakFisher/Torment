@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
@@ -32,9 +33,10 @@ type Ledger interface {
 var _ Ledger = (*ledger.Names)(nil)
 
 // Run exports messages from sourceQueue on the RabbitMQ vhost at sourceURL to eventsExchange on the
-// vhost at eventsURL until ctx ends, and then returns nil. A message is acknowledged only after RabbitMQ
-// confirms its event, so a message is never lost and may be exported twice. Run returns an error when a
-// connection fails or a message can't be turned into an event; that message stays in the queue.
+// vhost at eventsURL until ctx ends, and then returns nil once the batch in flight is exported. A message
+// is acknowledged only after RabbitMQ confirms its event, so a message is never lost and may be exported
+// twice. Run returns an error when a connection fails or a message can't be turned into an event; that
+// message stays in the queue.
 func Run(ctx context.Context, l Ledger, sourceURL, eventsURL string) error {
 	source, err := amqp.Dial(sourceURL)
 	if err != nil {
@@ -92,10 +94,14 @@ func Run(ctx context.Context, l Ledger, sourceURL, eventsURL string) error {
 			}
 		}
 
-		if err := export(ctx, l, out, batch); err != nil {
-			if ctx.Err() != nil {
-				return nil
-			}
+		// A batch already being exported gets up to 10 seconds to finish after ctx ends, so a shutdown
+		// doesn't export it twice.
+		exportCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+		stop := context.AfterFunc(ctx, func() { time.AfterFunc(10*time.Second, cancel) })
+		err := export(exportCtx, l, out, batch)
+		stop()
+		cancel()
+		if err != nil {
 			return err
 		}
 		if err := batch[len(batch)-1].Ack(true); err != nil {
